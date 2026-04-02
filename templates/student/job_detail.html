@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+{% block title %}Job Details | AI Match Analysis{% endblock %}
+
+{% block content %}
+<div class="container job-detail-container">
+    <!-- Back Button -->
+    <a href="/student/dashboard/" class="back-link">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+
+    <div class="job-detail-grid">
+        <!-- Left Column: Job Info -->
+        <div class="job-info-section">
+            <div class="glass-card job-header-card">
+                <div class="company-logo">
+                    <i class="fas fa-building"></i>
+                </div>
+                <div class="job-title-section">
+                    <h1 id="job-title">Loading...</h1>
+                    <p class="company-name" id="job-company">...</p>
+                    <div class="job-badges">
+                        <span class="badge" id="job-type">...</span>
+                        <span class="badge" id="job-location">...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card job-details-card">
+                <h3><i class="fas fa-info-circle"></i> Job Description</h3>
+                <p id="job-description" class="job-description">Loading...</p>
+                
+                <h3><i class="fas fa-list-check"></i> Requirements</h3>
+                <div class="requirements-list">
+                    <div class="req-item">
+                        <i class="fas fa-graduation-cap"></i>
+                        <span>Minimum CGPA: <strong id="job-cgpa">N/A</strong></span>
+                    </div>
+                    <div class="req-item">
+                        <i class="fas fa-calendar"></i>
+                        <span>Application Deadline: <strong id="job-deadline">Open</strong></span>
+                    </div>
+                </div>
+
+                <h3><i class="fas fa-code"></i> Required Skills</h3>
+                <div id="job-skills" class="skills-container">
+                    <!-- Skills injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: AI Analysis -->
+        <div class="analysis-section">
+            <div class="glass-card analysis-card">
+                <h3><i class="fas fa-robot"></i> AI Match Analysis</h3>
+                
+                <div class="match-score-display" id="match-score-display">
+                    <div class="score-ring">
+                        <span class="score-number">--</span>
+                        <span class="score-label">Match Score</span>
+                    </div>
+                    <button id="analyze-btn" class="btn-primary btn-glow">
+                        <i class="fas fa-calculator"></i> Calculate My Match
+                    </button>
+                </div>
+
+                <div id="analysis-results" class="analysis-results" style="display: none;">
+                    <div class="breakdown-section">
+                        <h4>Score Breakdown</h4>
+                        <div id="score-breakdown" class="breakdown-bars">
+                            <!-- Breakdown bars injected here -->
+                        </div>
+                    </div>
+
+                    <div class="radar-section">
+                        <h4>Profile vs Requirements</h4>
+                        <canvas id="comparisonRadar" width="300" height="300"></canvas>
+                    </div>
+
+                    <div class="gaps-section" id="gaps-section">
+                        <h4><i class="fas fa-exclamation-triangle"></i> Skill Gaps</h4>
+                        <div id="skill-gaps" class="gaps-list"></div>
+                    </div>
+
+                    <div class="recommendations-section" id="recommendations-section">
+                        <h4><i class="fas fa-lightbulb"></i> AI Recommendations</h4>
+                        <ul id="recommendations-list"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Card -->
+            <div class="glass-card action-card" id="action-card" style="display: none;">
+                <h3>Ready to Apply?</h3>
+                <p>Your match score qualifies you for this position!</p>
+                <button id="apply-btn" class="btn-primary btn-full btn-glow">
+                    <i class="fas fa-paper-plane"></i> Apply Now
+                </button>
+                <p class="disclaimer">
+                    <i class="fas fa-shield-alt"></i> Your Trust Score: <span id="trust-score">--</span>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000/api";
+const urlParams = new URLSearchParams(window.location.search);
+const jobId = urlParams.get('id');
+const studentId = localStorage.getItem('student_id');
+
+if (!studentId) {
+    window.location.href = '/student/login/';
+}
+
+let comparisonChart;
+
+// Load job details
+async function loadJobDetails() {
+    try {
+        const response = await fetch(`${API_BASE}/jobs/`);
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            const job = data.jobs.find(j => j.id === jobId);
+            if (job) {
+                displayJobDetails(job);
+            }
+        }
+    } catch (error) {
+        console.error('Error loading job:', error);
+    }
+}
+
+function displayJobDetails(job) {
+    document.getElementById('job-title').textContent = job.title;
+    document.getElementById('job-company').textContent = job.company_name;
+    document.getElementById('job-type').textContent = job.job_type;
+    document.getElementById('job-location').textContent = job.location || 'Remote';
+    document.getElementById('job-description').textContent = job.description;
+    document.getElementById('job-cgpa').textContent = job.min_cgpa || 'Not specified';
+    
+    // Display skills
+    const skillsContainer = document.getElementById('job-skills');
+    skillsContainer.innerHTML = job.required_skills.map(skill => 
+        `<span class="skill-badge-large">${skill}</span>`
+    ).join('');
+}
+
+// Analyze match
+document.getElementById('analyze-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('analyze-btn');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch(`${API_BASE}/analyze-match/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                student_id: studentId,
+                job_id: jobId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            displayAnalysisResults(data);
+        }
+    } catch (error) {
+        console.error('Error analyzing match:', error);
+    } finally {
+        btn.innerHTML = '<i class="fas fa-calculator"></i> Calculate My Match';
+        btn.disabled = false;
+    }
+});
+
+function displayAnalysisResults(data) {
+    const score = Math.round(data.match_score);
+    const display = document.getElementById('match-score-display');
+    
+    // Animate score
+    display.innerHTML = `
+        <div class="score-ring large" style="background: conic-gradient(${getScoreColor(score)} ${score * 3.6}deg, rgba(255,255,255,0.1) 0deg);">
+            <div class="score-inner">
+                <span class="score-number large">${score}%</span>
+                <span class="score-label">${getScoreLabel(score)}</span>
+            </div>
+        </div>
+    `;
+    
+    // Show results
+    document.getElementById('analysis-results').style.display = 'block';
+    
+    // Breakdown
+    const breakdown = data.explanation?.breakdown || {};
+    document.getElementById('score-breakdown').innerHTML = `
+        <div class="breakdown-item">
+            <span>Skills Match</span>
+            <div class="progress-bar"><div class="progress" style="width: ${(breakdown.skills || 0) * 100}%"></div></div>
+            <span>${Math.round((breakdown.skills || 0) * 100)}%</span>
+        </div>
+        <div class="breakdown-item">
+            <span>CGPA Score</span>
+            <div class="progress-bar"><div class="progress" style="width: ${(breakdown.cgpa || 0) * 100}%"></div></div>
+            <span>${Math.round((breakdown.cgpa || 0) * 100)}%</span>
+        </div>
+        <div class="breakdown-item">
+            <span>Projects</span>
+            <div class="progress-bar"><div class="progress" style="width: ${(breakdown.projects || 0) * 100}%"></div></div>
+            <span>${Math.round((breakdown.projects || 0) * 100)}%</span>
+        </div>
+        <div class="breakdown-item">
+            <span>Activity</span>
+            <div class="progress-bar"><div class="progress" style="width: ${(breakdown.activity || 0) * 100}%"></div></div>
+            <span>${Math.round((breakdown.activity || 0) * 100)}%</span>
+        </div>
+        <div class="breakdown-item">
+            <span>Trust Score</span>
+            <div class="progress-bar"><div class="progress" style="width: ${(breakdown.trust || 0) * 100}%"></div></div>
+            <span>${Math.round((breakdown.trust || 0) * 100)}%</span>
+        </div>
+    `;
+    
+    // Radar chart
+    const ctx = document.getElementById('comparisonRadar').getContext('2d');
+    if (comparisonChart) comparisonChart.destroy();
+    
+    comparisonChart = new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: ['Skills', 'CGPA', 'Projects', 'Activity', 'Trust'],
+            datasets: [{
+                label: 'Your Profile',
+                data: [
+                    (breakdown.skills || 0) * 100,
+                    (breakdown.cgpa || 0) * 100,
+                    (breakdown.projects || 0) * 100,
+                    (breakdown.activity || 0) * 100,
+                    (breakdown.trust || 0) * 100
+                ],
+                backgroundColor: 'rgba(72, 187, 255, 0.2)',
+                borderColor: '#48bbff',
+                pointBackgroundColor: '#48bbff'
+            }, {
+                label: 'Job Requirements',
+                data: [80, 70, 60, 40, 50],
+                backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                borderColor: '#a855f7',
+                pointBackgroundColor: '#a855f7'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    pointLabels: { color: '#cbd5e1' }
+                }
+            }
+        }
+    });
+    
+    // Skill gaps
+    const gaps = data.explanation?.missing_skills || [];
+    if (gaps.length > 0) {
+        document.getElementById('skill-gaps').innerHTML = gaps.map(gap => 
+            `<span class="gap-badge">${gap.name}</span>`
+        ).join('');
+    } else {
+        document.getElementById('gaps-section').innerHTML = 
+            '<p class="no-gaps"><i class="fas fa-check-circle"></i> No skill gaps! You meet all requirements.</p>';
+    }
+    
+    // Recommendations
+    const recs = data.explanation?.recommendations || [];
+    document.getElementById('recommendations-list').innerHTML = recs.map(rec => 
+        `<li><i class="fas fa-chevron-right"></i> ${rec}</li>`
+    ).join('');
+    
+    // Show action card if score is good
+    if (score >= 60) {
+        document.getElementById('action-card').style.display = 'block';
+        document.getElementById('trust-score').textContent = Math.round((breakdown.trust || 0) * 100) + '%';
+    }
+    
+    // Animate elements
+    gsap.from('.analysis-results > div', {
+        y: 30,
+        opacity: 0,
+        duration: 0.6,
+        stagger: 0.1,
+        ease: 'power2.out'
+    });
+}
+
+function getScoreColor(score) {
+    if (score >= 80) return '#00b86b';
+    if (score >= 60) return '#48bbff';
+    if (score >= 40) return '#ffcc00';
+    return '#ff5858';
+}
+
+function getScoreLabel(score) {
+    if (score >= 80) return 'Excellent Match';
+    if (score >= 60) return 'Good Match';
+    if (score >= 40) return 'Fair Match';
+    return 'Low Match';
+}
+
+// Apply to job
+document.getElementById('apply-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('apply-btn');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch(`${API_BASE}/apply/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                student_id: studentId,
+                job_id: jobId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            btn.innerHTML = '<i class="fas fa-check"></i> Applied Successfully!';
+            btn.style.background = 'linear-gradient(135deg, #00b86b, #008c4a)';
+            
+            setTimeout(() => {
+                window.location.href = '/student/dashboard/';
+            }, 2000);
+        } else {
+            btn.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (data.message || 'Failed');
+            btn.disabled = false;
+        }
+    } catch (error) {
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Apply Now';
+        btn.disabled = false;
+    }
+});
+
+// Load on page load
+loadJobDetails();
+</script>
+
+<style>
+.job-detail-container {
+    padding: 2rem 0;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #94a3b8;
+    text-decoration: none;
+    margin-bottom: 2rem;
+    transition: color 0.3s;
+}
+
+.back-link:hover {
+    color: #48bbff;
+}
+
+.job-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 2rem;
+}
+
+.job-header-card {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.company-logo {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #48bbff, #a855f7);
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    color: white;
+}
+
+.job-title-section h1 {
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.company-name {
+    color: #94a3b8;
+    font-size: 1.1rem;
+    margin-bottom: 0.8rem;
+}
+
+.job-badges {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.badge {
+    background: rgba(72, 187, 255, 0.2);
+    color: #48bbff;
+    padding: 0.3rem 0.8rem;
+    border-radius: 2rem;
+    font-size: 0.85rem;
+}
+
+.job-details-card {
+    padding: 2rem;
+}
+
+.job-details-card h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1.5rem 0 1rem;
+    color: #48bbff;
+    font-size: 1.1rem;
+}
+
+.job-details-card h3:first-child {
+    margin-top: 0;
+}
+
+.job-description {
+    color: #cbd5e1;
+    line-height: 1.8;
+}
+
+.requirements-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.req-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    color: #cbd5e1;
+}
+
+.req-item i {
+    color: #48bbff;
+    width: 20px;
+}
+
+.skills-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.skill-badge-large {
+    background: rgba(72, 187, 255, 0.15);
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    color: #48bbff;
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    font-size: 0.9rem;
+}
+
+.analysis-card {
+    padding: 2rem;
+    text-align: center;
+}
+
+.analysis-card h3 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    color: #48bbff;
+}
+
+.match-score-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 2rem;
+}
+
+.score-ring {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.score-ring.large {
+    width: 180px;
+    height: 180px;
+}
+
+.score-inner {
+    width: 140px;
+    height: 140px;
+    background: rgba(15, 30, 55, 0.9);
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.score-number.large {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #48bbff;
+}
+
+.analysis-results {
+    text-align: left;
+    margin-top: 2rem;
+}
+
+.breakdown-section, .radar-section, .gaps-section, .recommendations-section {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.breakdown-section h4, .radar-section h4, .gaps-section h4, .recommendations-section h4 {
+    margin-bottom: 1rem;
+    color: #f0f9ff;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.breakdown-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.breakdown-item {
+    display: grid;
+    grid-template-columns: 100px 1fr 50px;
+    align-items: center;
+    gap: 1rem;
+}
+
+.breakdown-item span:first-child {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.breakdown-item span:last-child {
+    color: #48bbff;
+    font-weight: 600;
+    text-align: right;
+}
+
+.progress-bar {
+    height: 8px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress {
+    height: 100%;
+    background: linear-gradient(90deg, #48bbff, #a855f7);
+    border-radius: 4px;
+    transition: width 0.8s ease;
+}
+
+.radar-section canvas {
+    max-width: 250px;
+    margin: 0 auto;
+    display: block;
+}
+
+.gaps-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.gap-badge {
+    background: rgba(255, 88, 88, 0.2);
+    color: #ff5858;
+    padding: 0.4rem 0.8rem;
+    border-radius: 2rem;
+    font-size: 0.85rem;
+}
+
+.no-gaps {
+    color: #00b86b;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.recommendations-section ul {
+    list-style: none;
+    padding: 0;
+}
+
+.recommendations-section li {
+    padding: 0.5rem 0;
+    color: #cbd5e1;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.recommendations-section li i {
+    color: #48bbff;
+    margin-top: 0.3rem;
+}
+
+.action-card {
+    padding: 2rem;
+    text-align: center;
+    background: linear-gradient(135deg, rgba(72, 187, 255, 0.1), rgba(168, 85, 247, 0.1));
+    border: 1px solid rgba(72, 187, 255, 0.3);
+}
+
+.action-card h3 {
+    margin-bottom: 0.5rem;
+    color: #f0f9ff;
+}
+
+.action-card p {
+    color: #94a3b8;
+    margin-bottom: 1.5rem;
+}
+
+.disclaimer {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.disclaimer span {
+    color: #48bbff;
+    font-weight: 600;
+}
+
+@media (max-width: 968px) {
+    .job-detail-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .job-header-card {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+</style>
+{% endblock %}

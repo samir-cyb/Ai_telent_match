@@ -1,0 +1,420 @@
+{% extends "base.html" %}
+{% block title %}Student Registration | AI Talent Match{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card glass-card">
+        <div class="auth-header">
+            <i class="fas fa-user-plus"></i>
+            <h2>Create Student Account</h2>
+            <p>Join thousands of students finding their dream jobs</p>
+        </div>
+
+        <form id="register-form" class="auth-form multi-step">
+            <!-- Step 1: Basic Info -->
+            <div class="form-step active" data-step="1">
+                <h3>Step 1: Basic Information</h3>
+                
+                <div class="form-group">
+                    <label for="name">Full Name *</label>
+                    <input type="text" id="name" name="name" placeholder="John Doe" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">University Email *</label>
+                    <input type="email" id="email" name="email" placeholder="student@university.edu" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password *</label>
+                    <input type="password" id="password" name="password" placeholder="Min 8 characters" required minlength="8">
+                </div>
+
+                <div class="form-group">
+                    <label for="university_id">Student ID *</label>
+                    <input type="text" id="university_id" name="university_id" placeholder="e.g., 2023-12345" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="department">Department *</label>
+                    <select id="department" name="department" required>
+                        <option value="">Select Department</option>
+                        <option value="CSE">Computer Science & Engineering</option>
+                        <option value="BBA">Business Administration</option>
+                        <option value="EEE">Electrical & Electronic Engineering</option>
+                        <option value="ME">Mechanical Engineering</option>
+                        <option value="CE">Civil Engineering</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <button type="button" class="btn-primary btn-full next-step">Next Step <i class="fas fa-arrow-right"></i></button>
+            </div>
+
+            <!-- Step 2: Academic Info -->
+            <div class="form-step" data-step="2">
+                <h3>Step 2: Academic Information</h3>
+                
+                <div class="form-group">
+                    <label for="cgpa">Current CGPA (out of 4.0)</label>
+                    <input type="number" id="cgpa" name="cgpa" step="0.01" min="0" max="4.0" placeholder="3.50">
+                </div>
+
+                <div class="form-group">
+                    <label for="graduation_date">Expected Graduation Date</label>
+                    <input type="date" id="graduation_date" name="graduation_date">
+                </div>
+
+                <div class="form-group">
+                    <label>Job Preferences (Select all that apply)</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="job_types" value="Remote"> Remote
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="job_types" value="Hybrid"> Hybrid
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="job_types" value="On-site"> On-site
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Preferred Company Size</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="company_size" value="Startup"> Startup
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="company_size" value="Mid"> Mid-size
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="company_size" value="Enterprise"> Enterprise
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="willing_to_relocate" value="true"> Willing to relocate
+                    </label>
+                </div>
+
+                <div class="form-navigation">
+                    <button type="button" class="btn-outline prev-step"><i class="fas fa-arrow-left"></i> Back</button>
+                    <button type="button" class="btn-primary next-step">Next Step <i class="fas fa-arrow-right"></i></button>
+                </div>
+            </div>
+
+            <!-- Step 3: Profile Links -->
+            <div class="form-step" data-step="3">
+                <h3>Step 3: Profile Links (Optional but Recommended)</h3>
+                
+                <div class="form-group">
+                    <label for="github_username">GitHub Username</label>
+                    <input type="text" id="github_username" name="github_username" placeholder="github_handle">
+                    <small>We'll validate your repositories to boost your trust score</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="linkedin_url">LinkedIn Profile URL</label>
+                    <input type="url" id="linkedin_url" name="linkedin_url" placeholder="https://linkedin.com/in/...">
+                </div>
+
+                <div class="form-group">
+                    <label for="portfolio_url">Portfolio Website</label>
+                    <input type="url" id="portfolio_url" name="portfolio_url" placeholder="https://...">
+                </div>
+
+                <div class="form-navigation">
+                    <button type="button" class="btn-outline prev-step"><i class="fas fa-arrow-left"></i> Back</button>
+                    <button type="submit" class="btn-primary btn-full">
+                        <i class="fas fa-check-circle"></i> Create Account
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <div class="auth-footer">
+            <p>Already have an account? <a href="/student/login/">Login here</a></p>
+            <p class="switch-user">Are you a company? <a href="/company/register/">Register as Company</a></p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Multi-step form handling
+const formSteps = document.querySelectorAll('.form-step');
+const nextBtns = document.querySelectorAll('.next-step');
+const prevBtns = document.querySelectorAll('.prev-step');
+let currentStep = 0;
+
+nextBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (validateStep(currentStep)) {
+            formSteps[currentStep].classList.remove('active');
+            currentStep++;
+            formSteps[currentStep].classList.add('active');
+        }
+    });
+});
+
+prevBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        formSteps[currentStep].classList.remove('active');
+        currentStep--;
+        formSteps[currentStep].classList.add('active');
+    });
+});
+
+function validateStep(step) {
+    const currentStepEl = formSteps[step];
+    const requiredFields = currentStepEl.querySelectorAll('[required]');
+    let valid = true;
+    
+    requiredFields.forEach(field => {
+        if (!field.value.trim()) {
+            field.style.borderColor = '#ff5858';
+            valid = false;
+        } else {
+            field.style.borderColor = '';
+        }
+    });
+    
+    return valid;
+}
+
+// Form submission
+document.getElementById('register-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating account...';
+    btn.disabled = true;
+
+    // Collect form data
+    const formData = {
+        name: document.getElementById('name').value,
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value,
+        university_id: document.getElementById('university_id').value,
+        department: document.getElementById('department').value,
+        cgpa: parseFloat(document.getElementById('cgpa').value) || null,
+        graduation_date: document.getElementById('graduation_date').value || null,
+        github_username: document.getElementById('github_username').value,
+        linkedin_url: document.getElementById('linkedin_url').value,
+        portfolio_url: document.getElementById('portfolio_url').value,
+        job_types: Array.from(document.querySelectorAll('input[name="job_types"]:checked')).map(cb => cb.value),
+        company_size: Array.from(document.querySelectorAll('input[name="company_size"]:checked')).map(cb => cb.value),
+        willing_to_relocate: document.querySelector('input[name="willing_to_relocate"]').checked
+    };
+
+    try {
+        const response = await fetch('/api/auth/student/register/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification('Registration successful! Redirecting to login...', 'success');
+            setTimeout(() => {
+                window.location.href = '/student/login/';
+            }, 2000);
+        } else {
+            showNotification(data.message || 'Registration failed', 'error');
+        }
+    } catch (error) {
+        showNotification('Network error. Please try again.', 'error');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+});
+
+function showNotification(message, type) {
+    const notif = document.createElement('div');
+    notif.className = `notification ${type}`;
+    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    notif.style.cssText = `
+        position: fixed;
+        top: 100px;
+        right: 20px;
+        padding: 1rem 2rem;
+        border-radius: 0.5rem;
+        background: ${type === 'success' ? 'rgba(72, 187, 255, 0.9)' : 'rgba(255, 88, 88, 0.9)'};
+        color: white;
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+    `;
+    document.body.appendChild(notif);
+    
+    setTimeout(() => {
+        notif.remove();
+    }, 3000);
+}
+</script>
+
+<style>
+.auth-container {
+    display: flex;
+    min-height: 80vh;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 550px;
+    padding: 3rem;
+    border-radius: 2rem;
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.auth-header i {
+    font-size: 3rem;
+    color: #48bbff;
+    margin-bottom: 1rem;
+}
+
+.auth-header h2 {
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.auth-header p {
+    color: #94a3b8;
+}
+
+.multi-step .form-step {
+    display: none;
+}
+
+.multi-step .form-step.active {
+    display: block;
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.form-step h3 {
+    margin-bottom: 1.5rem;
+    color: #48bbff;
+    font-size: 1.2rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 1rem;
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    border-radius: 0.8rem;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    font-size: 1rem;
+    transition: all 0.3s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #48bbff;
+    box-shadow: 0 0 0 3px rgba(72, 187, 255, 0.1);
+}
+
+.form-group small {
+    display: block;
+    margin-top: 0.3rem;
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #cbd5e1;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+}
+
+.form-navigation {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.btn-full {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.1rem;
+}
+
+.auth-footer {
+    text-align: center;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-footer p {
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
+}
+
+.auth-footer a {
+    color: #48bbff;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.switch-user {
+    font-size: 0.9rem;
+    margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+    .auth-card {
+        padding: 2rem;
+    }
+    
+    .form-navigation {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,904 @@
+{% extends "base.html" %}
+{% block title %}Student Dashboard | AI Talent Match{% endblock %}
+
+{% block content %}
+<div class="container dashboard-container">
+    <!-- Welcome Header -->
+    <div class="welcome-header glass-card">
+        <div class="welcome-text">
+            <h1>Welcome back, <span id="student-name">Student</span>! 👋</h1>
+            <p>Your AI Career Coach has found new opportunities for you</p>
+        </div>
+        <div class="trust-score-badge">
+            <div class="score-circle" id="trust-score-display">
+                <span class="score-value">--</span>
+                <span class="score-label">Trust Score</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+        <div class="glass-card stat-card">
+            <i class="fas fa-paper-plane"></i>
+            <div class="stat-info">
+                <h3 id="total-applications">0</h3>
+                <p>Applications</p>
+            </div>
+        </div>
+        <div class="glass-card stat-card">
+            <i class="fas fa-star"></i>
+            <div class="stat-info">
+                <h3 id="shortlisted-count">0</h3>
+                <p>Shortlisted</p>
+            </div>
+        </div>
+        <div class="glass-card stat-card">
+            <i class="fas fa-calendar-check"></i>
+            <div class="stat-info">
+                <h3 id="interview-count">0</h3>
+                <p>Interviews</p>
+            </div>
+        </div>
+        <div class="glass-card stat-card">
+            <i class="fas fa-percentage"></i>
+            <div class="stat-info">
+                <h3 id="success-rate">0%</h3>
+                <p>Success Rate</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="dashboard-grid">
+        <!-- Left Column -->
+        <div class="dashboard-left">
+            <!-- AI Career Coach -->
+            <div class="glass-card coach-card">
+                <h3><i class="fas fa-robot"></i> AI Career Coach</h3>
+                <div class="radar-container">
+                    <canvas id="skillRadarChart" width="300" height="300"></canvas>
+                </div>
+                <div class="coach-insights" id="coach-insights">
+                    <p>Loading insights...</p>
+                </div>
+            </div>
+
+            <!-- Career Trajectory -->
+            <div class="glass-card trajectory-card">
+                <h3><i class="fas fa-route"></i> Career Trajectory</h3>
+                <div id="trajectory-content">
+                    <div class="trajectory-item">
+                        <span class="label">Predicted Track:</span>
+                        <span class="value" id="predicted-track">--</span>
+                    </div>
+                    <div class="trajectory-item">
+                        <span class="label">Current Stage:</span>
+                        <span class="value" id="current-stage">--</span>
+                    </div>
+                    <div class="trajectory-item">
+                        <span class="label">Next Role:</span>
+                        <span class="value highlight" id="next-role">--</span>
+                    </div>
+                    <div class="recommended-skills" id="recommended-skills">
+                        <p>Recommended skills to learn:</p>
+                        <div class="skill-tags" id="skill-tags"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="dashboard-right">
+            <!-- Smart Apply Section -->
+            <div class="glass-card smart-apply-card">
+                <div class="smart-apply-header">
+                    <h3><i class="fas fa-magic"></i> Smart Apply</h3>
+                    <div class="threshold-control">
+                        <label>Match Threshold: <span id="threshold-value">70</span>%</label>
+                        <input type="range" id="threshold-slider" min="50" max="95" value="70" step="5">
+                    </div>
+                </div>
+                <button id="smart-apply-btn" class="btn-primary btn-glow">
+                    <i class="fas fa-rocket"></i> Auto-Apply to Top Matches
+                </button>
+                <div id="smart-apply-status"></div>
+            </div>
+
+            <!-- Job Recommendations -->
+            <div class="glass-card recommendations-card">
+                <h3><i class="fas fa-briefcase"></i> Top Job Recommendations</h3>
+                <div id="recommendations-list" class="recommendations-list">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i> Finding best matches...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Skill Gaps -->
+            <div class="glass-card skill-gaps-card">
+                <h3><i class="fas fa-exclamation-triangle"></i> In-Demand Skills You're Missing</h3>
+                <div id="skill-gaps-list" class="skill-gaps-list">
+                    <p>Analyzing market trends...</p>
+                </div>
+            </div>
+
+            <!-- Notifications -->
+            <div class="glass-card notifications-card">
+                <h3><i class="fas fa-bell"></i> Recent Notifications</h3>
+                <div id="notifications-list" class="notifications-list">
+                    <p>No new notifications</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000/api";
+let studentId = localStorage.getItem('student_id');
+let radarChart;
+
+// Check authentication
+if (!studentId) {
+    window.location.href = '/student/login/';
+}
+
+// Load dashboard data
+async function loadDashboard() {
+    try {
+        const response = await fetch(`${API_BASE}/student/${studentId}/dashboard/`);
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            updateDashboard(data.data);
+        }
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+    }
+}
+
+function updateDashboard(data) {
+    // Update header
+    document.getElementById('student-name').textContent = data.profile_summary?.name || 'Student';
+    
+    // Update trust score
+    const trustScore = Math.round(data.profile_summary?.trust_score || 0);
+    document.querySelector('.score-value').textContent = trustScore;
+    document.getElementById('trust-score-display').style.background = 
+        `conic-gradient(#48bbff ${trustScore * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
+    
+    // Update stats
+    document.getElementById('total-applications').textContent = data.applications?.total || 0;
+    document.getElementById('shortlisted-count').textContent = data.applications?.shortlisted || 0;
+    document.getElementById('interview-count').textContent = data.applications?.interviews || 0;
+    document.getElementById('success-rate').textContent = 
+        Math.round(data.applications?.success_rate || 0) + '%';
+    
+    // Update radar chart
+    updateRadarChart(data);
+    
+    // Update coach insights
+    document.getElementById('coach-insights').innerHTML = `
+        <div class="insight-item">
+            <i class="fas fa-info-circle"></i>
+            <span>${data.profile_summary?.next_milestone || 'Complete your profile'}</span>
+        </div>
+        <div class="insight-item">
+            <i class="fas fa-check-circle"></i>
+            <span>Profile ${Math.round(data.profile_summary?.profile_complete || 0)}% complete</span>
+        </div>
+    `;
+    
+    // Update trajectory
+    if (data.career_trajectory) {
+        document.getElementById('predicted-track').textContent = 
+            data.career_trajectory.predicted_track?.replace('_', ' ').toUpperCase() || '--';
+        document.getElementById('current-stage').textContent = 
+            data.career_trajectory.current_stage || '--';
+        document.getElementById('next-role').textContent = 
+            data.career_trajectory.next_role || '--';
+        
+        // Update recommended skills
+        const skillsContainer = document.getElementById('skill-tags');
+        skillsContainer.innerHTML = '';
+        if (data.career_trajectory.recommended_skills_to_add) {
+            data.career_trajectory.recommended_skills_to_add.forEach(skill => {
+                skillsContainer.innerHTML += `<span class="skill-tag">${skill}</span>`;
+            });
+        }
+    }
+    
+    // Update recommendations
+    updateRecommendations(data.recommendations);
+    
+    // Update skill gaps
+    updateSkillGaps(data.skill_analytics?.most_demanded_missing_skills);
+    
+    // Update notifications
+    updateNotifications(data.recent_notifications);
+}
+
+function updateRadarChart(data) {
+    const ctx = document.getElementById('skillRadarChart').getContext('2d');
+    
+    if (radarChart) {
+        radarChart.destroy();
+    }
+    
+    radarChart = new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: ['Skills', 'CGPA', 'Projects', 'Activity', 'Trust'],
+            datasets: [{
+                label: 'Your Profile',
+                data: [
+                    data.skill_analytics?.verified_skills_count * 20 || 50,
+                    75, // CGPA normalized
+                    data.applications?.total > 0 ? 80 : 40,
+                    data.profile_summary?.profile_complete || 50,
+                    data.profile_summary?.trust_score || 50
+                ],
+                backgroundColor: 'rgba(72, 187, 255, 0.2)',
+                borderColor: '#48bbff',
+                pointBackgroundColor: '#48bbff',
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: '#48bbff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        display: false
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    pointLabels: {
+                        color: '#cbd5e1',
+                        font: {
+                            size: 11
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+function updateRecommendations(recommendations) {
+    const container = document.getElementById('recommendations-list');
+    
+    if (!recommendations || recommendations.length === 0) {
+        container.innerHTML = '<p class="no-data">No recommendations yet. Complete your profile to get matched!</p>';
+        return;
+    }
+    
+    container.innerHTML = recommendations.map(job => `
+        <div class="job-card" data-job-id="${job.job_id}">
+            <div class="job-header">
+                <h4>${job.title}</h4>
+                <span class="match-score">${Math.round(job.match_score)}% Match</span>
+            </div>
+            <p class="company-name"><i class="fas fa-building"></i> ${job.company}</p>
+            <div class="job-meta">
+                <span><i class="fas fa-map-marker-alt"></i> ${job.salary?.range || 'Not specified'}</span>
+                <span><i class="fas fa-exclamation-circle"></i> ${job.skill_gaps} skill gaps</span>
+            </div>
+            <div class="job-actions">
+                <button class="btn-primary btn-sm" onclick="applyToJob('${job.job_id}')">
+                    <i class="fas fa-paper-plane"></i> Apply
+                </button>
+                <button class="btn-outline btn-sm" onclick="viewJobDetail('${job.job_id}')">
+                    <i class="fas fa-eye"></i> View
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateSkillGaps(skillGaps) {
+    const container = document.getElementById('skill-gaps-list');
+    
+    if (!skillGaps || skillGaps.length === 0) {
+        container.innerHTML = '<p class="no-data">Great! You have all the in-demand skills.</p>';
+        return;
+    }
+    
+    container.innerHTML = skillGaps.map(([skill, count]) => `
+        <div class="skill-gap-item">
+            <span class="skill-name">${skill}</span>
+            <div class="demand-bar">
+                <div class="demand-fill" style="width: ${Math.min(count * 10, 100)}%"></div>
+            </div>
+            <span class="demand-count">${count} jobs</span>
+        </div>
+    `).join('');
+}
+
+function updateNotifications(notifications) {
+    const container = document.getElementById('notifications-list');
+    
+    if (!notifications || notifications.length === 0) {
+        container.innerHTML = '<p class="no-data">No new notifications</p>';
+        return;
+    }
+    
+    container.innerHTML = notifications.map(notif => `
+        <div class="notification-item ${notif.read ? 'read' : 'unread'}">
+            <div class="notif-icon">
+                <i class="fas ${getNotificationIcon(notif.type)}"></i>
+            </div>
+            <div class="notif-content">
+                <h5>${notif.title}</h5>
+                <p>${notif.message}</p>
+                <span class="notif-time">${formatTime(notif.created_at)}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function getNotificationIcon(type) {
+    const icons = {
+        'auto_applied': 'fa-magic',
+        'shortlisted': 'fa-star',
+        'interview_scheduled': 'fa-calendar',
+        'match': 'fa-briefcase'
+    };
+    return icons[type] || 'fa-bell';
+}
+
+function formatTime(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = Math.floor((now - date) / 1000 / 60); // minutes
+    
+    if (diff < 60) return `${diff}m ago`;
+    if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+    return `${Math.floor(diff / 1440)}d ago`;
+}
+
+// Smart Apply
+document.getElementById('smart-apply-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('smart-apply-btn');
+    const threshold = document.getElementById('threshold-slider').value;
+    const statusDiv = document.getElementById('smart-apply-status');
+    
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch(`${API_BASE}/smart-apply/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                student_id: studentId,
+                threshold: parseInt(threshold),
+                max_applications: 5
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            statusDiv.innerHTML = `
+                <div class="success-message">
+                    <i class="fas fa-check-circle"></i>
+                    Successfully applied to ${data.applied_count} jobs!
+                </div>
+            `;
+            loadDashboard(); // Refresh data
+        } else {
+            statusDiv.innerHTML = `<div class="error-message">${data.message}</div>`;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+    } finally {
+        btn.innerHTML = '<i class="fas fa-rocket"></i> Auto-Apply to Top Matches';
+        btn.disabled = false;
+    }
+});
+
+// Threshold slider
+document.getElementById('threshold-slider').addEventListener('input', (e) => {
+    document.getElementById('threshold-value').textContent = e.target.value;
+});
+
+// Apply to job
+async function applyToJob(jobId) {
+    try {
+        const response = await fetch(`${API_BASE}/apply/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                student_id: studentId,
+                job_id: jobId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification('Application submitted successfully!', 'success');
+            loadDashboard();
+        } else {
+            showNotification(data.message || 'Application failed', 'error');
+        }
+    } catch (error) {
+        showNotification('Error submitting application', 'error');
+    }
+}
+
+function viewJobDetail(jobId) {
+    window.location.href = `/student/job-detail/?id=${jobId}`;
+}
+
+function showNotification(message, type) {
+    const notif = document.createElement('div');
+    notif.className = `notification ${type}`;
+    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    notif.style.cssText = `
+        position: fixed;
+        top: 100px;
+        right: 20px;
+        padding: 1rem 2rem;
+        border-radius: 0.5rem;
+        background: ${type === 'success' ? 'rgba(72, 187, 255, 0.9)' : 'rgba(255, 88, 88, 0.9)'};
+        color: white;
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+    `;
+    document.body.appendChild(notif);
+    
+    setTimeout(() => notif.remove(), 3000);
+}
+
+// Load data on page load
+loadDashboard();
+
+// Refresh every 30 seconds
+setInterval(loadDashboard, 30000);
+</script>
+
+<style>
+.dashboard-container {
+    padding: 2rem 0;
+}
+
+.welcome-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.welcome-text h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.welcome-text p {
+    color: #94a3b8;
+}
+
+.trust-score-badge {
+    text-align: center;
+}
+
+.score-circle {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: conic-gradient(#48bbff 0deg, rgba(255,255,255,0.1) 0deg);
+    position: relative;
+}
+
+.score-circle::before {
+    content: '';
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    background: rgba(15, 30, 55, 0.9);
+    border-radius: 50%;
+}
+
+.score-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #48bbff;
+    position: relative;
+    z-index: 1;
+}
+
+.score-label {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    position: relative;
+    z-index: 1;
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.stat-card i {
+    font-size: 2rem;
+    color: #48bbff;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(72, 187, 255, 0.1);
+    border-radius: 1rem;
+}
+
+.stat-info h3 {
+    font-size: 1.8rem;
+    color: #48bbff;
+}
+
+.stat-info p {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 2rem;
+}
+
+.coach-card, .trajectory-card, .smart-apply-card, .recommendations-card, 
+.skill-gaps-card, .notifications-card {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.coach-card h3, .trajectory-card h3, .smart-apply-card h3,
+.recommendations-card h3, .skill-gaps-card h3, .notifications-card h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.coach-card h3 i, .trajectory-card h3 i, .smart-apply-card h3 i,
+.recommendations-card h3 i, .skill-gaps-card h3 i, .notifications-card h3 i {
+    color: #48bbff;
+}
+
+.radar-container {
+    max-width: 250px;
+    margin: 0 auto 1rem;
+}
+
+.coach-insights .insight-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+}
+
+.coach-insights i {
+    color: #48bbff;
+}
+
+.trajectory-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.8rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.trajectory-item .label {
+    color: #94a3b8;
+}
+
+.trajectory-item .value {
+    color: #f0f9ff;
+    font-weight: 600;
+}
+
+.trajectory-item .value.highlight {
+    color: #48bbff;
+}
+
+.recommended-skills {
+    margin-top: 1rem;
+}
+
+.recommended-skills p {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.skill-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.skill-tag {
+    background: rgba(72, 187, 255, 0.2);
+    color: #48bbff;
+    padding: 0.3rem 0.8rem;
+    border-radius: 2rem;
+    font-size: 0.8rem;
+}
+
+.smart-apply-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.threshold-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.threshold-control label {
+    font-size: 0.9rem;
+    color: #94a3b8;
+}
+
+.threshold-control input[type="range"] {
+    width: 150px;
+}
+
+#smart-apply-btn {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.1rem;
+}
+
+#smart-apply-status {
+    margin-top: 1rem;
+}
+
+.success-message {
+    background: rgba(72, 187, 255, 0.2);
+    color: #48bbff;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.error-message {
+    background: rgba(255, 88, 88, 0.2);
+    color: #ff5858;
+    padding: 1rem;
+    border-radius: 0.5rem;
+}
+
+.recommendations-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.job-card {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(72, 187, 255, 0.2);
+    border-radius: 1rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s;
+}
+
+.job-card:hover {
+    border-color: #48bbff;
+    transform: translateX(5px);
+}
+
+.job-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.job-header h4 {
+    font-size: 1rem;
+    color: #f0f9ff;
+}
+
+.match-score {
+    background: linear-gradient(135deg, #48bbff, #a855f7);
+    color: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 2rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.company-name {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.job-meta {
+    display: flex;
+    gap: 1rem;
+    color: #64748b;
+    font-size: 0.8rem;
+    margin-bottom: 0.8rem;
+}
+
+.job-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+}
+
+.skill-gaps-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.skill-gap-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.8rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.skill-name {
+    width: 100px;
+    color: #f0f9ff;
+    font-size: 0.9rem;
+}
+
+.demand-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.demand-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #48bbff, #a855f7);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.demand-count {
+    width: 60px;
+    text-align: right;
+    color: #94a3b8;
+    font-size: 0.8rem;
+}
+
+.notifications-list {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.notification-item {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    transition: background 0.3s;
+}
+
+.notification-item:hover {
+    background: rgba(72, 187, 255, 0.05);
+}
+
+.notification-item.unread {
+    border-left: 3px solid #48bbff;
+}
+
+.notif-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(72, 187, 255, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #48bbff;
+}
+
+.notif-content h5 {
+    font-size: 0.95rem;
+    margin-bottom: 0.3rem;
+    color: #f0f9ff;
+}
+
+.notif-content p {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-bottom: 0.3rem;
+}
+
+.notif-time {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.no-data {
+    text-align: center;
+    color: #64748b;
+    padding: 2rem;
+}
+
+.loading-spinner {
+    text-align: center;
+    color: #48bbff;
+    padding: 2rem;
+}
+
+@media (max-width: 968px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .welcome-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .stats-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .smart-apply-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+</style>
+{% endblock %}

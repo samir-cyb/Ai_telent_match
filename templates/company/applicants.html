@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+{% block title %}Applicants | AI Talent Pool{% endblock %}
+
+{% block content %}
+<div class="container applicants-container">
+    <!-- Header -->
+    <div class="page-header glass-card">
+        <a href="/company/dashboard/" class="back-link">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+        <h1>Applicants for <span id="job-title">Loading...</span></h1>
+        <p>Review and manage candidates for this position</p>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar glass-card">
+        <div class="filter-group">
+            <label>Status:</label>
+            <select id="status-filter">
+                <option value="all">All</option>
+                <option value="applied">Applied</option>
+                <option value="shortlisted">Shortlisted</option>
+                <option value="interview">Interview</option>
+                <option value="hired">Hired</option>
+                <option value="rejected">Rejected</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Min Match Score:</label>
+            <input type="range" id="score-filter" min="0" max="100" value="0">
+            <span id="score-value">0%</span>
+        </div>
+        <div class="filter-actions">
+            <button class="btn-primary" onclick="autoShortlist()">
+                <i class="fas fa-magic"></i> Auto-Shortlist Top 10
+            </button>
+            <button class="btn-secondary" onclick="exportCSV()">
+                <i class="fas fa-download"></i> Export
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Summary -->
+    <div class="stats-summary glass-card">
+        <div class="stat-item">
+            <span class="stat-value" id="total-count">0</span>
+            <span class="stat-label">Total</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value" id="avg-score">0%</span>
+            <span class="stat-label">Avg Score</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value" id="top-score">0%</span>
+            <span class="stat-label">Top Score</span>
+        </div>
+    </div>
+
+    <!-- Applicants List -->
+    <div id="applicants-list" class="applicants-list">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i> Loading applicants...
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000/api";
+const urlParams = new URLSearchParams(window.location.search);
+const jobId = urlParams.get('job_id');
+const companyId = localStorage.getItem('company_id');
+
+if (!companyId) {
+    window.location.href = '/company/login/';
+}
+
+let allApplicants = [];
+
+// Load applicants
+async function loadApplicants() {
+    try {
+        const response = await fetch(`${API_BASE}/applications/?job_id=${jobId}`);
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            allApplicants = data.applications;
+            if (allApplicants.length > 0) {
+                document.getElementById('job-title').textContent = allApplicants[0].job_title;
+            }
+            updateStats();
+            renderApplicants();
+        }
+    } catch (error) {
+        console.error('Error loading applicants:', error);
+    }
+}
+
+function updateStats() {
+    const total = allApplicants.length;
+    const avgScore = total > 0 ? Math.round(allApplicants.reduce((sum, a) => sum + (a.match_score || 0), 0) / total) : 0;
+    const topScore = total > 0 ? Math.round(Math.max(...allApplicants.map(a => a.match_score || 0))) : 0;
+    
+    document.getElementById('total-count').textContent = total;
+    document.getElementById('avg-score').textContent = avgScore + '%';
+    document.getElementById('top-score').textContent = topScore + '%';
+}
+
+function renderApplicants() {
+    const container = document.getElementById('applicants-list');
+    const statusFilter = document.getElementById('status-filter').value;
+    const minScore = parseInt(document.getElementById('score-filter').value);
+    
+    let filtered = allApplicants.filter(app => {
+        const statusMatch = statusFilter === 'all' || app.status === statusFilter;
+        const scoreMatch = (app.match_score || 0) >= minScore;
+        return statusMatch && scoreMatch;
+    });
+    
+    // Sort by match score descending
+    filtered.sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
+    
+    if (filtered.length === 0) {
+        container.innerHTML = '<p class="no-data">No applicants match your filters</p>';
+        return;
+    }
+    
+    container.innerHTML = filtered.map((app, index) => `
+        <div class="applicant-card glass-card" data-applicant-id="${app.id}">
+            <div class="applicant-rank">#${index + 1}</div>
+            <div class="applicant-info">
+                <h4>${app.student_name}</h4>
+                <div class="applicant-meta">
+                    <span class="match-score-badge" style="background: ${getScoreColor(app.match_score)}">
+                        ${Math.round(app.match_score || 0)}% Match
+                    </span>
+                    <span class="status-badge ${app.status}">${app.status}</span>
+                    <span class="date">Applied ${formatDate(app.applied_at)}</span>
+                </div>
+            </div>
+            <div class="applicant-actions">
+                ${getActionButtons(app)}
+            </div>
+            <div class="applicant-details" id="details-${app.id}" style="display: none;">
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <label>Trust Score</label>
+                        <span>--</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Skills Match</label>
+                        <span>--</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>CGPA</label>
+                        <span>--</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Projects</label>
+                        <span>--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function getScoreColor(score) {
+    if (score >= 80) return 'linear-gradient(135deg, #00b86b, #008c4a)';
+    if (score >= 60) return 'linear-gradient(135deg, #48bbff, #2b6eff)';
+    if (score >= 40) return 'linear-gradient(135deg, #ffcc00, #ff9900)';
+    return 'linear-gradient(135deg, #ff5858, #cc0000)';
+}
+
+function getActionButtons(app) {
+    const buttons = [];
+    
+    if (app.status === 'applied') {
+        buttons.push(`<button class="btn-primary btn-sm" onclick="updateStatus('${app.id}', 'shortlisted')">
+            <i class="fas fa-star"></i> Shortlist
+        </button>`);
+        buttons.push(`<button class="btn-outline btn-sm" onclick="updateStatus('${app.id}', 'rejected')">
+            <i class="fas fa-times"></i> Reject
+        </button>`);
+    } else if (app.status === 'shortlisted') {
+        buttons.push(`<button class="btn-primary btn-sm" onclick="scheduleInterview('${app.id}')">
+            <i class="fas fa-calendar"></i> Interview
+        </button>`);
+        buttons.push(`<button class="btn-success btn-sm" onclick="hireCandidate('${app.id}')">
+            <i class="fas fa-check"></i> Hire
+        </button>`);
+    } else if (app.status === 'interview') {
+        buttons.push(`<button class="btn-success btn-sm" onclick="hireCandidate('${app.id}')">
+            <i class="fas fa-check"></i> Hire
+        </button>`);
+        buttons.push(`<button class="btn-outline btn-sm" onclick="updateStatus('${app.id}', 'rejected')">
+            <i class="fas fa-times"></i> Reject
+        </button>`);
+    }
+    
+    buttons.push(`<button class="btn-secondary btn-sm" onclick="viewDetails('${app.id}')">
+        <i class="fas fa-eye"></i> Details
+    </button>`);
+    
+    return buttons.join('');
+}
+
+function formatDate(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+    
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    if (diff < 7) return `${diff} days ago`;
+    return date.toLocaleDateString();
+}
+
+async function updateStatus(applicationId, status) {
+    try {
+        const response = await fetch(`${API_BASE}/application/update/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                application_id: applicationId,
+                status: status
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification(`Candidate ${status} successfully!`, 'success');
+            loadApplicants();
+        }
+    } catch (error) {
+        showNotification('Error updating status', 'error');
+    }
+}
+
+async function hireCandidate(applicationId) {
+    try {
+        const response = await fetch(`${API_BASE}/application/hire/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                application_id: applicationId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification('Candidate hired! AI weights updated.', 'success');
+            loadApplicants();
+        }
+    } catch (error) {
+        showNotification('Error hiring candidate', 'error');
+    }
+}
+
+function scheduleInterview(applicationId) {
+    const times = prompt('Enter proposed interview times (comma separated):', '2026-04-05 10:00, 2026-04-05 14:00');
+    if (times) {
+        // In production, send to API
+        showNotification('Interview scheduled!', 'success');
+        updateStatus(applicationId, 'interview');
+    }
+}
+
+async function autoShortlist() {
+    try {
+        const response = await fetch(`${API_BASE}/job/shortlist/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                job_id: jobId,
+                top_n: 10
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification(`Auto-shortlisted ${data.shortlisted_count} candidates!`, 'success');
+            loadApplicants();
+        }
+    } catch (error) {
+        showNotification('Error auto-shortlisting', 'error');
+    }
+}
+
+function viewDetails(applicationId) {
+    const details = document.getElementById(`details-${applicationId}`);
+    details.style.display = details.style.display === 'none' ? 'block' : 'none';
+}
+
+function exportCSV() {
+    // Simple CSV export
+    let csv = 'Name,Match Score,Status,Applied Date\n';
+    allApplicants.forEach(app => {
+        csv += `${app.student_name},${app.match_score},${app.status},${app.applied_at}\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `applicants_${jobId}.csv`;
+    a.click();
+}
+
+// Filter handlers
+document.getElementById('status-filter').addEventListener('change', renderApplicants);
+document.getElementById('score-filter').addEventListener('input', (e) => {
+    document.getElementById('score-value').textContent = e.target.value + '%';
+    renderApplicants();
+});
+
+function showNotification(message, type) {
+    const notif = document.createElement('div');
+    notif.className = `notification ${type}`;
+    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    notif.style.cssText = `
+        position: fixed;
+        top: 100px;
+        right: 20px;
+        padding: 1rem 2rem;
+        border-radius: 0.5rem;
+        background: ${type === 'success' ? 'rgba(72, 187, 255, 0.9)' : 'rgba(255, 88, 88, 0.9)'};
+        color: white;
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+    `;
+    document.body.appendChild(notif);
+    setTimeout(() => notif.remove(), 3000);
+}
+
+// Load on page load
+loadApplicants();
+</script>
+
+<style>
+.applicants-container {
+    padding: 2rem 0;
+}
+
+.page-header {
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #94a3b8;
+    text-decoration: none;
+    margin-bottom: 1rem;
+    transition: color 0.3s;
+}
+
+.back-link:hover {
+    color: #48bbff;
+}
+
+.page-header h1 {
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.page-header p {
+    color: #94a3b8;
+}
+
+.filters-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.filter-group label {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.filter-group select,
+.filter-group input[type="range"] {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 0.8rem;
+}
+
+.stats-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #48bbff;
+}
+
+.stat-label {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.applicants-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.applicant-card {
+    display: grid;
+    grid-template-columns: 50px 1fr auto;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.applicant-rank {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: rgba(72, 187, 255, 0.3);
+    text-align: center;
+}
+
+.applicant-info h4 {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+    color: #f0f9ff;
+}
+
+.applicant-meta {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.match-score-badge {
+    padding: 0.3rem 0.8rem;
+    border-radius: 2rem;
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.status-badge {
+    padding: 0.3rem 0.8rem;
+    border-radius: 2rem;
+    font-size: 0.85rem;
+    text-transform: capitalize;
+}
+
+.status-badge.applied { background: rgba(72, 187, 255, 0.2); color: #48bbff; }
+.status-badge.shortlisted { background: rgba(255, 204, 0, 0.2); color: #ffcc00; }
+.status-badge.interview { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
+.status-badge.hired { background: rgba(0, 184, 107, 0.2); color: #00b86b; }
+.status-badge.rejected { background: rgba(255, 88, 88, 0.2); color: #ff5858; }
+
+.date {
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.applicant-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #00b86b, #008c4a);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    color: white;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.applicant-details {
+    grid-column: 1 / -1;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    margin-top: 1rem;
+}
+
+.details-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.detail-item label {
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.detail-item span {
+    color: #f0f9ff;
+    font-weight: 600;
+}
+
+.no-data {
+    text-align: center;
+    color: #64748b;
+    padding: 3rem;
+}
+
+.loading-spinner {
+    text-align: center;
+    color: #48bbff;
+    padding: 3rem;
+}
+
+@media (max-width: 968px) {
+    .applicant-card {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+    
+    .applicant-actions {
+        justify-content: center;
+    }
+    
+    .details-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .filters-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filter-actions {
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}
