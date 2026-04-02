@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}Our Services | AI Talent Match{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="services-header">
+        <h1 class="gradient-text">Our Services</h1>
+        <p class="lead">Comprehensive AI-powered solutions for students and companies</p>
+    </div>
+
+    <div class="services-grid">
+        <!-- For Students -->
+        <div class="service-category">
+            <h2><i class="fas fa-user-graduate"></i> For Students</h2>
+            
+            <div class="service-card glass-card">
+                <div class="service-icon">
+                    <i class="fas fa-id-card"></i>
+                </div>
+                <h3>Smart Profile Builder</h3>
+                <p>Create a comprehensive profile with GitHub integration, project showcases, skill assessments, and verified credentials. Our system calculates your Trust Score based on profile completeness and authenticity.</p>
+                <ul>
+                    <li>GitHub repository validation</li>
+                    <li>Skill proficiency verification</li>
+                    <li>Project complexity scoring</li>
+                    <li>Work experience tracking</li>
+                </ul>
+            </div>
+
+            <div class="service-card glass-card">
+                <div class="service-icon">
+                    <i class="fas fa-chart-radar"></i>
+                </div>
+                <h3>AI Career Coach</h3>
+                <p>Get personalized career guidance based on your current skills and market demands. Our AI identifies skill gaps and provides learning roadmaps to improve your employability.</p>
+                <ul>
+                    <li>Skill gap analysis with radar charts</li>
+                    <li>Personalized learning recommendations</li>
+                    <li>Career trajectory predictions</li>
+                    <li>Market demand insights</li>
+                </ul>
+            </div>
+
+            <div class="service-card glass-card">
+                <div class="service-icon">
+                    <i class="fas fa-magic"></i>
+                </div>
+                <h3>Smart Apply</h3>
+                <p>Let AI apply to jobs on your behalf. Set your match threshold and maximum applications, and our system will automatically submit your profile to the best-matching opportunities.</p>
+                <ul>
+                    <li>Auto-application to top matches</li>
+                    <li>Customizable match thresholds</li>
+                    <li>Batch processing (up to 5 jobs)</li>
+                    <li>Application tracking dashboard</li>
+                </ul>
+            </div>
+
+            <div class="service-card glass-card">
+                <div class="service-icon">
+                    <i class="fas fa-bell"></i>
+                </div>
+                <h3>Real-time Notifications</h3>
+                <p>Stay updated with instant notifications when you're shortlisted, invited for interviews, or matched with new opportunities.</p>
+                <ul>
+                    <li>Match alerts</li>
+                    <li>Interview scheduling</li>
+                    <li>Application status updates</li>
+                    <li>Skill assessment reminders</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- For Companies -->
+        <div class="service-category">
+            <h2><i class="fas fa-building"></i> For Companies</h2>
+            
+            <div class="service-card glass-card">
+                <div class="service-icon">
+                    <i class="fas fa-bullhorn"></i>
+                </div>
+                <h3>Intelligent Job Posting</h3>
+                <p>Post jobs with custom requirements and let our AI find the perfect candidates. Set custom weights for different criteria to match your hiring priorities.</p>
+                <ul>
+                    <li>Custom scoring weights</li>
+                    <li>Skill-based matching</li>
+                    <li>CGPA and experience filters</li>
+                    <li>Salary range optimization</li>
+                </ul>
+            </div>
+
+            <div class="service-card glass-card">
+                <div class="service-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <h3>AI-Powered Shortlisting</h3>
+                <p>Automatically rank and shortlist candidates based on match scores. Our system learns from your hiring decisions to improve future recommendations.</p>
+                <ul>
+                    <li>Automated candidate ranking</li>
+                    <li>One-click shortlisting</li>
+                    <li>Trust score filtering</li>
+                    <li>Batch hiring actions</li>
+                </ul>
+            </div>
+
+            <div class="service-card glass-card">
+                <div class="service-icon">
+                    <i class="fas fa-calendar-check"></i>
+                </div>
+                <h3>Interview Scheduling</h3>
+                <p>Schedule interviews with integrated calendar support. Send proposed time slots to candidates and manage the entire interview process.</p>
+                <ul>
+                    <li>Calendar API integration</li>
+                    <li>Multiple time slot proposals</li>
+                    <li>Automated reminders</li>
+                    <li>Video meeting links</li>
+                </ul>
+            </div>
+
+            <div class="service-card glass-card">
+                <div class="service-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <h3>Analytics Dashboard</h3>
+                <p>Get deep insights into your hiring pipeline with conversion funnels, skill demand analytics, and AI performance metrics.</p>
+                <ul>
+                    <li>Conversion funnel visualization</li>
+                    <li>Skill demand trends</li>
+                    <li>AI weight evolution tracking</li>
+                    <li>Hiring success rates</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Services -->
+    <div class="admin-services">
+        <h2><i class="fas fa-shield-alt"></i> Platform Security & Administration</h2>
+        <div class="admin-grid">
+            <div class="glass-card admin-card">
+                <i class="fas fa-user-shield"></i>
+                <h3>Fraud Detection</h3>
+                <p>Advanced algorithms detect fake profiles, CGPA inflation, and skill misrepresentation to maintain platform integrity.</p>
+            </div>
+            <div class="glass-card admin-card">
+                <i class="fas fa-balance-scale"></i>
+                <h3>A/B Testing</h3>
+                <p>Continuously improve matching algorithms with built-in A/B testing framework for scoring models.</p>
+            </div>
+            <div class="glass-card admin-card">
+                <i class="fas fa-database"></i>
+                <h3>Data Analytics</h3>
+                <p>Comprehensive platform analytics including student engagement, company activity, and hiring success rates.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.services-header {
+    text-align: center;
+    padding: 4rem 0;
+}
+
+.services-header h1 {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.lead {
+    font-size: 1.3rem;
+    color: #94a3b8;
+}
+
+.services-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin-bottom: 4rem;
+}
+
+.service-category > h2 {
+    font-size: 1.8rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    color: #48bbff;
+}
+
+.service-card {
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    transition: all 0.4s ease;
+}
+
+.service-card:hover {
+    transform: translateY(-5px);
+    border-color: #48bbff;
+}
+
+.service-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #48bbff, #a855f7);
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+}
+
+.service-icon i {
+    font-size: 1.5rem;
+    color: white;
+}
+
+.service-card h3 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    color: #f0f9ff;
+}
+
+.service-card p {
+    color: #94a3b8;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+.service-card ul {
+    list-style: none;
+    padding: 0;
+}
+
+.service-card li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #cbd5e1;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.service-card li::before {
+    content: '→';
+    color: #48bbff;
+    font-weight: bold;
+}
+
+.admin-services {
+    margin-top: 4rem;
+}
+
+.admin-services h2 {
+    text-align: center;
+    font-size: 2rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    color: #48bbff;
+}
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+}
+
+.admin-card {
+    text-align: center;
+    padding: 2.5rem;
+}
+
+.admin-card i {
+    font-size: 3rem;
+    color: #48bbff;
+    margin-bottom: 1.5rem;
+}
+
+.admin-card h3 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+}
+
+.admin-card p {
+    color: #94a3b8;
+    line-height: 1.6;
+}
+
+@media (max-width: 968px) {
+    .services-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .admin-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

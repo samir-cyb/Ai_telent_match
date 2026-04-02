@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+{% block title %}Fraud Detection Review | Admin{% endblock %}
+
+{% block content %}
+<div class="container fraud-review-container">
+    <div class="page-header glass-card">
+        <a href="/admin/dashboard/" class="back-link">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+        <h1><i class="fas fa-shield-alt"></i> Fraud Detection Review</h1>
+        <p>Review and resolve flagged student profiles</p>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar glass-card">
+        <div class="filter-group">
+            <label>Severity:</label>
+            <select id="severity-filter">
+                <option value="all">All</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Flag Type:</label>
+            <select id="type-filter">
+                <option value="all">All Types</option>
+                <option value="cgpa_project_mismatch">CGPA Mismatch</option>
+                <option value="skill_inflation">Skill Inflation</option>
+                <option value="github_mismatch">GitHub Mismatch</option>
+                <option value="rapid_profile_changes">Rapid Changes</option>
+                <option value="impossible_timeline">Timeline Issue</option>
+            </select>
+        </div>
+        <div class="stats-summary">
+            <span class="stat-badge high" id="high-count">0</span>
+            <span class="stat-badge medium" id="medium-count">0</span>
+            <span class="stat-badge low" id="low-count">0</span>
+        </div>
+    </div>
+
+    <!-- Flags List -->
+    <div id="flags-container" class="flags-container">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i> Loading fraud flags...
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000/api";
+
+let allFlags = [];
+
+// Load flags
+async function loadFlags() {
+    try {
+        const response = await fetch(`${API_BASE}/admin/fraud-flags/`);
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            allFlags = data.flags;
+            updateStats();
+            renderFlags();
+        }
+    } catch (error) {
+        console.error('Error loading flags:', error);
+    }
+}
+
+function updateStats() {
+    const high = allFlags.filter(f => f.severity === 'high').length;
+    const medium = allFlags.filter(f => f.severity === 'medium').length;
+    const low = allFlags.filter(f => f.severity === 'low').length;
+    
+    document.getElementById('high-count').textContent = `${high} High`;
+    document.getElementById('medium-count').textContent = `${medium} Medium`;
+    document.getElementById('low-count').textContent = `${low} Low`;
+}
+
+function renderFlags() {
+    const container = document.getElementById('flags-container');
+    const severityFilter = document.getElementById('severity-filter').value;
+    const typeFilter = document.getElementById('type-filter').value;
+    
+    let filtered = allFlags.filter(flag => {
+        const severityMatch = severityFilter === 'all' || flag.severity === severityFilter;
+        const typeMatch = typeFilter === 'all' || flag.flag_type === typeFilter;
+        return severityMatch && typeMatch;
+    });
+    
+    if (filtered.length === 0) {
+        container.innerHTML = `
+            <div class="no-flags glass-card">
+                <i class="fas fa-check-circle"></i>
+                <h3>No flags match your filters</h3>
+                <p>All caught up! No fraud flags to review.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = filtered.map(flag => `
+        <div class="flag-card glass-card ${flag.severity}">
+            <div class="flag-header">
+                <div class="student-info">
+                    <h4>${flag.student_name}</h4>
+                    <span class="flag-type">${formatFlagType(flag.flag_type)}</span>
+                </div>
+                <div class="severity-badge ${flag.severity}">${flag.severity.toUpperCase()}</div>
+            </div>
+            
+            <div class="flag-details">
+                <div class="detail-section">
+                    <h5>Details</h5>
+                    <pre>${JSON.stringify(flag.details, null, 2)}</pre>
+                </div>
+                
+                <div class="detail-section">
+                    <h5>Flagged On</h5>
+                    <p>${new Date(flag.created_at).toLocaleString()}</p>
+                </div>
+            </div>
+            
+            <div class="flag-actions">
+                <button class="btn-primary" onclick="resolveFlag('${flag.id}')">
+                    <i class="fas fa-check"></i> Resolve Flag
+                </button>
+                <button class="btn-secondary" onclick="viewProfile('${flag.student_id}')">
+                    <i class="fas fa-user"></i> View Profile
+                </button>
+                <button class="btn-outline" onclick="ignoreFlag('${flag.id}')">
+                    <i class="fas fa-times"></i> Ignore
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function formatFlagType(type) {
+    return type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+async function resolveFlag(flagId) {
+    try {
+        const response = await fetch(`${API_BASE}/admin/resolve-fraud/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ flag_id: flagId })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification('Flag resolved successfully', 'success');
+            loadFlags();
+        }
+    } catch (error) {
+        showNotification('Error resolving flag', 'error');
+    }
+}
+
+function ignoreFlag(flagId) {
+    if (confirm('Are you sure you want to ignore this flag?')) {
+        // In production, send to API
+        showNotification('Flag ignored', 'success');
+        loadFlags();
+    }
+}
+
+function viewProfile(studentId) {
+    window.open(`/student/profile/?id=${studentId}`, '_blank');
+}
+
+function showNotification(message, type) {
+    const notif = document.createElement('div');
+    notif.className = `notification ${type}`;
+    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    notif.style.cssText = `
+        position: fixed;
+        top: 100px;
+        right: 20px;
+        padding: 1rem 2rem;
+        border-radius: 0.5rem;
+        background: ${type === 'success' ? 'rgba(72, 187, 255, 0.9)' : 'rgba(255, 88, 88, 0.9)'};
+        color: white;
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+    `;
+    document.body.appendChild(notif);
+    setTimeout(() => notif.remove(), 3000);
+}
+
+// Filter handlers
+document.getElementById('severity-filter').addEventListener('change', renderFlags);
+document.getElementById('type-filter').addEventListener('change', renderFlags);
+
+// Load on page load
+loadFlags();
+</script>
+
+<style>
+.fraud-review-container {
+    padding: 2rem 0;
+}
+
+.page-header {
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #94a3b8;
+    text-decoration: none;
+    margin-bottom: 1rem;
+    transition: color 0.3s;
+}
+
+.back-link:hover {
+    color: #48bbff;
+}
+
+.page-header h1 {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.page-header h1 i {
+    color: #ff5858;
+}
+
+.filters-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.filter-group label {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.filter-group select {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+}
+
+.stats-summary {
+    display: flex;
+    gap: 0.8rem;
+}
+
+.stat-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.stat-badge.high { background: rgba(255, 88, 88, 0.2); color: #ff5858; }
+.stat-badge.medium { background: rgba(255, 204, 0, 0.2); color: #ffcc00; }
+.stat-badge.low { background: rgba(72, 187, 255, 0.2); color: #48bbff; }
+
+.flags-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.flag-card {
+    padding: 2rem;
+    border-left: 4px solid;
+}
+
+.flag-card.high { border-left-color: #ff5858; }
+.flag-card.medium { border-left-color: #ffcc00; }
+.flag-card.low { border-left-color: #48bbff; }
+
+.flag-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.student-info h4 {
+    font-size: 1.3rem;
+    color: #f0f9ff;
+    margin-bottom: 0.3rem;
+}
+
+.flag-type {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.severity-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.severity-badge.high { background: rgba(255, 88, 88, 0.2); color: #ff5858; }
+.severity-badge.medium { background: rgba(255, 204, 0, 0.2); color: #ffcc00; }
+.severity-badge.low { background: rgba(72, 187, 255, 0.2); color: #48bbff; }
+
+.flag-details {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 0.8rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.detail-section {
+    margin-bottom: 1rem;
+}
+
+.detail-section:last-child {
+    margin-bottom: 0;
+}
+
+.detail-section h5 {
+    color: #48bbff;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.detail-section pre {
+    color: #cbd5e1;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.detail-section p {
+    color: #94a3b8;
+}
+
+.flag-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.no-flags {
+    text-align: center;
+    padding: 4rem;
+}
+
+.no-flags i {
+    font-size: 4rem;
+    color: #00b86b;
+    margin-bottom: 1rem;
+}
+
+.no-flags h3 {
+    color: #f0f9ff;
+    margin-bottom: 0.5rem;
+}
+
+.no-flags p {
+    color: #94a3b8;
+}
+
+.loading-spinner {
+    text-align: center;
+    color: #48bbff;
+    padding: 4rem;
+}
+
+@media (max-width: 768px) {
+    .filters-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .flag-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+    }
+    
+    .flag-actions {
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,637 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard | AI Talent Match{% endblock %}
+
+{% block content %}
+<div class="container admin-container">
+    <!-- Header -->
+    <div class="page-header glass-card">
+        <h1><i class="fas fa-shield-alt"></i> Admin Dashboard</h1>
+        <p>Platform oversight and AI supervision</p>
+    </div>
+
+    <!-- Platform Metrics -->
+    <div class="metrics-grid">
+        <div class="glass-card metric-card">
+            <i class="fas fa-users"></i>
+            <div class="metric-info">
+                <h3 id="total-students">0</h3>
+                <p>Total Students</p>
+            </div>
+        </div>
+        <div class="glass-card metric-card">
+            <i class="fas fa-building"></i>
+            <div class="metric-info">
+                <h3 id="total-companies">0</h3>
+                <p>Companies</p>
+            </div>
+        </div>
+        <div class="glass-card metric-card">
+            <i class="fas fa-briefcase"></i>
+            <div class="metric-info">
+                <h3 id="total-jobs">0</h3>
+                <p>Active Jobs</p>
+            </div>
+        </div>
+        <div class="glass-card metric-card">
+            <i class="fas fa-handshake"></i>
+            <div class="metric-info">
+                <h3 id="total-applications">0</h3>
+                <p>Applications</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="admin-grid">
+        <!-- Left Column -->
+        <div class="admin-left">
+            <!-- Conversion Funnel -->
+            <div class="glass-card chart-card">
+                <h3><i class="fas fa-filter"></i> Conversion Funnel</h3>
+                <canvas id="funnelChart" width="400" height="300"></canvas>
+            </div>
+
+            <!-- Skill Demand -->
+            <div class="glass-card chart-card">
+                <h3><i class="fas fa-fire"></i> Top Demanded Skills</h3>
+                <div id="skills-list" class="skills-list">
+                    Loading...
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="admin-right">
+            <!-- Fraud Detection -->
+            <div class="glass-card fraud-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Fraud Flags</h3>
+                    <a href="/admin/fraud-review/" class="btn-sm">Review All</a>
+                </div>
+                <div id="fraud-list" class="fraud-list">
+                    Loading...
+                </div>
+            </div>
+
+            <!-- A/B Testing -->
+            <div class="glass-card ab-test-card">
+                <h3><i class="fas fa-flask"></i> A/B Test Results</h3>
+                <div id="ab-results" class="ab-results">
+                    Loading...
+                </div>
+            </div>
+
+            <!-- AI Weight Adjustment -->
+            <div class="glass-card weights-card">
+                <h3><i class="fas fa-sliders-h"></i> Global AI Weights</h3>
+                <p class="desc">Adjust default matching weights for all companies</p>
+                
+                <div class="weight-sliders">
+                    <div class="weight-item">
+                        <label>Skills: <span id="gw-skills">0.4</span></label>
+                        <input type="range" id="g-weight-skills" min="0" max="1" step="0.05" value="0.4">
+                    </div>
+                    <div class="weight-item">
+                        <label>CGPA: <span id="gw-cgpa">0.2</span></label>
+                        <input type="range" id="g-weight-cgpa" min="0" max="1" step="0.05" value="0.2">
+                    </div>
+                    <div class="weight-item">
+                        <label>Projects: <span id="gw-projects">0.2</span></label>
+                        <input type="range" id="g-weight-projects" min="0" max="1" step="0.05" value="0.2">
+                    </div>
+                    <div class="weight-item">
+                        <label>Activity: <span id="gw-activity">0.1</span></label>
+                        <input type="range" id="g-weight-activity" min="0" max="1" step="0.05" value="0.1">
+                    </div>
+                    <div class="weight-item">
+                        <label>Trust: <span id="gw-trust">0.1</span></label>
+                        <input type="range" id="g-weight-trust" min="0" max="1" step="0.05" value="0.1">
+                    </div>
+                </div>
+                
+                <button id="save-global-weights" class="btn-primary btn-sm">
+                    <i class="fas fa-save"></i> Save Global Weights
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000/api";
+
+// Load analytics
+async function loadAnalytics() {
+    try {
+        const response = await fetch(`${API_BASE}/admin/analytics/`);
+        const data = await response.json();
+        
+        updateDashboard(data);
+    } catch (error) {
+        console.error('Error loading analytics:', error);
+    }
+}
+
+function updateDashboard(data) {
+    // Update metrics
+    if (data.platform_metrics) {
+        document.getElementById('total-students').textContent = data.platform_metrics.students;
+        document.getElementById('total-companies').textContent = data.platform_metrics.companies;
+        document.getElementById('total-jobs').textContent = data.platform_metrics.jobs;
+        document.getElementById('total-applications').textContent = data.platform_metrics.applications;
+    }
+    
+    // Update funnel chart
+    if (data.conversion_funnel) {
+        updateFunnelChart(data.conversion_funnel);
+    }
+    
+    // Update skills
+    if (data.skill_demand) {
+        updateSkillsList(data.skill_demand);
+    }
+    
+    // Update fraud flags
+    if (data.fraud_detection) {
+        updateFraudList(data.fraud_detection);
+    }
+    
+    // Update A/B results
+    if (data.ab_test_results) {
+        updateABResults(data.ab_test_results);
+    }
+}
+
+function updateFunnelChart(funnel) {
+    const ctx = document.getElementById('funnelChart').getContext('2d');
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Applied', 'Shortlisted', 'Interview', 'Hired'],
+            datasets: [{
+                label: 'Candidates',
+                data: [funnel.applied, funnel.shortlisted, funnel.interview, funnel.hired],
+                backgroundColor: [
+                    'rgba(72, 187, 255, 0.8)',
+                    'rgba(255, 204, 0, 0.8)',
+                    'rgba(168, 85, 247, 0.8)',
+                    'rgba(0, 184, 107, 0.8)'
+                ],
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: '#94a3b8' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#94a3b8' }
+                }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+}
+
+function updateSkillsList(skills) {
+    const container = document.getElementById('skills-list');
+    
+    container.innerHTML = skills.slice(0, 10).map(([skill, data], index) => `
+        <div class="skill-demand-item">
+            <span class="rank">#${index + 1}</span>
+            <span class="skill-name">${skill}</span>
+            <div class="demand-bar">
+                <div class="fill" style="width: ${Math.min(data.count * 5, 100)}%"></div>
+            </div>
+            <span class="count">${data.count} jobs</span>
+        </div>
+    `).join('');
+}
+
+function updateFraudList(fraud) {
+    const container = document.getElementById('fraud-list');
+    
+    if (fraud.total_flags === 0) {
+        container.innerHTML = '<p class="no-flags">No pending flags ✅</p>';
+        return;
+    }
+    
+    container.innerHTML = fraud.recent_flags.map(flag => `
+        <div class="fraud-item ${flag.severity}">
+            <div class="fraud-header">
+                <span class="student-name">${flag.student}</span>
+                <span class="severity-badge ${flag.severity}">${flag.severity}</span>
+            </div>
+            <p class="flag-type">${flag.type}</p>
+            <span class="flag-date">${new Date(flag.date).toLocaleDateString()}</span>
+        </div>
+    `).join('');
+}
+
+function updateABResults(results) {
+    const container = document.getElementById('ab-results');
+    
+    container.innerHTML = `
+        <div class="ab-comparison">
+            <div class="ab-group">
+                <h4>Control Group</h4>
+                <div class="ab-stat">
+                    <span class="label">Size</span>
+                    <span class="value">${results.control_group.size}</span>
+                </div>
+                <div class="ab-stat">
+                    <span class="label">Hires</span>
+                    <span class="value">${results.control_group.hires}</span>
+                </div>
+                <div class="ab-stat">
+                    <span class="label">Conversion</span>
+                    <span class="value">${results.control_group.conversion_rate}</span>
+                </div>
+            </div>
+            
+            <div class="ab-vs">VS</div>
+            
+            <div class="ab-group variant">
+                <h4>Variant A</h4>
+                <div class="ab-stat">
+                    <span class="label">Size</span>
+                    <span class="value">${results.variant_a.size}</span>
+                </div>
+                <div class="ab-stat">
+                    <span class="label">Hires</span>
+                    <span class="value">${results.variant_a.hires}</span>
+                </div>
+                <div class="ab-stat">
+                    <span class="label">Conversion</span>
+                    <span class="value highlight">${results.variant_a.conversion_rate}</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="improvement">
+            Improvement: <span class="${results.improvement.startsWith('-') ? 'negative' : 'positive'}">${results.improvement}</span>
+        </div>
+    `;
+}
+
+// Global weight controls
+document.querySelectorAll('.weight-sliders input').forEach(input => {
+    input.addEventListener('input', updateGlobalWeightLabels);
+});
+
+function updateGlobalWeightLabels() {
+    document.getElementById('gw-skills').textContent = document.getElementById('g-weight-skills').value;
+    document.getElementById('gw-cgpa').textContent = document.getElementById('g-weight-cgpa').value;
+    document.getElementById('gw-projects').textContent = document.getElementById('g-weight-projects').value;
+    document.getElementById('gw-activity').textContent = document.getElementById('g-weight-activity').value;
+    document.getElementById('gw-trust').textContent = document.getElementById('g-weight-trust').value;
+}
+
+document.getElementById('save-global-weights').addEventListener('click', () => {
+    // In production, send to API
+    alert('Global weights saved (demo)');
+});
+
+// Load on page load
+loadAnalytics();
+
+// Refresh every 60 seconds
+setInterval(loadAnalytics, 60000);
+</script>
+
+<style>
+.admin-container {
+    padding: 2rem 0;
+}
+
+.page-header {
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.page-header h1 {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.page-header h1 i {
+    color: #48bbff;
+}
+
+.page-header p {
+    color: #94a3b8;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.metric-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.metric-card i {
+    font-size: 2rem;
+    color: #48bbff;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(72, 187, 255, 0.1);
+    border-radius: 1rem;
+}
+
+.metric-info h3 {
+    font-size: 1.8rem;
+    color: #48bbff;
+}
+
+.metric-info p {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 2rem;
+}
+
+.chart-card, .fraud-card, .ab-test-card, .weights-card {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.chart-card h3, .fraud-card h3, .ab-test-card h3, .weights-card h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    color: #48bbff;
+    font-size: 1.1rem;
+}
+
+.skills-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.skill-demand-item {
+    display: grid;
+    grid-template-columns: 30px 1fr 100px 80px;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.8rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 0.5rem;
+}
+
+.skill-demand-item .rank {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.skill-demand-item .skill-name {
+    color: #f0f9ff;
+}
+
+.demand-bar {
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.demand-bar .fill {
+    height: 100%;
+    background: linear-gradient(90deg, #48bbff, #a855f7);
+    border-radius: 3px;
+}
+
+.skill-demand-item .count {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    text-align: right;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+
+.fraud-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.fraud-item {
+    padding: 1rem;
+    border-left: 3px solid;
+    margin-bottom: 0.8rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.fraud-item.high { border-left-color: #ff5858; }
+.fraud-item.medium { border-left-color: #ffcc00; }
+.fraud-item.low { border-left-color: #48bbff; }
+
+.fraud-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.3rem;
+}
+
+.student-name {
+    font-weight: 600;
+    color: #f0f9ff;
+}
+
+.severity-badge {
+    padding: 0.2rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.severity-badge.high { background: rgba(255, 88, 88, 0.2); color: #ff5858; }
+.severity-badge.medium { background: rgba(255, 204, 0, 0.2); color: #ffcc00; }
+.severity-badge.low { background: rgba(72, 187, 255, 0.2); color: #48bbff; }
+
+.flag-type {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.flag-date {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.no-flags {
+    color: #00b86b;
+    text-align: center;
+    padding: 2rem;
+}
+
+.ab-comparison {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.ab-group {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 1rem;
+    border-radius: 0.8rem;
+}
+
+.ab-group.variant {
+    background: rgba(72, 187, 255, 0.1);
+    border: 1px solid rgba(72, 187, 255, 0.3);
+}
+
+.ab-group h4 {
+    color: #f0f9ff;
+    margin-bottom: 0.8rem;
+    font-size: 0.95rem;
+}
+
+.ab-stat {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.ab-stat .label {
+    color: #94a3b8;
+}
+
+.ab-stat .value {
+    color: #f0f9ff;
+    font-weight: 600;
+}
+
+.ab-stat .value.highlight {
+    color: #48bbff;
+}
+
+.ab-vs {
+    color: #64748b;
+    font-weight: 700;
+}
+
+.improvement {
+    text-align: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 0.5rem;
+    font-weight: 600;
+}
+
+.improvement .positive {
+    color: #00b86b;
+}
+
+.improvement .negative {
+    color: #ff5858;
+}
+
+.weights-card .desc {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.weight-sliders {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.weight-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.weight-item label {
+    display: flex;
+    justify-content: space-between;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+}
+
+.weight-item label span {
+    color: #48bbff;
+    font-weight: 600;
+}
+
+.weight-item input[type="range"] {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.weight-item input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #48bbff;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+@media (max-width: 968px) {
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .admin-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .ab-comparison {
+        grid-template-columns: 1fr;
+    }
+    
+    .ab-vs {
+        text-align: center;
+    }
+}
+</style>
+{% endblock %}

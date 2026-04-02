@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block title %}Student Login | AI Talent Match{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card glass-card">
+        <div class="auth-header">
+            <i class="fas fa-user-graduate"></i>
+            <h2>Student Login</h2>
+            <p>Welcome back! Continue your career journey.</p>
+        </div>
+
+        <form id="login-form" class="auth-form">
+            <div class="form-group">
+                <label for="email">University Email</label>
+                <input type="email" id="email" name="email" placeholder="student@university.edu" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="••••••••" required>
+            </div>
+
+            <div class="form-options">
+                <label class="remember-me">
+                    <input type="checkbox" name="remember"> Remember me
+                </label>
+                <a href="#" class="forgot-password">Forgot password?</a>
+            </div>
+
+            <button type="submit" class="btn-primary btn-full">
+                <i class="fas fa-sign-in-alt"></i> Login
+            </button>
+        </form>
+
+        <div class="auth-footer">
+            <p>Don't have an account? <a href="/student/register/">Register here</a></p>
+            <p class="switch-user">Are you a company? <a href="/company/login/">Login as Company</a></p>
+        </div>
+    </div>
+
+    <div class="auth-visual">
+        <div class="floating-elements">
+            <div class="float-card">
+                <i class="fas fa-chart-line"></i>
+                <span>Track Progress</span>
+            </div>
+            <div class="float-card">
+                <i class="fas fa-briefcase"></i>
+                <span>Get Hired</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/auth/student/login/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            // Store user info in localStorage
+            localStorage.setItem('student_id', data.student_id);
+            localStorage.setItem('user_name', data.name);
+            localStorage.setItem('user_type', 'student');
+            
+            // Show success message
+            showNotification('Login successful! Redirecting...', 'success');
+            
+            // Redirect to dashboard
+            setTimeout(() => {
+                window.location.href = data.redirect;
+            }, 1000);
+        } else {
+            showNotification(data.message || 'Login failed', 'error');
+        }
+    } catch (error) {
+        showNotification('Network error. Please try again.', 'error');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+});
+
+function showNotification(message, type) {
+    // Create notification element
+    const notif = document.createElement('div');
+    notif.className = `notification ${type}`;
+    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    notif.style.cssText = `
+        position: fixed;
+        top: 100px;
+        right: 20px;
+        padding: 1rem 2rem;
+        border-radius: 0.5rem;
+        background: ${type === 'success' ? 'rgba(72, 187, 255, 0.9)' : 'rgba(255, 88, 88, 0.9)'};
+        color: white;
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+    `;
+    document.body.appendChild(notif);
+    
+    setTimeout(() => {
+        notif.remove();
+    }, 3000);
+}
+</script>
+
+<style>
+.auth-container {
+    display: flex;
+    min-height: 80vh;
+    align-items: center;
+    justify-content: center;
+    gap: 4rem;
+    padding: 2rem;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 450px;
+    padding: 3rem;
+    border-radius: 2rem;
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.auth-header i {
+    font-size: 3rem;
+    color: #48bbff;
+    margin-bottom: 1rem;
+}
+
+.auth-header h2 {
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.auth-header p {
+    color: #94a3b8;
+}
+
+.auth-form .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.auth-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+}
+
+.auth-form input {
+    width: 100%;
+    padding: 1rem;
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    border-radius: 0.8rem;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    font-size: 1rem;
+    transition: all 0.3s;
+}
+
+.auth-form input:focus {
+    outline: none;
+    border-color: #48bbff;
+    box-shadow: 0 0 0 3px rgba(72, 187, 255, 0.1);
+}
+
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #94a3b8;
+    cursor: pointer;
+}
+
+.remember-me input {
+    width: auto;
+}
+
+.forgot-password {
+    color: #48bbff;
+    text-decoration: none;
+}
+
+.forgot-password:hover {
+    text-decoration: underline;
+}
+
+.btn-full {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.1rem;
+}
+
+.auth-footer {
+    text-align: center;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-footer p {
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
+}
+
+.auth-footer a {
+    color: #48bbff;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.switch-user {
+    font-size: 0.9rem;
+    margin-top: 1rem;
+}
+
+.auth-visual {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.floating-elements {
+    position: relative;
+    width: 300px;
+    height: 300px;
+}
+
+.float-card {
+    position: absolute;
+    background: rgba(15, 30, 55, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    animation: float 4s ease-in-out infinite;
+}
+
+.float-card:first-child {
+    top: 20%;
+    left: 10%;
+    animation-delay: 0s;
+}
+
+.float-card:last-child {
+    bottom: 20%;
+    right: 10%;
+    animation-delay: 2s;
+}
+
+.float-card i {
+    font-size: 2rem;
+    color: #48bbff;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-15px); }
+}
+
+@media (max-width: 968px) {
+    .auth-container {
+        flex-direction: column;
+    }
+    
+    .auth-visual {
+        display: none;
+    }
+}
+</style>
+{% endblock %}
