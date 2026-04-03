@@ -75,7 +75,7 @@
 
             <div class="form-section ai-weights">
                 <h3><i class="fas fa-sliders-h"></i> AI Matching Weights (Optional)</h3>
-                <p class="section-desc">Customize how the AI prioritizes candidates for this specific role</p>
+                <p class="section-desc">Customize how the AI prioritizes candidates for this specific role. Starts with your company defaults.</p>
                 
                 <div class="weights-grid">
                     <div class="weight-control">
@@ -99,6 +99,10 @@
                         <input type="range" id="weight_trust" name="weight_trust" min="0" max="1" step="0.05" value="0.1">
                     </div>
                 </div>
+                
+                <button type="button" id="reset-to-defaults" class="btn-secondary btn-sm" style="margin-top: 1rem;">
+                    <i class="fas fa-undo"></i> Reset to Company Defaults
+                </button>
             </div>
 
             <div class="form-actions">
@@ -128,6 +132,15 @@ const companyId = localStorage.getItem('company_id');
 if (!companyId) {
     window.location.href = '/company/login/';
 }
+
+// Store company defaults for reset functionality
+let companyDefaults = {
+    skills: 0.4,
+    cgpa: 0.2,
+    projects: 0.2,
+    activity: 0.1,
+    trust: 0.1
+};
 
 // Update weight labels
 document.querySelectorAll('.weight-control input').forEach(input => {
@@ -239,6 +252,65 @@ document.getElementById('post-job-form').addEventListener('submit', async (e) =>
         btn.disabled = false;
     }
 });
+
+// Reset to company defaults button
+document.getElementById('reset-to-defaults').addEventListener('click', () => {
+    document.getElementById('weight_skills').value = companyDefaults.skills;
+    document.getElementById('weight_cgpa').value = companyDefaults.cgpa;
+    document.getElementById('weight_projects').value = companyDefaults.projects;
+    document.getElementById('weight_activity').value = companyDefaults.activity;
+    document.getElementById('weight_trust').value = companyDefaults.trust;
+    updateWeightLabels();
+    
+    // Visual feedback
+    const btn = document.getElementById('reset-to-defaults');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check"></i> Reset!';
+    setTimeout(() => {
+        btn.innerHTML = originalText;
+    }, 1500);
+});
+
+// Load company defaults on page load
+async function loadCompanyDefaults() {
+    try {
+        const response = await fetch(`${API_BASE}/company/${companyId}/dashboard/`);
+        const data = await response.json();
+        
+        if (data.status === 'success' && data.current_weights) {
+            const w = data.current_weights;
+            
+            // Store for reset functionality
+            companyDefaults = {
+                skills: w.skills ?? 0.4,
+                cgpa: w.cgpa ?? 0.2,
+                projects: w.projects ?? 0.2,
+                activity: w.activity ?? 0.1,
+                trust: w.trust ?? 0.1
+            };
+            
+            // Set slider values to company defaults
+            document.getElementById('weight_skills').value = companyDefaults.skills;
+            document.getElementById('weight_cgpa').value = companyDefaults.cgpa;
+            document.getElementById('weight_projects').value = companyDefaults.projects;
+            document.getElementById('weight_activity').value = companyDefaults.activity;
+            document.getElementById('weight_trust').value = companyDefaults.trust;
+            
+            // Update the percentage labels
+            updateWeightLabels();
+            
+            console.log('✅ Loaded company defaults:', companyDefaults);
+        } else {
+            console.log('⚠️ No company weights found, using defaults');
+        }
+    } catch (e) {
+        console.error('❌ Could not load company weights:', e);
+        // Silently fail - sliders will use default HTML values
+    }
+}
+
+// Call it immediately
+loadCompanyDefaults();
 </script>
 
 <style>

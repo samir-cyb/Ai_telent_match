@@ -81,7 +81,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-API_KEY = os.getenv("API_KEY")
+API_key=os.getenv('API_KEY')
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
