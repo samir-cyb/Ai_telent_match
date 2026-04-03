@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import views 
 
 urlpatterns = [
     # Auth endpoints
@@ -20,6 +20,7 @@ urlpatterns = [
     path('student/<uuid:student_id>/skills/', views.AddSkillView.as_view(), name='add_skill'),
     path('student/<uuid:student_id>/experience/', views.AddExperienceView.as_view(), name='add_experience'),
     path('student/<uuid:student_id>/preferences/', views.UpdatePreferencesView.as_view(), name='update_preferences'),
+    path('student/<uuid:student_id>/applications/', views.StudentApplicationsView.as_view(), name='student_applications'),
     
     path('analyze-match/', views.AnalyzeMatchView.as_view(), name='analyze_match'),
     path('smart-apply/', views.SmartApplyView.as_view(), name='smart_apply'),

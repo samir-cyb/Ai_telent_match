@@ -179,7 +179,7 @@
             <!-- GitHub Projects Showcase -->
             <div class="glass-card section-card">
                 <div class="section-header">
-                    <h3><i class="fab fa-github"></i> GitHub Projects</h3>
+                    <h3><i class="fab fa-github"></i> Projects</h3>
                     <span class="github-score" id="github-score">Score: --</span>
                 </div>
                 <div class="projects-grid" id="projects-grid">
@@ -416,6 +416,56 @@
                     </div>
                 </div>
 
+                <!-- Projects Management Section - NEW -->
+                <div class="form-section-card">
+                    <div class="section-title-bar">
+                        <i class="fas fa-project-diagram"></i>
+                        <h4>Projects</h4>
+                    </div>
+                    
+                    <!-- Add New Project -->
+                    <div class="add-project-form">
+                        <div class="form-row">
+                            <div class="form-group enhanced">
+                                <label>Project Title *</label>
+                                <input type="text" id="new-project-title" placeholder="e.g., E-Commerce Platform">
+                            </div>
+                            <div class="form-group enhanced">
+                                <label>GitHub URL</label>
+                                <input type="url" id="new-project-github" placeholder="https://github.com/username/project">
+                            </div>
+                        </div>
+                        <div class="form-group enhanced full-width">
+                            <label>Description</label>
+                            <textarea id="new-project-description" rows="2" placeholder="Describe your project, features, and your role..."></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group enhanced">
+                                <label>Tech Stack (comma separated)</label>
+                                <input type="text" id="new-project-tech" placeholder="e.g., Python, Django, React, PostgreSQL">
+                            </div>
+                            <div class="form-group enhanced">
+                                <label>Complexity Score (1-5)</label>
+                                <select id="new-project-complexity">
+                                    <option value="1">1 - Simple</option>
+                                    <option value="2">2 - Basic</option>
+                                    <option value="3" selected>3 - Intermediate</option>
+                                    <option value="4">4 - Advanced</option>
+                                    <option value="5">5 - Complex</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-secondary btn-sm" onclick="addProjectFromModal()">
+                            <i class="fas fa-plus"></i> Add Project
+                        </button>
+                    </div>
+                    
+                    <!-- Projects List -->
+                    <div class="managed-list" id="modal-projects-list">
+                        <p class="no-data-small">No projects added yet. Add your first project above.</p>
+                    </div>
+                </div>
+
                 <!-- Work Experience Management Section -->
                 <div class="form-section-card">
                     <div class="section-title-bar">
@@ -466,6 +516,7 @@
                         <p class="no-data-small">No experience added yet. Add your first experience above.</p>
                     </div>
                 </div>
+                
 
                 <!-- Job Preferences Section -->
                 <div class="form-section-card">
@@ -556,6 +607,7 @@ let skillsChart;
 let profileData = {};
 let currentSkills = [];
 let currentExperiences = [];
+let currentProjects = [];  // NEW: Track projects in modal
 let isSaving = false;
 
 // Load profile data
@@ -568,6 +620,7 @@ async function loadProfile() {
             profileData = data.data;
             currentSkills = data.data.skills || [];
             currentExperiences = data.data.experiences || [];
+            currentProjects = data.data.projects || [];  // NEW: Load projects
             updateProfile(data.data);
         }
     } catch (error) {
@@ -580,7 +633,8 @@ function updateProfile(data) {
     document.getElementById('student-name').textContent = data.name || 'Unknown';
     document.getElementById('department').textContent = data.department || 'No department';
     document.getElementById('university-id').textContent = 'ID: ' + (data.university_id || data.student_id || '--');
-    
+    document.getElementById('total-applications').textContent = data.total_applications || 0;
+
     const trustScore = Math.round(data.trust_score || 0);
     document.getElementById('trust-value').textContent = trustScore + '%';
     document.getElementById('trust-badge').style.background = `conic-gradient(#48bbff ${trustScore * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
@@ -624,7 +678,10 @@ function updateProfile(data) {
     document.getElementById('pref-relocate').textContent = prefs.willing_to_relocate ? 'Yes' : 'No';
     
     document.getElementById('github-score').textContent = `Score: ${data.github?.score || '--'}`;
-    updateProjects(data.projects || []);
+    
+    // NEW: Update projects with fresh data
+    currentProjects = data.projects || [];
+    updateProjects(currentProjects);
     
     // Update experiences with fresh data
     currentExperiences = data.experiences || [];
@@ -709,7 +766,7 @@ function updateProjects(projects) {
     document.getElementById('total-projects').textContent = projects.length;
     
     if (projects.length === 0) {
-        container.innerHTML = '<p class="no-data">No projects added yet. Add your GitHub username to import projects.</p>';
+        container.innerHTML = '<p class="no-data">No projects added yet. Add projects manually or import from GitHub.</p>';
         return;
     }
     
@@ -717,7 +774,7 @@ function updateProjects(projects) {
         <div class="project-card" style="animation-delay: ${index * 0.1}s">
             <div class="project-header">
                 <h4>${proj.title}</h4>
-                ${proj.verified ? '<span class="verified-badge"><i class="fas fa-check"></i> Verified</span>' : ''}
+                ${proj.verified ? '<span class="verified-badge"><i class="fas fa-check"></i> Verified</span>' : '<span class="manual-badge"><i class="fas fa-user"></i> Manual</span>'}
             </div>
             <p class="project-desc">${proj.description || 'No description'}</p>
             <div class="project-tech">
@@ -756,14 +813,29 @@ function updateExperience(experiences) {
 }
 
 function updateTrajectory(trajectory) {
+    if (!trajectory || Object.keys(trajectory).length === 0) {
+        console.warn('Career trajectory data is empty');
+        document.getElementById('predicted-track').textContent = 'Analysis Pending';
+        document.getElementById('confidence').textContent = '--';
+        document.getElementById('next-role').textContent = 'Add more skills';
+        document.getElementById('recommended-skills').innerHTML = '<span class="rec-skill">Add skills to see recommendations</span>';
+        return;
+    }
+    
     document.getElementById('predicted-track').textContent = (trajectory.predicted_track || 'Unknown').replace('_', ' ').toUpperCase();
     document.getElementById('confidence').textContent = trajectory.confidence || '--';
     document.getElementById('next-role').textContent = trajectory.next_role || 'Next Role';
     
     const skillsContainer = document.getElementById('recommended-skills');
-    skillsContainer.innerHTML = (trajectory.recommended_skills_to_add || []).map(skill => 
-        `<span class="rec-skill">${skill}</span>`
-    ).join('');
+    skillsContainer.innerHTML = '';
+    
+    if (trajectory.recommended_skills_to_add && trajectory.recommended_skills_to_add.length > 0) {
+        skillsContainer.innerHTML = trajectory.recommended_skills_to_add.map(skill => 
+            `<span class="rec-skill">${skill}</span>`
+        ).join('');
+    } else {
+        skillsContainer.innerHTML = '<span class="rec-skill">Great! You have all recommended skills</span>';
+    }
 }
 
 function updateTrustBreakdown(data) {
@@ -817,6 +889,7 @@ function editProfile() {
     // Reset arrays to current profile data
     currentSkills = [...(profileData.skills || [])];
     currentExperiences = [...(profileData.experiences || [])];
+    currentProjects = [...(profileData.projects || [])];  // NEW: Reset projects
     
     // Basic Info
     document.getElementById('edit-name').value = profileData.name || '';
@@ -843,8 +916,9 @@ function editProfile() {
     document.getElementById('pref-salary-input').value = prefs.salary_expectation || '';
     document.getElementById('pref-relocate-input').checked = prefs.willing_to_relocate || false;
     
-    // Render Skills and Experience in Modal
+    // Render Skills, Projects, and Experience in Modal
     renderModalSkills();
+    renderModalProjects();  // NEW: Render projects
     renderModalExperience();
 }
 
@@ -864,6 +938,12 @@ function closeModal() {
     document.getElementById('new-exp-end').value = '';
     document.getElementById('new-exp-current').checked = false;
     document.getElementById('new-exp-description').value = '';
+    // NEW: Clear project inputs
+    document.getElementById('new-project-title').value = '';
+    document.getElementById('new-project-github').value = '';
+    document.getElementById('new-project-description').value = '';
+    document.getElementById('new-project-tech').value = '';
+    document.getElementById('new-project-complexity').value = '3';
 }
 
 // ==================== SKILLS MANAGEMENT IN MODAL ====================
@@ -921,6 +1001,72 @@ function removeSkill(index) {
     const removed = currentSkills.splice(index, 1)[0];
     renderModalSkills();
     showNotification(`Skill "${removed.name}" removed`, 'success');
+}
+
+// ==================== PROJECTS MANAGEMENT IN MODAL - NEW ====================
+
+function renderModalProjects() {
+    const container = document.getElementById('modal-projects-list');
+    
+    if (!currentProjects || currentProjects.length === 0) {
+        container.innerHTML = '<p class="no-data-small">No projects added yet. Add your first project above.</p>';
+        return;
+    }
+    
+    container.innerHTML = currentProjects.map((proj, index) => `
+        <div class="managed-item">
+            <div class="managed-item-info">
+                <span class="managed-item-title">${proj.title}</span>
+                <span class="managed-item-subtitle">${(proj.tech_stack || []).join(', ')} • Complexity: ${proj.complexity || 1}/5</span>
+            </div>
+            <button type="button" class="btn-delete" onclick="removeProject(${index})">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function addProjectFromModal() {
+    const title = document.getElementById('new-project-title').value.trim();
+    const githubUrl = document.getElementById('new-project-github').value.trim();
+    const description = document.getElementById('new-project-description').value.trim();
+    const techInput = document.getElementById('new-project-tech').value.trim();
+    const complexity = parseInt(document.getElementById('new-project-complexity').value);
+    
+    if (!title) {
+        showNotification('Please enter project title', 'error');
+        return;
+    }
+    
+    // Parse tech stack from comma-separated string
+    const techStack = techInput ? techInput.split(',').map(t => t.trim()).filter(t => t) : [];
+    
+    const newProject = {
+        title: title,
+        description: description,
+        tech_stack: techStack,
+        complexity: complexity,
+        github_url: githubUrl || null,
+        verified: false  // Manual projects are not verified by default
+    };
+    
+    currentProjects.push(newProject);
+    
+    // Clear inputs
+    document.getElementById('new-project-title').value = '';
+    document.getElementById('new-project-github').value = '';
+    document.getElementById('new-project-description').value = '';
+    document.getElementById('new-project-tech').value = '';
+    document.getElementById('new-project-complexity').value = '3';
+    
+    renderModalProjects();
+    showNotification(`Project "${title}" added`, 'success');
+}
+
+function removeProject(index) {
+    const removed = currentProjects.splice(index, 1)[0];
+    renderModalProjects();
+    showNotification(`Project "${removed.title}" removed`, 'success');
 }
 
 // ==================== EXPERIENCE MANAGEMENT IN MODAL ====================
@@ -1044,6 +1190,7 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
         portfolio_url: document.getElementById('edit-portfolio').value,
         skills: currentSkills,
         experiences: currentExperiences,
+        projects: currentProjects,  // NEW: Include projects in payload
         preferences: {
             job_types: jobTypes,
             company_size: companySizes,
@@ -1610,6 +1757,15 @@ loadProfile();
     white-space: nowrap;
 }
 
+.manual-badge {
+    background: rgba(72, 187, 255, 0.2);
+    color: #48bbff;
+    padding: 0.3rem 0.8rem;
+    border-radius: 2rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
 .project-desc {
     color: #94a3b8;
     font-size: 0.9rem;
@@ -1786,7 +1942,7 @@ loadProfile();
     align-items: center;
     padding: 0.8rem 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    flex-wrap: wrap;
+    flex.wrap: wrap;
     gap: 0.5rem;
 }
 
@@ -2286,8 +2442,9 @@ loadProfile();
     }
 }
 
-/* Managed Lists (Skills & Experience) */
+/* Managed Lists (Skills, Projects & Experience) */
 .add-skill-form,
+.add-project-form,
 .add-experience-form {
     background: rgba(72, 187, 255, 0.05);
     border: 1px dashed rgba(72, 187, 255, 0.3);
