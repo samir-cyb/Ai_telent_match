@@ -7,6 +7,10 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.db.models import Q, Avg, Count
 from datetime import datetime, timedelta
 from django.contrib.sessions.backends.db import SessionStore
+from .decorators import student_login_required, company_login_required
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 
 from .models import *
 from .utils.ai_engine import AIMatchingEngine
@@ -36,21 +40,27 @@ def company_login(request):
 def company_register(request):
     return render(request, 'auth/company_register.html')
 
+@student_login_required
 def student_dashboard(request):
     return render(request, 'student/dashboard.html')
 
+@student_login_required
 def student_profile(request):
     return render(request, 'student/profile.html')
 
+@student_login_required
 def student_job_detail(request):
     return render(request, 'student/job_detail.html')
 
+@company_login_required
 def company_dashboard(request):
     return render(request, 'company/dashboard.html')
 
+@company_login_required
 def company_post_job(request):
     return render(request, 'company/post_job.html')
 
+@company_login_required
 def company_applicants(request):
     return render(request, 'company/applicants.html')
 
@@ -195,8 +205,9 @@ class CompanyLoginView(View):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 # ==================== STUDENT VIEWS ====================
-
+@method_decorator(csrf_exempt, name='dispatch') 
 class StudentProfileView(View):
+    @method_decorator(student_login_required)
     def get(self, request, student_id):
         student = get_object_or_404(Student, id=student_id)
         
@@ -288,9 +299,8 @@ class StudentProfileView(View):
             'fraud_flags': len(flags),
             'github_validation': result if data.get('github_username') else None
         })
-
+@method_decorator(csrf_exempt, name='dispatch')
 class AnalyzeMatchView(View):
-    @method_decorator(csrf_exempt)
     def post(self, request):
         """Analyze match between student and specific job"""
         data = json.loads(request.body)
@@ -314,9 +324,9 @@ class AnalyzeMatchView(View):
             'match_score': score,
             'explanation': explanation
         })
-
+@method_decorator(csrf_exempt, name='dispatch')
 class SmartApplyView(View):
-    @method_decorator(csrf_exempt)
+    
     def post(self, request):
         """Auto-apply to best matching jobs"""
         data = json.loads(request.body)
@@ -485,9 +495,9 @@ class JobsListView(View):
                 'description': job.description[:200] + '...' if len(job.description) > 200 else job.description
             })
         return JsonResponse({'status': 'success', 'jobs': data})
-
+@method_decorator(csrf_exempt, name='dispatch')  # Add this
 class ApplyJobView(View):
-    @method_decorator(csrf_exempt)
+    
     def post(self, request):
         """Manual job application"""
         data = json.loads(request.body)
@@ -590,9 +600,9 @@ class CompanyDashboardView(View):
             'top_candidate_suggestions': top_candidates,
             'current_weights': company.get_weights()
         })
-
+@method_decorator(csrf_exempt, name='dispatch')
 class PostJobView(View):
-    @method_decorator(csrf_exempt)
+    
     def post(self, request):
         data = json.loads(request.body)
         company = get_object_or_404(Company, id=data['company_id'])
@@ -648,9 +658,9 @@ class ApplicationsListView(View):
                 'applied_at': app.applied_at.isoformat()
             })
         return JsonResponse({'status': 'success', 'applications': data})
-
+@method_decorator(csrf_exempt, name='dispatch') 
 class UpdateApplicationView(View):
-    @method_decorator(csrf_exempt)
+    
     def post(self, request):
         """Update application status (shortlist, reject, etc.)"""
         data = json.loads(request.body)
@@ -674,9 +684,9 @@ class UpdateApplicationView(View):
             'status': 'success',
             'message': f'Application status updated to {data["status"]}'
         })
-
+@method_decorator(csrf_exempt, name='dispatch') 
 class ShortlistCandidatesView(View):
-    @method_decorator(csrf_exempt)
+    
     def post(self, request):
         """Auto-shortlist top N candidates for a job"""
         data = json.loads(request.body)
@@ -715,9 +725,9 @@ class ShortlistCandidatesView(View):
             'shortlisted_count': len(shortlisted),
             'candidates': shortlisted
         })
-
+@method_decorator(csrf_exempt, name='dispatch')
 class HireCandidateView(View):
-    @method_decorator(csrf_exempt)
+    
     def post(self, request):
         """Mark candidate as hired and trigger weight adjustment"""
         data = json.loads(request.body)
@@ -851,9 +861,9 @@ class FraudFlagsListView(View):
                 'created_at': flag.created_at.isoformat()
             })
         return JsonResponse({'status': 'success', 'flags': data})
-
+@method_decorator(csrf_exempt, name='dispatch')  # Add this
 class ResolveFraudFlagView(View):
-    @method_decorator(csrf_exempt)
+    
     def post(self, request):
         data = json.loads(request.body)
         flag = get_object_or_404(FraudFlag, id=data['flag_id'])
@@ -865,7 +875,7 @@ class ResolveFraudFlagView(View):
         return JsonResponse({'status': 'success', 'message': 'Flag resolved'})
 
 # ==================== NOTIFICATION & SCHEDULING ====================
-
+@method_decorator(csrf_exempt, name='dispatch')
 class NotificationsView(View):
     def get(self, request, user_id, user_type):
         notifications = Notification.objects.filter(
@@ -898,9 +908,9 @@ class NotificationsView(View):
         ).update(read=True)
         
         return JsonResponse({'status': 'success'})
-
+@method_decorator(csrf_exempt, name='dispatch')  # Add this
 class ScheduleInterviewView(View):
-    @method_decorator(csrf_exempt)
+    
     def post(self, request):
         data = json.loads(request.body)
         application = get_object_or_404(Application, id=data['application_id'])
@@ -968,3 +978,341 @@ class StudentMatchesView(View):
             'matches': matches[:limit],
             'total_found': len(matches)
         })
+        
+def student_jobs(request):
+    return render(request, 'student/jobs.html')
+
+@method_decorator(csrf_exempt, name='dispatch')
+class StudentLogoutView(View):
+    def post(self, request):
+        try:
+            # Clear Django session
+            if 'student_id' in request.session:
+                del request.session['student_id']
+            if 'user_type' in request.session:
+                del request.session['user_type']
+            request.session.flush()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Logged out successfully'
+            })
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CompanyLogoutView(View):
+    def post(self, request):
+        try:
+            # Clear Django session
+            if 'company_id' in request.session:
+                del request.session['company_id']
+            if 'user_type' in request.session:
+                del request.session['user_type']
+            request.session.flush()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Logged out successfully'
+            })
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+        
+
+@method_decorator(csrf_exempt, name='dispatch')
+class StudentLogoutView(View):
+    def post(self, request):
+        request.session.flush()
+        return JsonResponse({'status': 'success'})
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CompanyLogoutView(View):
+    def post(self, request):
+        request.session.flush()
+        return JsonResponse({'status': 'success'})
+    
+@method_decorator(csrf_exempt, name='dispatch')
+class AddSkillView(View):
+    def post(self, request):
+        data = json.loads(request.body)
+        student = get_object_or_404(Student, id=data['student_id'])
+        
+        skill, created = Skill.objects.get_or_create(
+            name=data['skill_name'],
+            defaults={'category': data.get('category', 'Uncategorized')}
+        )
+        
+        student_skill, created = StudentSkill.objects.get_or_create(
+            student=student,
+            skill=skill,
+            defaults={
+                'proficiency_level': data['proficiency_level'],
+                'verified_via': None
+            }
+        )
+        
+        if not created:
+            student_skill.proficiency_level = data['proficiency_level']
+            student_skill.save()
+        
+        return JsonResponse({'status': 'success', 'message': 'Skill added'})
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AddExperienceView(View):
+    def post(self, request):
+        data = json.loads(request.body)
+        student = get_object_or_404(Student, id=data['student_id'])
+        
+        experience = WorkExperience.objects.create(
+            student=student,
+            company_name=data['company_name'],
+            role=data['role'],
+            start_date=data['start_date'],
+            end_date=data.get('end_date'),
+            is_current=data.get('is_current', False),
+            description=data.get('description', '')
+        )
+        
+        return JsonResponse({
+            'status': 'success', 
+            'experience_id': str(experience.id),
+            'message': 'Experience added successfully'
+        })
+        
+class UpdatePreferencesView(APIView):
+    """Update student job preferences"""
+    
+    def post(self, request, student_id):
+        try:
+            student = get_object_or_404(Student, id=student_id)
+            
+            data = request.data.get('preferences', {})
+            
+            # Update preferences
+            current_prefs = student.preferences or {}
+            current_prefs.update({
+                'job_types': data.get('job_types', current_prefs.get('job_types', [])),
+                'company_size': data.get('company_size', current_prefs.get('company_size', [])),
+                'salary_expectation': data.get('salary_expectation', current_prefs.get('salary_expectation', '')),
+                'willing_to_relocate': data.get('willing_to_relocate', current_prefs.get('willing_to_relocate', False))
+            })
+            
+            student.preferences = current_prefs
+            student.save()
+            
+            return Response({
+                'status': 'success',
+                'message': 'Preferences updated successfully',
+                'data': current_prefs
+            })
+            
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            
+@method_decorator(csrf_exempt, name='dispatch') 
+class StudentProfileView(View):
+    
+    @method_decorator(student_login_required)
+    def get(self, request, student_id):
+        student = get_object_or_404(Student, id=student_id)
+        
+        # Calculate current trust score
+        student.calculate_trust_score()
+        
+        profile = {
+            'id': str(student.id),
+            'name': student.name,
+            'email': student.email,
+            'department': student.department,
+            'cgpa': float(student.cgpa) if student.cgpa else None,
+            'graduation_date': student.graduation_date.isoformat() if student.graduation_date else None,
+            'university_id': student.university_id,
+            'preferences': student.preferences,
+            'github': {
+                'username': student.github_username,
+                'verified': student.github_verified,
+                'score': student.github_score
+            },
+            'linkedin_url': student.linkedin_url,
+            'portfolio_url': student.portfolio_url,
+            'trust_score': float(student.trust_score),
+            'profile_complete_score': float(student.profile_complete_score),
+            'activity_score': float(student.activity_score),
+            'skills': [
+                {
+                    'name': ss.skill.name,
+                    'category': ss.skill.category,
+                    'level': ss.proficiency_level,
+                    'verified': ss.verified_via is not None
+                } for ss in StudentSkill.objects.filter(student=student).select_related('skill')
+            ],
+            'projects': [
+                {
+                    'title': p.title,
+                    'description': p.description,
+                    'tech_stack': [s.name for s in p.tech_stack.all()],
+                    'verified': p.verified,
+                    'complexity': p.complexity_score,
+                    'github_url': p.github_url
+                } for p in student.projects.all()
+            ],
+            'experiences': [
+                {
+                    'company': e.company_name,
+                    'role': e.role,
+                    'duration': f"{e.start_date} to {e.end_date or 'Present'}",
+                    'start_date': e.start_date.isoformat() if e.start_date else None,
+                    'end_date': e.end_date.isoformat() if e.end_date else None,
+                    'is_current': e.is_current,
+                    'description': e.description,
+                    'verified': e.verification_status == 'verified'
+                } for e in student.experiences.all()
+            ]
+        }
+        
+        return JsonResponse({'status': 'success', 'data': profile})
+    
+    @method_decorator(csrf_exempt)
+    def post(self, request):
+        """Create new student profile"""
+        try:
+            data = json.loads(request.body)
+            
+            # Check if email already exists
+            if Student.objects.filter(email=data.get('email')).exists():
+                return JsonResponse({'status': 'error', 'message': 'Email already registered'}, status=400)
+            
+            student = Student.objects.create(
+                email=data['email'],
+                university_id=data.get('university_id', ''),
+                name=data['name'],
+                department=data.get('department', ''),
+                cgpa=data.get('cgpa'),
+                graduation_date=data.get('graduation_date'),
+                preferences=data.get('preferences', {}),
+                github_username=data.get('github_username', ''),
+                linkedin_url=data.get('linkedin_url', ''),
+                portfolio_url=data.get('portfolio_url', '')
+            )
+            student.set_password(data['password'])
+            student.save()
+            
+            # Verify GitHub if provided
+            if data.get('github_username'):
+                validator = GitHubValidator()
+                result = validator.validate_student_github(data['github_username'])
+                if result['valid']:
+                    student.github_verified = True
+                    student.github_score = result['score']
+                    student.save()
+            
+            # Calculate initial trust score
+            student.calculate_trust_score()
+            
+            # Run fraud detection
+            fraud_engine = FraudDetectionEngine()
+            flags = fraud_engine.analyze_student(student)
+            
+            return JsonResponse({
+                'status': 'success',
+                'student_id': str(student.id),
+                'trust_score': float(student.trust_score),
+                'message': 'Registration successful'
+            })
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+    @method_decorator(csrf_exempt)
+    def put(self, request, student_id):
+        """UPDATE existing student profile - THIS IS THE KEY FIX"""
+        try:
+            data = json.loads(request.body)
+            student = get_object_or_404(Student, id=student_id)
+            
+            # Update basic fields
+            student.name = data.get('name', student.name)
+            student.department = data.get('department', student.department)
+            student.cgpa = data.get('cgpa', student.cgpa)
+            student.university_id = data.get('university_id', student.university_id)
+            student.graduation_date = data.get('graduation_date', student.graduation_date)
+            student.github_username = data.get('github_username', student.github_username)
+            student.linkedin_url = data.get('linkedin_url', student.linkedin_url)
+            student.portfolio_url = data.get('portfolio_url', student.portfolio_url)
+            
+            # Update preferences
+            if 'preferences' in data:
+                current_prefs = student.preferences or {}
+                current_prefs.update(data['preferences'])
+                student.preferences = current_prefs
+            
+            student.save()
+            
+            # Handle Skills Update
+            if 'skills' in data:
+                # Remove existing skills not in new list
+                existing_skill_names = [ss.skill.name for ss in StudentSkill.objects.filter(student=student)]
+                new_skill_names = [s['name'] for s in data['skills']]
+                
+                # Delete removed skills
+                StudentSkill.objects.filter(student=student).exclude(skill__name__in=new_skill_names).delete()
+                
+                # Add or update skills
+                for skill_data in data['skills']:
+                    skill, created = Skill.objects.get_or_create(
+                        name=skill_data['name'],
+                        defaults={'category': skill_data.get('category', 'Uncategorized')}
+                    )
+                    
+                    student_skill, created = StudentSkill.objects.update_or_create(
+                        student=student,
+                        skill=skill,
+                        defaults={
+                            'proficiency_level': skill_data.get('level', 'Beginner'),
+                            'verified_via': None  # Reset verification on update
+                        }
+                    )
+            
+            # Handle Experience Update
+            if 'experiences' in data:
+                # Clear existing experiences and recreate (simpler approach)
+                student.experiences.all().delete()
+                
+                for exp_data in data['experiences']:
+                    WorkExperience.objects.create(
+                        student=student,
+                        company_name=exp_data.get('company', ''),
+                        role=exp_data.get('role', ''),
+                        start_date=exp_data.get('start_date'),
+                        end_date=exp_data.get('end_date') if not exp_data.get('is_current') else None,
+                        is_current=exp_data.get('is_current', False),
+                        description=exp_data.get('description', ''),
+                        verification_status='pending'
+                    )
+            
+            # Re-verify GitHub if username changed
+            if data.get('github_username') and data.get('github_username') != student.github_username:
+                validator = GitHubValidator()
+                result = validator.validate_student_github(data['github_username'])
+                if result['valid']:
+                    student.github_verified = True
+                    student.github_score = result['score']
+                    student.save()
+            
+            # Recalculate trust score
+            student.calculate_trust_score()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Profile updated successfully',
+                'student_id': str(student.id),
+                'trust_score': float(student.trust_score)
+            })
+            
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

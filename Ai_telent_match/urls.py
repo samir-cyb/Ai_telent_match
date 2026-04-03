@@ -4,9 +4,9 @@ from django.contrib import admin
 from django.urls import path, include
 from core.views import (
     landing_page, about_us, services,
-    student_login, student_register, student_dashboard, student_profile, student_job_detail,
+    student_login, student_register, student_dashboard, student_profile, student_job_detail, student_jobs,  # ADD student_jobs HERE
     company_login, company_register, company_dashboard, company_post_job, company_applicants,
-    admin_dashboard, admin_analytics, admin_fraud_review
+    admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView 
 )
 
 urlpatterns = [
@@ -24,11 +24,14 @@ urlpatterns = [
     path('student/dashboard/', student_dashboard, name='student_dashboard'),
     path('student/profile/', student_profile, name='student_profile'),
     path('student/job-detail/', student_job_detail, name='student_job_detail'),
+    path('student/jobs/', student_jobs, name='student_jobs'),
+    path('api/auth/student/logout/', StudentLogoutView.as_view(), name='student_logout'),
     
     # Company
     path('company/dashboard/', company_dashboard, name='company_dashboard'),
     path('company/post-job/', company_post_job, name='company_post_job'),
     path('company/applicants/', company_applicants, name='company_applicants'),
+    path('api/auth/company/logout/', CompanyLogoutView.as_view(), name='company_logout'),
     
     # Admin
     path('admin/dashboard/', admin_dashboard, name='admin_dashboard'),

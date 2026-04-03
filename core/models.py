@@ -85,12 +85,12 @@ class Student(models.Model):
         activity_weight = 0.3
         project_weight = 0.4
         
-        # Profile completeness (0-1)
+        # Profile completeness (0-1) - Convert Decimal to float
         self.profile_complete_score = self.calculate_profile_completeness()
-        profile_score = self.profile_complete_score
+        profile_score = float(self.profile_complete_score)  # FIX: Convert to float
         
-        # Activity normalized (assume 100 is max)
-        activity_score = min(self.activity_score / 100, 1.0)
+        # Activity normalized (assume 100 is max) - Convert Decimal to float
+        activity_score = min(float(self.activity_score) / 100, 1.0)  # FIX: Convert to float
         
         # Projects count (assume 5+ is max score)
         project_count = self.projects.count()
@@ -115,7 +115,7 @@ class StudentSkill(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='student_skills')
     skill = models.ForeignKey(Skill, on_delete=models.CASCADE)
     proficiency_level = models.CharField(max_length=20, choices=PROFICIENCY_LEVELS)
-    verified_via = models.CharField(max_length=50, blank=True)  # 'assessment', 'project', 'github'
+    verified_via = models.CharField(max_length=50, blank=True, null=True)  # <-- ADD null=True HERE
     verified_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:

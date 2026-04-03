@@ -314,6 +314,13 @@ function getScoreLabel(score) {
 
 // Apply to job
 document.getElementById('apply-btn').addEventListener('click', async () => {
+    // CHECK LOGIN HERE instead of at page load
+    if (!studentId) {
+        alert('Please login first to apply for this job');
+        window.location.href = '/student/login/';
+        return;
+    }
+    
     const btn = document.getElementById('apply-btn');
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
     btn.disabled = true;

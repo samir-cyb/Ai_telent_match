@@ -17,6 +17,22 @@
         </div>
     </div>
 
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <a href="/student/jobs/" class="glass-card action-card">
+            <i class="fas fa-search"></i>
+            <span>Browse Jobs</span>
+        </a>
+        <a href="/student/profile/" class="glass-card action-card">
+            <i class="fas fa-user-edit"></i>
+            <span>Update Profile</span>
+        </a>
+        <a href="/student/dashboard/" class="glass-card action-card" onclick="alert('Feature coming soon!')">
+            <i class="fas fa-brain"></i>
+            <span>AI Coach</span>
+        </a>
+    </div>
+
     <!-- Stats Row -->
     <div class="stats-row">
         <div class="glass-card stat-card">
@@ -562,6 +578,48 @@ setInterval(loadDashboard, 30000);
 .stat-info h3 {
     font-size: 1.8rem;
     color: #48bbff;
+}
+
+.quick-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.action-card:hover {
+    transform: translateY(-5px);
+    border-color: #48bbff;
+    background: rgba(72, 187, 255, 0.1);
+}
+
+.action-card i {
+    font-size: 2rem;
+    color: #48bbff;
+    margin-bottom: 0.8rem;
+}
+
+.action-card span {
+    font-weight: 600;
+    color: #f0f9ff;
+}
+
+@media (max-width: 768px) {
+    .quick-actions {
+        grid-template-columns: 1fr;
+    }
 }
 
 .stat-info p {
