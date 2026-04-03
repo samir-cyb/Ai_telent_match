@@ -54,8 +54,13 @@ def student_job_detail(request):
 
 @company_login_required
 def company_dashboard(request):
-    return render(request, 'company/dashboard.html')
-
+    # Get the company from session
+    company_id = request.session.get('company_id')
+    company = get_object_or_404(Company, id=company_id)
+    
+    return render(request, 'company/dashboard.html', {
+        'company_name': company.name
+    })
 @company_login_required
 def company_post_job(request):
     return render(request, 'company/post_job.html')
@@ -876,6 +881,7 @@ class CompanyDashboardView(View):
         
         return JsonResponse({
             'status': 'success',
+            'company_name': company.name,  # ← ADD THIS LINE
             'jobs': job_stats,
             'ai_weight_evolution': weight_evolution,
             'top_candidate_suggestions': top_candidates,
