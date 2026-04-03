@@ -48,9 +48,9 @@
             </div>
         </div>
 
-        <!-- Right Column: AI Analysis -->
+        <!-- Right Column: AI Analysis - FIXED: Compact Layout -->
         <div class="analysis-section">
-            <div class="glass-card analysis-card">
+            <div class="glass-card analysis-card compact">
                 <h3><i class="fas fa-robot"></i> AI Match Analysis</h3>
                 
                 <div class="match-score-display" id="match-score-display">
@@ -63,48 +63,59 @@
                     </button>
                 </div>
 
+                <!-- FIXED: All results in a compact grid layout -->
                 <div id="analysis-results" class="analysis-results" style="display: none;">
-                    <div class="breakdown-section">
-                        <h4>Score Breakdown</h4>
-                        <div id="score-breakdown" class="breakdown-bars">
-                            <!-- Breakdown bars injected here -->
+                    
+                    <!-- Top Row: Score + Radar side by side -->
+                    <div class="results-top-row">
+                        <div class="breakdown-section">
+                            <h4>Score Breakdown</h4>
+                            <div id="score-breakdown" class="breakdown-bars">
+                                <!-- Breakdown bars injected here -->
+                            </div>
+                        </div>
+                        
+                        <div class="radar-section compact">
+                            <h4>Profile vs Job</h4>
+                            <canvas id="comparisonRadar" width="200" height="200"></canvas>
                         </div>
                     </div>
 
-                    <div class="radar-section">
-                        <h4>Profile vs Requirements</h4>
-                        <canvas id="comparisonRadar" width="300" height="300"></canvas>
-                    </div>
-
-                    <div class="gaps-section" id="gaps-section">
+                    <!-- Middle: Skill Gaps (Prominent) -->
+                    <div class="gaps-section prominent">
                         <h4><i class="fas fa-exclamation-triangle"></i> Skill Gaps</h4>
                         <div id="skill-gaps" class="gaps-list"></div>
                     </div>
 
-                    <div class="recommendations-section" id="recommendations-section">
+                    <!-- Bottom: Recommendations -->
+                    <div class="recommendations-section compact">
                         <h4><i class="fas fa-lightbulb"></i> AI Recommendations</h4>
                         <ul id="recommendations-list"></ul>
                     </div>
-                </div>
-            </div>
 
-            <!-- Action Card -->
-            <div class="glass-card action-card" id="action-card" style="display: none;">
-                <h3>Ready to Apply?</h3>
-                <p>Your match score qualifies you for this position!</p>
-                <button id="apply-btn" class="btn-primary btn-full btn-glow">
-                    <i class="fas fa-paper-plane"></i> Apply Now
-                </button>
-                <p class="disclaimer">
-                    <i class="fas fa-shield-alt"></i> Your Trust Score: <span id="trust-score">--</span>
-                </p>
+                    <!-- FIXED: Apply Button Section - Always Visible -->
+                    <div class="apply-section" id="apply-section">
+                        <div class="apply-card">
+                            <div class="apply-info">
+                                <h4>Ready to Apply?</h4>
+                                <p>Trust Score: <span id="trust-score-display">--</span></p>
+                            </div>
+                            <button id="apply-btn" class="btn-primary btn-apply btn-glow">
+                                <i class="fas fa-paper-plane"></i> Apply Now
+                            </button>
+                        </div>
+                        <p class="apply-note" id="apply-note"></p>
+                    </div>
+
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-const API_BASE = "http://127.0.0.1:8000/api";
+// FIXED: Use window.API_BASE to avoid redeclaration conflicts
+window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
 const urlParams = new URLSearchParams(window.location.search);
 const jobId = urlParams.get('id');
 const studentId = localStorage.getItem('student_id');
@@ -118,7 +129,7 @@ let comparisonChart;
 // Load job details
 async function loadJobDetails() {
     try {
-        const response = await fetch(`${API_BASE}/jobs/`);
+        const response = await fetch(`${window.API_BASE}/jobs/`);
         const data = await response.json();
         
         if (data.status === 'success') {
@@ -140,7 +151,6 @@ function displayJobDetails(job) {
     document.getElementById('job-description').textContent = job.description;
     document.getElementById('job-cgpa').textContent = job.min_cgpa || 'Not specified';
     
-    // Display skills
     const skillsContainer = document.getElementById('job-skills');
     skillsContainer.innerHTML = job.required_skills.map(skill => 
         `<span class="skill-badge-large">${skill}</span>`
@@ -154,7 +164,7 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
     btn.disabled = true;
     
     try {
-        const response = await fetch(`${API_BASE}/analyze-match/`, {
+        const response = await fetch(`${window.API_BASE}/analyze-match/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -190,40 +200,64 @@ function displayAnalysisResults(data) {
         </div>
     `;
     
-    // Show results
+    // Show results container
     document.getElementById('analysis-results').style.display = 'block';
     
-    // Breakdown
+    // Setup apply button with trust score
+    const trustScore = Math.round((data.explanation?.breakdown?.trust || 0) * 100);
+    document.getElementById('trust-score-display').textContent = trustScore + '%';
+    
+    const applyBtn = document.getElementById('apply-btn');
+    const applyNote = document.getElementById('apply-note');
+    
+    if (score < 60) {
+        applyBtn.disabled = true;
+        applyBtn.innerHTML = '<i class="fas fa-lock"></i> Need 60% Match';
+        applyBtn.classList.add('disabled');
+        applyNote.textContent = 'Improve your match score to unlock application';
+        applyNote.style.color = '#ff5858';
+    } else {
+        applyBtn.disabled = false;
+        applyBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Apply Now';
+        applyBtn.classList.remove('disabled');
+        applyNote.innerHTML = '<i class="fas fa-check-circle"></i> You qualify for this position!';
+        applyNote.style.color = '#00b86b';
+        
+        // Add click handler
+        applyBtn.onclick = () => applyToJob(jobId);
+    }
+    
+    // Render breakdown
     const breakdown = data.explanation?.breakdown || {};
     document.getElementById('score-breakdown').innerHTML = `
-        <div class="breakdown-item">
-            <span>Skills Match</span>
+        <div class="breakdown-item compact">
+            <span>Skills</span>
             <div class="progress-bar"><div class="progress" style="width: ${(breakdown.skills || 0) * 100}%"></div></div>
             <span>${Math.round((breakdown.skills || 0) * 100)}%</span>
         </div>
-        <div class="breakdown-item">
-            <span>CGPA Score</span>
+        <div class="breakdown-item compact">
+            <span>CGPA</span>
             <div class="progress-bar"><div class="progress" style="width: ${(breakdown.cgpa || 0) * 100}%"></div></div>
             <span>${Math.round((breakdown.cgpa || 0) * 100)}%</span>
         </div>
-        <div class="breakdown-item">
+        <div class="breakdown-item compact">
             <span>Projects</span>
             <div class="progress-bar"><div class="progress" style="width: ${(breakdown.projects || 0) * 100}%"></div></div>
             <span>${Math.round((breakdown.projects || 0) * 100)}%</span>
         </div>
-        <div class="breakdown-item">
+        <div class="breakdown-item compact">
             <span>Activity</span>
             <div class="progress-bar"><div class="progress" style="width: ${(breakdown.activity || 0) * 100}%"></div></div>
             <span>${Math.round((breakdown.activity || 0) * 100)}%</span>
         </div>
-        <div class="breakdown-item">
-            <span>Trust Score</span>
+        <div class="breakdown-item compact">
+            <span>Trust</span>
             <div class="progress-bar"><div class="progress" style="width: ${(breakdown.trust || 0) * 100}%"></div></div>
             <span>${Math.round((breakdown.trust || 0) * 100)}%</span>
         </div>
     `;
     
-    // Radar chart
+    // Radar chart - compact
     const ctx = document.getElementById('comparisonRadar').getContext('2d');
     if (comparisonChart) comparisonChart.destroy();
     
@@ -232,7 +266,7 @@ function displayAnalysisResults(data) {
         data: {
             labels: ['Skills', 'CGPA', 'Projects', 'Activity', 'Trust'],
             datasets: [{
-                label: 'Your Profile',
+                label: 'You',
                 data: [
                     (breakdown.skills || 0) * 100,
                     (breakdown.cgpa || 0) * 100,
@@ -242,24 +276,41 @@ function displayAnalysisResults(data) {
                 ],
                 backgroundColor: 'rgba(72, 187, 255, 0.2)',
                 borderColor: '#48bbff',
-                pointBackgroundColor: '#48bbff'
+                pointBackgroundColor: '#48bbff',
+                borderWidth: 2
             }, {
-                label: 'Job Requirements',
+                label: 'Job',
                 data: [80, 70, 60, 40, 50],
-                backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                backgroundColor: 'rgba(168, 85, 247, 0.15)',
                 borderColor: '#a855f7',
-                pointBackgroundColor: '#a855f7'
+                pointBackgroundColor: '#a855f7',
+                borderWidth: 2
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: { 
+                        color: '#94a3b8', 
+                        font: { size: 10 },
+                        boxWidth: 10
+                    }
+                }
+            },
             scales: {
                 r: {
                     beginAtZero: true,
                     max: 100,
+                    ticks: { display: false },
                     grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                    pointLabels: { color: '#cbd5e1' }
+                    pointLabels: { 
+                        color: '#94a3b8', 
+                        font: { size: 9 } 
+                    }
                 }
             }
         }
@@ -267,35 +318,31 @@ function displayAnalysisResults(data) {
     
     // Skill gaps
     const gaps = data.explanation?.missing_skills || [];
+    const gapsContainer = document.getElementById('skill-gaps');
     if (gaps.length > 0) {
-        document.getElementById('skill-gaps').innerHTML = gaps.map(gap => 
+        gapsContainer.innerHTML = gaps.map(gap => 
             `<span class="gap-badge">${gap.name}</span>`
         ).join('');
     } else {
-        document.getElementById('gaps-section').innerHTML = 
-            '<p class="no-gaps"><i class="fas fa-check-circle"></i> No skill gaps! You meet all requirements.</p>';
+        gapsContainer.innerHTML = '<span class="no-gaps-badge"><i class="fas fa-check"></i> No gaps!</span>';
     }
     
-    // Recommendations
+    // Recommendations - compact list
     const recs = data.explanation?.recommendations || [];
-    document.getElementById('recommendations-list').innerHTML = recs.map(rec => 
-        `<li><i class="fas fa-chevron-right"></i> ${rec}</li>`
+    document.getElementById('recommendations-list').innerHTML = recs.slice(0, 3).map(rec => 
+        `<li>${rec}</li>`
     ).join('');
     
-    // Show action card if score is good
-    if (score >= 60) {
-        document.getElementById('action-card').style.display = 'block';
-        document.getElementById('trust-score').textContent = Math.round((breakdown.trust || 0) * 100) + '%';
+    // Animate in
+    if (typeof gsap !== 'undefined') {
+        gsap.from('.results-top-row > div, .gaps-section, .recommendations-section, .apply-section', {
+            y: 15,
+            opacity: 0,
+            duration: 0.4,
+            stagger: 0.08,
+            ease: 'power2.out'
+        });
     }
-    
-    // Animate elements
-    gsap.from('.analysis-results > div', {
-        y: 30,
-        opacity: 0,
-        duration: 0.6,
-        stagger: 0.1,
-        ease: 'power2.out'
-    });
 }
 
 function getScoreColor(score) {
@@ -306,27 +353,26 @@ function getScoreColor(score) {
 }
 
 function getScoreLabel(score) {
-    if (score >= 80) return 'Excellent Match';
+    if (score >= 80) return 'Excellent';
     if (score >= 60) return 'Good Match';
-    if (score >= 40) return 'Fair Match';
+    if (score >= 40) return 'Fair';
     return 'Low Match';
 }
 
-// Apply to job
-document.getElementById('apply-btn').addEventListener('click', async () => {
-    // CHECK LOGIN HERE instead of at page load
+async function applyToJob(jobId) {
     if (!studentId) {
-        alert('Please login first to apply for this job');
+        alert('Please login first');
         window.location.href = '/student/login/';
         return;
     }
     
     const btn = document.getElementById('apply-btn');
+    const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
     btn.disabled = true;
     
     try {
-        const response = await fetch(`${API_BASE}/apply/`, {
+        const response = await fetch(`${window.API_BASE}/apply/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -338,29 +384,34 @@ document.getElementById('apply-btn').addEventListener('click', async () => {
         const data = await response.json();
         
         if (data.status === 'success') {
-            btn.innerHTML = '<i class="fas fa-check"></i> Applied Successfully!';
+            btn.innerHTML = '<i class="fas fa-check"></i> Applied!';
             btn.style.background = 'linear-gradient(135deg, #00b86b, #008c4a)';
-            
-            setTimeout(() => {
-                window.location.href = '/student/dashboard/';
-            }, 2000);
+            setTimeout(() => window.location.href = '/student/dashboard/', 1500);
         } else {
-            btn.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (data.message || 'Failed');
+            btn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Failed';
             btn.disabled = false;
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+            }, 2000);
         }
     } catch (error) {
-        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Apply Now';
+        btn.innerHTML = originalText;
         btn.disabled = false;
     }
-});
+}
 
 // Load on page load
 loadJobDetails();
 </script>
 
 <style>
+/* FIXED: Container with proper constraints */
 .job-detail-container {
-    padding: 2rem 0;
+    padding: 1.5rem 1rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    position: relative;
+    min-height: auto;
 }
 
 .back-link {
@@ -369,160 +420,204 @@ loadJobDetails();
     gap: 0.5rem;
     color: #94a3b8;
     text-decoration: none;
-    margin-bottom: 2rem;
-    transition: color 0.3s;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
 }
 
-.back-link:hover {
-    color: #48bbff;
-}
+.back-link:hover { color: #48bbff; }
 
+/* FIXED: Grid with better proportions */
 .job-detail-grid {
     display: grid;
-    grid-template-columns: 1fr 400px;
-    gap: 2rem;
+    grid-template-columns: 1fr 420px;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.job-info-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
 }
 
 .job-header-card {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
-    padding: 2rem;
-    margin-bottom: 1.5rem;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: rgba(15, 30, 55, 0.6);
+    border: 1px solid rgba(72, 187, 255, 0.1);
+    border-radius: 1rem;
 }
 
 .company-logo {
-    width: 80px;
-    height: 80px;
+    width: 60px;
+    height: 60px;
     background: linear-gradient(135deg, #48bbff, #a855f7);
-    border-radius: 1rem;
+    border-radius: 0.875rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.5rem;
+    font-size: 1.75rem;
     color: white;
+    flex-shrink: 0;
 }
 
 .job-title-section h1 {
-    font-size: 1.8rem;
-    margin-bottom: 0.5rem;
+    font-size: 1.4rem;
+    margin-bottom: 0.3rem;
+    color: #f0f9ff;
 }
 
 .company-name {
     color: #94a3b8;
-    font-size: 1.1rem;
-    margin-bottom: 0.8rem;
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
 }
 
 .job-badges {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.4rem;
+    flex-wrap: wrap;
 }
 
 .badge {
     background: rgba(72, 187, 255, 0.2);
     color: #48bbff;
-    padding: 0.3rem 0.8rem;
+    padding: 0.25rem 0.6rem;
     border-radius: 2rem;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
+    font-weight: 500;
 }
 
 .job-details-card {
-    padding: 2rem;
+    padding: 1.25rem;
+    background: rgba(15, 30, 55, 0.6);
+    border: 1px solid rgba(72, 187, 255, 0.1);
+    border-radius: 1rem;
 }
 
 .job-details-card h3 {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin: 1.5rem 0 1rem;
+    gap: 0.4rem;
+    margin: 1rem 0 0.6rem;
     color: #48bbff;
-    font-size: 1.1rem;
+    font-size: 0.95rem;
 }
 
-.job-details-card h3:first-child {
-    margin-top: 0;
-}
+.job-details-card h3:first-child { margin-top: 0; }
 
 .job-description {
     color: #cbd5e1;
-    line-height: 1.8;
+    line-height: 1.6;
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
 }
 
 .requirements-list {
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
 }
 
 .req-item {
     display: flex;
     align-items: center;
-    gap: 0.8rem;
+    gap: 0.6rem;
     color: #cbd5e1;
+    font-size: 0.9rem;
 }
 
 .req-item i {
     color: #48bbff;
-    width: 20px;
+    font-size: 0.85rem;
 }
 
 .skills-container {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: 0.4rem;
 }
 
 .skill-badge-large {
     background: rgba(72, 187, 255, 0.15);
     border: 1px solid rgba(72, 187, 255, 0.3);
     color: #48bbff;
-    padding: 0.5rem 1rem;
+    padding: 0.4rem 0.8rem;
     border-radius: 2rem;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
-.analysis-card {
-    padding: 2rem;
+/* FIXED: Analysis section - compact and contained */
+.analysis-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    position: sticky;
+    top: 90px;
+    max-height: calc(100vh - 110px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(72, 187, 255, 0.3) transparent;
+}
+
+.analysis-section::-webkit-scrollbar {
+    width: 6px;
+}
+
+.analysis-section::-webkit-scrollbar-thumb {
+    background: rgba(72, 187, 255, 0.3);
+    border-radius: 3px;
+}
+
+.analysis-card.compact {
+    padding: 1.25rem;
+    background: rgba(15, 30, 55, 0.6);
+    border: 1px solid rgba(72, 187, 255, 0.1);
+    border-radius: 1rem;
     text-align: center;
+    overflow: visible;
 }
 
-.analysis-card h3 {
+.analysis-card.compact h3 {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
     color: #48bbff;
+    font-size: 1rem;
 }
 
 .match-score-display {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1.5rem;
-    padding: 2rem;
+    gap: 1rem;
+    padding: 0.5rem;
 }
 
 .score-ring {
-    width: 150px;
-    height: 150px;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .score-ring.large {
-    width: 180px;
-    height: 180px;
+    width: 130px;
+    height: 130px;
 }
 
 .score-inner {
-    width: 140px;
-    height: 140px;
-    background: rgba(15, 30, 55, 0.9);
+    width: 95px;
+    height: 95px;
+    background: rgba(15, 30, 55, 0.95);
     border-radius: 50%;
     display: flex;
     flex-direction: column;
@@ -530,150 +625,323 @@ loadJobDetails();
     justify-content: center;
 }
 
-.score-number.large {
-    font-size: 3rem;
+.score-number {
+    font-size: 1.75rem;
     font-weight: 800;
     color: #48bbff;
 }
 
+.score-number.large {
+    font-size: 2.25rem;
+}
+
+.score-label {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+}
+
+/* FIXED: Results layout - horizontal top row */
 .analysis-results {
     text-align: left;
-    margin-top: 2rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.breakdown-section, .radar-section, .gaps-section, .recommendations-section {
-    margin-bottom: 2rem;
-    padding-bottom: 2rem;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.breakdown-section h4, .radar-section h4, .gaps-section h4, .recommendations-section h4 {
+.results-top-row {
+    display: grid;
+    grid-template-columns: 1fr 140px;
+    gap: 1rem;
     margin-bottom: 1rem;
+}
+
+.breakdown-section h4,
+.radar-section.compact h4,
+.gaps-section.prominent h4,
+.recommendations-section.compact h4 {
+    font-size: 0.85rem;
     color: #f0f9ff;
+    margin-bottom: 0.6rem;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.3rem;
 }
 
 .breakdown-bars {
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
+    gap: 0.5rem;
 }
 
-.breakdown-item {
+.breakdown-item.compact {
     display: grid;
-    grid-template-columns: 100px 1fr 50px;
+    grid-template-columns: 50px 1fr 35px;
     align-items: center;
-    gap: 1rem;
+    gap: 0.5rem;
+    font-size: 0.8rem;
 }
 
-.breakdown-item span:first-child {
+.breakdown-item.compact span:first-child {
     color: #94a3b8;
-    font-size: 0.9rem;
 }
 
-.breakdown-item span:last-child {
+.breakdown-item.compact span:last-child {
     color: #48bbff;
     font-weight: 600;
     text-align: right;
 }
 
 .progress-bar {
-    height: 8px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 4px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
     overflow: hidden;
 }
 
 .progress {
     height: 100%;
     background: linear-gradient(90deg, #48bbff, #a855f7);
-    border-radius: 4px;
-    transition: width 0.8s ease;
+    border-radius: 3px;
 }
 
-.radar-section canvas {
-    max-width: 250px;
-    margin: 0 auto;
-    display: block;
+/* Radar - compact */
+.radar-section.compact {
+    text-align: center;
+}
+
+.radar-section.compact canvas {
+    max-width: 140px !important;
+    max-height: 140px !important;
+}
+
+/* Skill Gaps - Prominent */
+.gaps-section.prominent {
+    background: rgba(255, 88, 88, 0.05);
+    border: 1px solid rgba(255, 88, 88, 0.2);
+    border-radius: 0.75rem;
+    padding: 0.875rem;
+    margin-bottom: 0.875rem;
+}
+
+.gaps-section.prominent h4 {
+    color: #ff5858;
+    margin-bottom: 0.6rem;
 }
 
 .gaps-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: 0.4rem;
 }
 
 .gap-badge {
     background: rgba(255, 88, 88, 0.2);
     color: #ff5858;
-    padding: 0.4rem 0.8rem;
+    padding: 0.3rem 0.6rem;
     border-radius: 2rem;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    border: 1px solid rgba(255, 88, 88, 0.3);
 }
 
-.no-gaps {
+.no-gaps-badge {
+    background: rgba(0, 184, 107, 0.2);
     color: #00b86b;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 2rem;
+    font-size: 0.8rem;
+    border: 1px solid rgba(0, 184, 107, 0.3);
 }
 
-.recommendations-section ul {
+/* Recommendations - compact */
+.recommendations-section.compact {
+    margin-bottom: 0.875rem;
+}
+
+.recommendations-section.compact ul {
     list-style: none;
     padding: 0;
+    margin: 0;
 }
 
-.recommendations-section li {
-    padding: 0.5rem 0;
+.recommendations-section.compact li {
+    padding: 0.3rem 0;
     color: #cbd5e1;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
-}
-
-.recommendations-section li i {
-    color: #48bbff;
-    margin-top: 0.3rem;
-}
-
-.action-card {
-    padding: 2rem;
-    text-align: center;
-    background: linear-gradient(135deg, rgba(72, 187, 255, 0.1), rgba(168, 85, 247, 0.1));
-    border: 1px solid rgba(72, 187, 255, 0.3);
-}
-
-.action-card h3 {
-    margin-bottom: 0.5rem;
-    color: #f0f9ff;
-}
-
-.action-card p {
-    color: #94a3b8;
-    margin-bottom: 1.5rem;
-}
-
-.disclaimer {
-    margin-top: 1rem;
     font-size: 0.85rem;
-    color: #64748b;
+    line-height: 1.4;
+    padding-left: 1rem;
+    position: relative;
 }
 
-.disclaimer span {
+.recommendations-section.compact li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
     color: #48bbff;
-    font-weight: 600;
+    font-size: 0.75rem;
 }
 
+/* FIXED: Apply Section - Prominent and Always Visible */
+.apply-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 2px solid rgba(72, 187, 255, 0.3);
+}
+
+.apply-card {
+    background: linear-gradient(135deg, rgba(72, 187, 255, 0.2), rgba(168, 85, 247, 0.2));
+    border: 2px solid rgba(72, 187, 255, 0.4);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.apply-info h4 {
+    color: #f0f9ff;
+    font-size: 1.1rem;
+    margin-bottom: 0.3rem;
+}
+
+.apply-info p {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.apply-info p span {
+    color: #48bbff;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.apply-note {
+    text-align: center;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+/* Buttons */
+.btn-primary {
+    background: linear-gradient(135deg, #48bbff, #0099ff);
+    color: white;
+    border: none;
+    padding: 0.875rem 1.5rem;
+    border-radius: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(72, 187, 255, 0.5);
+}
+
+.btn-primary:disabled,
+.btn-primary.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: linear-gradient(135deg, #64748b, #475569);
+}
+
+.btn-apply {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    min-width: 140px;
+    justify-content: center;
+}
+
+.btn-glow {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-glow::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.btn-glow:hover::after {
+    opacity: 1;
+}
+
+/* Responsive */
 @media (max-width: 968px) {
     .job-detail-grid {
         grid-template-columns: 1fr;
+        gap: 1rem;
     }
     
-    .job-header-card {
+    .analysis-section {
+        position: relative;
+        top: 0;
+        max-height: none;
+        order: -1;
+    }
+    
+    .results-top-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .radar-section.compact canvas {
+        max-width: 200px !important;
+        max-height: 200px !important;
+    }
+    
+    .apply-card {
         flex-direction: column;
         text-align: center;
+    }
+    
+    .btn-apply {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .job-detail-container {
+        padding: 1rem 0.5rem;
+    }
+    
+    .company-logo {
+        width: 50px;
+        height: 50px;
+        font-size: 1.5rem;
+    }
+    
+    .job-title-section h1 {
+        font-size: 1.2rem;
+    }
+    
+    .breakdown-item.compact {
+        grid-template-columns: 45px 1fr 30px;
+        font-size: 0.75rem;
+    }
+    
+    .apply-card {
+        padding: 1rem;
+    }
+    
+    .apply-info h4 {
+        font-size: 1rem;
     }
 }
 </style>

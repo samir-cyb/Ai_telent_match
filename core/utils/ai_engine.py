@@ -2,7 +2,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from django.db.models import Avg, Count
 from core.models import AIFeedbackLog, Application, Job, Student, StudentSkill, MatchExplanation, Skill, StudentBehaviorLog
-
+from django.utils import timezone 
 class AIMatchingEngine:
     def __init__(self, company=None):
         self.company = company
@@ -41,12 +41,18 @@ class AIMatchingEngine:
         return self.weights
     
     def calculate_skill_match(self, student, job):
-        """Calculate skill match with proficiency consideration"""
-        required_skills = set(job.required_skills.all())
-        student_skills = {
-            ss.skill: ss.proficiency_level 
-            for ss in StudentSkill.objects.filter(student=student)
-        }
+        """Calculate skill match with proficiency consideration - FIXED: case-insensitive name matching"""
+        required_skills = list(job.required_skills.all())
+        student_skills_qs = StudentSkill.objects.filter(student=student).select_related('skill')
+        
+        # Build dict by lowercase skill name for case-insensitive matching
+        student_skills_by_name = {}
+        for ss in student_skills_qs:
+            skill_name_lower = ss.skill.name.lower()
+            student_skills_by_name[skill_name_lower] = {
+                'level': ss.proficiency_level,
+                'skill_obj': ss.skill
+            }
         
         if not required_skills:
             return 1.0, []
@@ -54,17 +60,20 @@ class AIMatchingEngine:
         matched = 0
         missing = []
         
-        for skill in required_skills:
-            if skill in student_skills:
+        for required_skill in required_skills:
+            required_name_lower = required_skill.name.lower()
+            
+            if required_name_lower in student_skills_by_name:
                 # Weight by proficiency
+                prof_level = student_skills_by_name[required_name_lower]['level']
                 prof_multiplier = {
                     'Beginner': 0.5,
                     'Intermediate': 0.8,
                     'Expert': 1.0
-                }.get(student_skills[skill], 0.5)
+                }.get(prof_level, 0.5)
                 matched += prof_multiplier
             else:
-                missing.append(skill)
+                missing.append(required_skill)
         
         return matched / len(required_skills), missing
     
@@ -108,7 +117,7 @@ class AIMatchingEngine:
         
         # Graduation timing
         if student.graduation_date:
-            months_until_grad = (student.graduation_date - datetime.now().date()).days / 30
+            months_until_grad = (student.graduation_date - timezone.now().date()).days / 30
             if months_until_grad > 6:
                 factors['availability_penalty'] = -0.1
         
@@ -124,7 +133,7 @@ class AIMatchingEngine:
             student=student,
             job__company=job.company,
             status='rejected',
-            updated_at__gte=datetime.now() - timedelta(days=90)
+            updated_at__gte=timezone.now() - timedelta(days=90)
         ).exists()
         
         if recent_rejection:
@@ -196,7 +205,7 @@ class AIMatchingEngine:
             'recommendations': recommendations,
             'radar_chart': radar_data,
             'contextual_factors': factors,
-            'missing_skills': [{'id': str(s.id), 'name': s.name} for s in missing_skills],
+            'missing_skills': [{'id': str(s.id), 'name': s.name} for s in missing_skills] if missing_skills else [],
             'ab_test_info': ab_test_info
         }
     
