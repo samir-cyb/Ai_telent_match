@@ -2,116 +2,155 @@
 {% block title %}Admin Dashboard | AI Talent Match{% endblock %}
 
 {% block content %}
-<div class="container admin-container">
-    <!-- Header -->
-    <div class="page-header glass-card">
-        <h1><i class="fas fa-shield-alt"></i> Admin Dashboard</h1>
-        <p>Platform oversight and AI supervision</p>
+<!-- Mobile Navigation Toggle (only for mobile) -->
+<button class="mobile-nav-toggle" onclick="toggleMobileNav()">
+    <i class="fas fa-bars"></i>
+</button>
+
+<!-- Navigation Bar - INLINE (not fixed) so it doesn't conflict with base.html nav -->
+<nav class="admin-navbar-inline">
+    <div class="nav-brand">
+        <i class="fas fa-shield-alt"></i>
+        <span>Admin Portal</span>
     </div>
-
-    <!-- Platform Metrics -->
-    <div class="metrics-grid">
-        <div class="glass-card metric-card">
-            <i class="fas fa-users"></i>
-            <div class="metric-info">
-                <h3 id="total-students">0</h3>
-                <p>Total Students</p>
-            </div>
-        </div>
-        <div class="glass-card metric-card">
-            <i class="fas fa-building"></i>
-            <div class="metric-info">
-                <h3 id="total-companies">0</h3>
-                <p>Companies</p>
-            </div>
-        </div>
-        <div class="glass-card metric-card">
-            <i class="fas fa-briefcase"></i>
-            <div class="metric-info">
-                <h3 id="total-jobs">0</h3>
-                <p>Active Jobs</p>
-            </div>
-        </div>
-        <div class="glass-card metric-card">
-            <i class="fas fa-handshake"></i>
-            <div class="metric-info">
-                <h3 id="total-applications">0</h3>
-                <p>Applications</p>
-            </div>
-        </div>
+    <div class="nav-links">
+        <a href="/admin/dashboard/" class="nav-link active">
+            <i class="fas fa-chart-line"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="/admin/analytics/" class="nav-link">
+            <i class="fas fa-chart-pie"></i>
+            <span>Analytics</span>
+        </a>
+        <a href="/admin/fraud-review/" class="nav-link">
+            <i class="fas fa-shield-alt"></i>
+            <span>Fraud Review</span>
+            <span class="badge" id="nav-fraud-count">0</span>
+        </a>
     </div>
+    <div class="nav-actions">
+        <button class="btn-icon" onclick="refreshData()" title="Refresh Data">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+        <a href="/" class="btn-icon" title="Exit Admin">
+            <i class="fas fa-sign-out-alt"></i>
+        </a>
+    </div>
+</nav>
 
-    <!-- Main Grid -->
-    <div class="admin-grid">
-        <!-- Left Column -->
-        <div class="admin-left">
-            <!-- Conversion Funnel -->
-            <div class="glass-card chart-card">
-                <h3><i class="fas fa-filter"></i> Conversion Funnel</h3>
-                <canvas id="funnelChart" width="400" height="300"></canvas>
+<div class="admin-wrapper">
+    <div class="admin-container">
+        <!-- Header -->
+        <div class="page-header glass-card">
+            <h1><i class="fas fa-shield-alt"></i> Admin Dashboard</h1>
+            <p>Platform oversight and AI supervision</p>
+        </div>
+
+        <!-- Platform Metrics -->
+        <div class="metrics-grid">
+            <div class="glass-card metric-card">
+                <i class="fas fa-users"></i>
+                <div class="metric-info">
+                    <h3 id="total-students">0</h3>
+                    <p>Total Students</p>
+                </div>
             </div>
-
-            <!-- Skill Demand -->
-            <div class="glass-card chart-card">
-                <h3><i class="fas fa-fire"></i> Top Demanded Skills</h3>
-                <div id="skills-list" class="skills-list">
-                    Loading...
+            <div class="glass-card metric-card">
+                <i class="fas fa-building"></i>
+                <div class="metric-info">
+                    <h3 id="total-companies">0</h3>
+                    <p>Companies</p>
+                </div>
+            </div>
+            <div class="glass-card metric-card">
+                <i class="fas fa-briefcase"></i>
+                <div class="metric-info">
+                    <h3 id="total-jobs">0</h3>
+                    <p>Active Jobs</p>
+                </div>
+            </div>
+            <div class="glass-card metric-card">
+                <i class="fas fa-handshake"></i>
+                <div class="metric-info">
+                    <h3 id="total-applications">0</h3>
+                    <p>Applications</p>
                 </div>
             </div>
         </div>
 
-        <!-- Right Column -->
-        <div class="admin-right">
-            <!-- Fraud Detection -->
-            <div class="glass-card fraud-card">
-                <div class="card-header">
-                    <h3><i class="fas fa-exclamation-triangle"></i> Fraud Flags</h3>
-                    <a href="/admin/fraud-review/" class="btn-sm">Review All</a>
+        <!-- Main Grid -->
+        <div class="admin-grid">
+            <!-- Left Column -->
+            <div class="admin-left">
+                <div class="glass-card chart-card">
+                    <h3><i class="fas fa-filter"></i> Conversion Funnel</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="funnelChart"></canvas>
+                    </div>
                 </div>
-                <div id="fraud-list" class="fraud-list">
-                    Loading...
+
+                <div class="glass-card chart-card">
+                    <h3><i class="fas fa-fire"></i> Top Demanded Skills</h3>
+                    <div class="skills-list-wrapper">
+                        <div id="skills-list" class="skills-list">
+                            Loading...
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- A/B Testing -->
-            <div class="glass-card ab-test-card">
-                <h3><i class="fas fa-flask"></i> A/B Test Results</h3>
-                <div id="ab-results" class="ab-results">
-                    Loading...
+            <!-- Right Column -->
+            <div class="admin-right">
+                <div class="glass-card fraud-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-exclamation-triangle"></i> Fraud Flags</h3>
+                        <a href="/admin/fraud-review/" class="btn-sm">Review All</a>
+                    </div>
+                    <div class="fraud-list-wrapper">
+                        <div id="fraud-list" class="fraud-list">
+                            Loading...
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <!-- AI Weight Adjustment -->
-            <div class="glass-card weights-card">
-                <h3><i class="fas fa-sliders-h"></i> Global AI Weights</h3>
-                <p class="desc">Adjust default matching weights for all companies</p>
-                
-                <div class="weight-sliders">
-                    <div class="weight-item">
-                        <label>Skills: <span id="gw-skills">0.4</span></label>
-                        <input type="range" id="g-weight-skills" min="0" max="1" step="0.05" value="0.4">
-                    </div>
-                    <div class="weight-item">
-                        <label>CGPA: <span id="gw-cgpa">0.2</span></label>
-                        <input type="range" id="g-weight-cgpa" min="0" max="1" step="0.05" value="0.2">
-                    </div>
-                    <div class="weight-item">
-                        <label>Projects: <span id="gw-projects">0.2</span></label>
-                        <input type="range" id="g-weight-projects" min="0" max="1" step="0.05" value="0.2">
-                    </div>
-                    <div class="weight-item">
-                        <label>Activity: <span id="gw-activity">0.1</span></label>
-                        <input type="range" id="g-weight-activity" min="0" max="1" step="0.05" value="0.1">
-                    </div>
-                    <div class="weight-item">
-                        <label>Trust: <span id="gw-trust">0.1</span></label>
-                        <input type="range" id="g-weight-trust" min="0" max="1" step="0.05" value="0.1">
+                <div class="glass-card ab-test-card">
+                    <h3><i class="fas fa-flask"></i> A/B Test Results</h3>
+                    <div id="ab-results" class="ab-results">
+                        Loading...
                     </div>
                 </div>
-                
-                <button id="save-global-weights" class="btn-primary btn-sm">
-                    <i class="fas fa-save"></i> Save Global Weights
-                </button>
+
+                <div class="glass-card weights-card">
+                    <h3><i class="fas fa-sliders-h"></i> Global AI Weights</h3>
+                    <p class="desc">Adjust default matching weights for all companies</p>
+                    
+                    <div class="weight-sliders">
+                        <div class="weight-item">
+                            <label>Skills: <span id="gw-skills">0.4</span></label>
+                            <input type="range" id="g-weight-skills" min="0" max="1" step="0.05" value="0.4">
+                        </div>
+                        <div class="weight-item">
+                            <label>CGPA: <span id="gw-cgpa">0.2</span></label>
+                            <input type="range" id="g-weight-cgpa" min="0" max="1" step="0.05" value="0.2">
+                        </div>
+                        <div class="weight-item">
+                            <label>Projects: <span id="gw-projects">0.2</span></label>
+                            <input type="range" id="g-weight-projects" min="0" max="1" step="0.05" value="0.2">
+                        </div>
+                        <div class="weight-item">
+                            <label>Activity: <span id="gw-activity">0.1</span></label>
+                            <input type="range" id="g-weight-activity" min="0" max="1" step="0.05" value="0.1">
+                        </div>
+                        <div class="weight-item">
+                            <label>Trust: <span id="gw-trust">0.1</span></label>
+                            <input type="range" id="g-weight-trust" min="0" max="1" step="0.05" value="0.1">
+                        </div>
+                    </div>
+                    
+                    <button id="save-global-weights" class="btn-primary btn-sm">
+                        <i class="fas fa-save"></i> Save Global Weights
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -120,12 +159,10 @@
 <script>
 const API_BASE = "http://127.0.0.1:8000/api";
 
-// Load analytics
 async function loadAnalytics() {
     try {
         const response = await fetch(`${API_BASE}/admin/analytics/`);
         const data = await response.json();
-        
         updateDashboard(data);
     } catch (error) {
         console.error('Error loading analytics:', error);
@@ -133,7 +170,6 @@ async function loadAnalytics() {
 }
 
 function updateDashboard(data) {
-    // Update metrics
     if (data.platform_metrics) {
         document.getElementById('total-students').textContent = data.platform_metrics.students;
         document.getElementById('total-companies').textContent = data.platform_metrics.companies;
@@ -141,22 +177,23 @@ function updateDashboard(data) {
         document.getElementById('total-applications').textContent = data.platform_metrics.applications;
     }
     
-    // Update funnel chart
     if (data.conversion_funnel) {
         updateFunnelChart(data.conversion_funnel);
     }
     
-    // Update skills
     if (data.skill_demand) {
         updateSkillsList(data.skill_demand);
     }
     
-    // Update fraud flags
     if (data.fraud_detection) {
         updateFraudList(data.fraud_detection);
+        const navBadge = document.getElementById('nav-fraud-count');
+        if (navBadge && data.fraud_detection.total_flags > 0) {
+            navBadge.textContent = data.fraud_detection.total_flags;
+            navBadge.style.display = 'flex';
+        }
     }
     
-    // Update A/B results
     if (data.ab_test_results) {
         updateABResults(data.ab_test_results);
     }
@@ -164,8 +201,11 @@ function updateDashboard(data) {
 
 function updateFunnelChart(funnel) {
     const ctx = document.getElementById('funnelChart').getContext('2d');
+    if (window.funnelChartInstance) {
+        window.funnelChartInstance.destroy();
+    }
     
-    new Chart(ctx, {
+    window.funnelChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: ['Applied', 'Shortlisted', 'Interview', 'Hired'],
@@ -204,7 +244,6 @@ function updateFunnelChart(funnel) {
 
 function updateSkillsList(skills) {
     const container = document.getElementById('skills-list');
-    
     container.innerHTML = skills.slice(0, 10).map(([skill, data], index) => `
         <div class="skill-demand-item">
             <span class="rank">#${index + 1}</span>
@@ -219,7 +258,6 @@ function updateSkillsList(skills) {
 
 function updateFraudList(fraud) {
     const container = document.getElementById('fraud-list');
-    
     if (fraud.total_flags === 0) {
         container.innerHTML = '<p class="no-flags">No pending flags ✅</p>';
         return;
@@ -239,7 +277,6 @@ function updateFraudList(fraud) {
 
 function updateABResults(results) {
     const container = document.getElementById('ab-results');
-    
     container.innerHTML = `
         <div class="ab-comparison">
             <div class="ab-group">
@@ -283,7 +320,6 @@ function updateABResults(results) {
     `;
 }
 
-// Global weight controls
 document.querySelectorAll('.weight-sliders input').forEach(input => {
     input.addEventListener('input', updateGlobalWeightLabels);
 });
@@ -297,33 +333,152 @@ function updateGlobalWeightLabels() {
 }
 
 document.getElementById('save-global-weights').addEventListener('click', () => {
-    // In production, send to API
     alert('Global weights saved (demo)');
 });
 
-// Load on page load
-loadAnalytics();
+function refreshData() {
+    const btn = document.querySelector('.nav-actions .btn-icon i');
+    btn.classList.add('fa-spin');
+    loadAnalytics().then(() => {
+        setTimeout(() => btn.classList.remove('fa-spin'), 1000);
+    });
+}
 
-// Refresh every 60 seconds
+function toggleMobileNav() {
+    document.querySelector('.admin-navbar-inline').classList.toggle('mobile-open');
+}
+
+loadAnalytics();
 setInterval(loadAnalytics, 60000);
 </script>
 
 <style>
+/* INLINE NAVBAR - Not fixed, so no overlap with base.html nav */
+.admin-navbar-inline {
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(72, 187, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+    margin-bottom: 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: #48bbff;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    color: #94a3b8;
+    text-decoration: none;
+    border-radius: 0.5rem;
+    transition: all 0.3s;
+    font-size: 0.9rem;
+    position: relative;
+}
+
+.nav-link:hover, .nav-link.active {
+    color: #48bbff;
+    background: rgba(72, 187, 255, 0.15);
+}
+
+.nav-link .badge {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.2rem;
+    background: #ff5858;
+    color: white;
+    font-size: 0.65rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 1rem;
+    display: none;
+    min-width: 18px;
+    text-align: center;
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    background: rgba(72, 187, 255, 0.1);
+    color: #48bbff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    text-decoration: none;
+}
+
+.btn-icon:hover {
+    background: rgba(72, 187, 255, 0.2);
+}
+
+.mobile-nav-toggle {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1001;
+    width: 40px;
+    height: 40px;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    background: rgba(15, 23, 42, 0.95);
+    color: #48bbff;
+    cursor: pointer;
+}
+
+/* Wrapper without top padding since nav is not fixed */
+.admin-wrapper {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
 .admin-container {
-    padding: 2rem 0;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1.5rem 1.5rem;
 }
 
 .page-header {
-    padding: 2rem;
-    margin-bottom: 2rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-radius: 1rem;
 }
 
 .page-header h1 {
     display: flex;
     align-items: center;
     gap: 0.8rem;
-    font-size: 1.8rem;
+    font-size: 1.5rem;
     margin-bottom: 0.5rem;
+    color: #f0f9ff;
 }
 
 .page-header h1 i {
@@ -332,78 +487,118 @@ setInterval(loadAnalytics, 60000);
 
 .page-header p {
     color: #94a3b8;
+    margin: 0;
 }
 
 .metrics-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 1.5rem;
-    margin-bottom: 2rem;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
 }
 
 .metric-card {
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 1.5rem;
+    padding: 1.25rem;
+    border-radius: 1rem;
 }
 
 .metric-card i {
-    font-size: 2rem;
+    font-size: 1.75rem;
     color: #48bbff;
-    width: 50px;
-    height: 50px;
+    width: 45px;
+    height: 45px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: rgba(72, 187, 255, 0.1);
-    border-radius: 1rem;
+    border-radius: 0.75rem;
 }
 
 .metric-info h3 {
-    font-size: 1.8rem;
+    font-size: 1.5rem;
     color: #48bbff;
+    margin: 0;
 }
 
 .metric-info p {
     color: #94a3b8;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    margin: 0.25rem 0 0;
 }
 
 .admin-grid {
     display: grid;
-    grid-template-columns: 1fr 400px;
-    gap: 2rem;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 1.5rem;
+    align-items: start;
 }
 
-.chart-card, .fraud-card, .ab-test-card, .weights-card {
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+.admin-left {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-width: 0;
 }
 
-.chart-card h3, .fraud-card h3, .ab-test-card h3, .weights-card h3 {
+.admin-right {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    position: sticky;
+    top: 20px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(72, 187, 255, 0.3) transparent;
+    padding-right: 0.5rem;
+}
+
+.chart-card {
+    padding: 1.25rem;
+    border-radius: 1rem;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.chart-card h3 {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     color: #48bbff;
-    font-size: 1.1rem;
+    font-size: 1rem;
+}
+
+.chart-wrapper {
+    height: 250px;
+    position: relative;
+    min-height: 0;
+}
+
+.skills-list-wrapper {
+    max-height: 300px;
+    overflow-y: auto;
 }
 
 .skills-list {
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
+    gap: 0.6rem;
 }
 
 .skill-demand-item {
     display: grid;
-    grid-template-columns: 30px 1fr 100px 80px;
+    grid-template-columns: 30px 1fr 100px 60px;
     align-items: center;
-    gap: 1rem;
-    padding: 0.8rem;
+    gap: 0.75rem;
+    padding: 0.75rem;
     background: rgba(0, 0, 0, 0.2);
     border-radius: 0.5rem;
+    font-size: 0.9rem;
 }
 
 .skill-demand-item .rank {
@@ -413,6 +608,9 @@ setInterval(loadAnalytics, 60000);
 
 .skill-demand-item .skill-name {
     color: #f0f9ff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .demand-bar {
@@ -430,8 +628,14 @@ setInterval(loadAnalytics, 60000);
 
 .skill-demand-item .count {
     color: #94a3b8;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     text-align: right;
+}
+
+.fraud-card, .ab-test-card, .weights-card {
+    padding: 1.25rem;
+    border-radius: 1rem;
+    flex-shrink: 0;
 }
 
 .card-header {
@@ -441,20 +645,44 @@ setInterval(loadAnalytics, 60000);
     margin-bottom: 1rem;
 }
 
-.btn-sm {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.85rem;
+.card-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #48bbff;
+    font-size: 1rem;
+    margin: 0;
 }
 
-.fraud-list {
-    max-height: 300px;
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    background: rgba(72, 187, 255, 0.2);
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    color: #48bbff;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    transition: all 0.3s;
+}
+
+.btn-sm:hover {
+    background: rgba(72, 187, 255, 0.3);
+}
+
+.fraud-list-wrapper {
+    max-height: 250px;
     overflow-y: auto;
 }
 
+.fraud-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
 .fraud-item {
-    padding: 1rem;
+    padding: 0.875rem;
     border-left: 3px solid;
-    margin-bottom: 0.8rem;
     background: rgba(0, 0, 0, 0.2);
     border-radius: 0 0.5rem 0.5rem 0;
 }
@@ -466,19 +694,22 @@ setInterval(loadAnalytics, 60000);
 .fraud-header {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     margin-bottom: 0.3rem;
 }
 
 .student-name {
     font-weight: 600;
     color: #f0f9ff;
+    font-size: 0.9rem;
 }
 
 .severity-badge {
     padding: 0.2rem 0.5rem;
     border-radius: 1rem;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
+    font-weight: 600;
 }
 
 .severity-badge.high { background: rgba(255, 88, 88, 0.2); color: #ff5858; }
@@ -487,18 +718,20 @@ setInterval(loadAnalytics, 60000);
 
 .flag-type {
     color: #94a3b8;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    margin: 0;
 }
 
 .flag-date {
     color: #64748b;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
 }
 
 .no-flags {
     color: #00b86b;
     text-align: center;
     padding: 2rem;
+    margin: 0;
 }
 
 .ab-comparison {
@@ -511,8 +744,8 @@ setInterval(loadAnalytics, 60000);
 
 .ab-group {
     background: rgba(0, 0, 0, 0.2);
+    border-radius: 0.75rem;
     padding: 1rem;
-    border-radius: 0.8rem;
 }
 
 .ab-group.variant {
@@ -522,19 +755,20 @@ setInterval(loadAnalytics, 60000);
 
 .ab-group h4 {
     color: #f0f9ff;
-    margin-bottom: 0.8rem;
-    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    text-align: center;
 }
 
 .ab-stat {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 0.5rem;
-    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.85rem;
 }
 
 .ab-stat .label {
-    color: #94a3b8;
+    color: #64748b;
 }
 
 .ab-stat .value {
@@ -549,35 +783,32 @@ setInterval(loadAnalytics, 60000);
 .ab-vs {
     color: #64748b;
     font-weight: 700;
+    font-size: 0.9rem;
 }
 
 .improvement {
     text-align: center;
-    padding: 1rem;
+    padding: 0.75rem;
     background: rgba(0, 0, 0, 0.2);
     border-radius: 0.5rem;
     font-weight: 600;
+    font-size: 0.9rem;
 }
 
-.improvement .positive {
-    color: #00b86b;
-}
-
-.improvement .negative {
-    color: #ff5858;
-}
+.improvement .positive { color: #00b86b; }
+.improvement .negative { color: #ff5858; }
 
 .weights-card .desc {
     color: #94a3b8;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     margin-bottom: 1rem;
 }
 
 .weight-sliders {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+    gap: 0.875rem;
+    margin-bottom: 1.25rem;
 }
 
 .weight-item {
@@ -590,7 +821,7 @@ setInterval(loadAnalytics, 60000);
     display: flex;
     justify-content: space-between;
     color: #cbd5e1;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 .weight-item label span {
@@ -616,21 +847,123 @@ setInterval(loadAnalytics, 60000);
     cursor: pointer;
 }
 
-@media (max-width: 968px) {
+.btn-primary {
+    background: linear-gradient(135deg, #48bbff, #0099ff);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    justify-content: center;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px -5px rgba(72, 187, 255, 0.4);
+}
+
+@media (max-width: 1200px) {
+    .admin-grid {
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 1rem;
+    }
     .metrics-grid {
         grid-template-columns: repeat(2, 1fr);
     }
-    
+}
+
+@media (max-width: 968px) {
     .admin-grid {
         grid-template-columns: 1fr;
     }
-    
-    .ab-comparison {
+    .admin-right {
+        position: relative;
+        top: 0;
+        max-height: none;
+        overflow-y: visible;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1rem;
+    }
+    .chart-wrapper {
+        height: 200px;
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-navbar-inline {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+    }
+    .nav-links {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .nav-actions {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+    }
+    .admin-container {
+        padding: 0 1rem 1rem;
+    }
+    .page-header h1 {
+        font-size: 1.25rem;
+    }
+    .metrics-grid {
         grid-template-columns: 1fr;
     }
-    
+    .ab-comparison {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
     .ab-vs {
         text-align: center;
+        padding: 0.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .mobile-nav-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .admin-navbar-inline {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.98);
+        z-index: 1000;
+        flex-direction: column;
+        justify-content: center;
+        border-radius: 0;
+        margin-bottom: 0;
+    }
+    .admin-navbar-inline.mobile-open {
+        display: flex;
+    }
+    .nav-links {
+        flex-direction: column;
+        align-items: center;
+    }
+    .nav-actions {
+        position: relative;
+        top: 0;
+        right: 0;
+    }
+    .chart-wrapper {
+        height: 180px;
     }
 }
 </style>

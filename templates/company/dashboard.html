@@ -167,6 +167,10 @@ function updateDashboard(data) {
         document.getElementById('weight-trust').value = currentWeights.trust || 0.1;
         updateWeightLabels();
     }
+    // Add this line:
+    if (data.top_candidate_suggestions) {
+        updateCandidates(data.top_candidate_suggestions);
+    }
     
     // Update evolution
     if (data.ai_weight_evolution) {
@@ -208,6 +212,42 @@ function updateJobsList(jobs) {
     `).join('');
 }
 
+
+function updateCandidates(candidatesData) {
+    const container = document.getElementById('candidates-list');
+    
+    if (!candidatesData || candidatesData.length === 0) {
+        container.innerHTML = '<p class="no-data">No recommendations yet. Make sure you have active job postings.</p>';
+        return;
+    }
+    
+    let html = '';
+    candidatesData.forEach(job => {
+        if (job.recommended_candidates && job.recommended_candidates.length > 0) {
+            html += `<div style="margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 1rem;">
+                <h4 style="color: #48bbff; margin-bottom: 0.8rem; font-size: 0.95rem;">${job.job_title}</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">`;
+            
+            job.recommended_candidates.forEach(c => {
+                html += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 0.6rem; border-radius: 0.5rem;">
+                        <span style="font-weight: 600; color: #f0f9ff;">${c.name}</span>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <span style="color: ${c.match_score >= 80 ? '#00b86b' : '#48bbff'}; font-weight: 700;">${Math.round(c.match_score)}%</span>
+                            <button onclick="window.location.href='/company/applicants/?job_id=${job.job_id}'" class="btn-primary btn-sm" style="padding: 0.3rem 0.8rem; font-size: 0.8rem;">
+                                View
+                            </button>
+                        </div>
+                    </div>`;
+            });
+            
+            html += '</div></div>';
+        }
+    });
+    
+    container.innerHTML = html || '<p class="no-data">No high-match candidates found yet.</p>';
+}
+
 function updateEvolution(evolution) {
     const container = document.getElementById('evolution-list');
     
@@ -247,13 +287,39 @@ document.getElementById('save-weights').addEventListener('click', async () => {
     const btn = document.getElementById('save-weights');
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
     
-    // In production, send to API
-    setTimeout(() => {
-        btn.innerHTML = '<i class="fas fa-check"></i> Saved!';
+    const weights = {
+        skills: parseFloat(document.getElementById('weight-skills').value),
+        cgpa: parseFloat(document.getElementById('weight-cgpa').value),
+        projects: parseFloat(document.getElementById('weight-projects').value),
+        activity: parseFloat(document.getElementById('weight-activity').value),
+        trust: parseFloat(document.getElementById('weight-trust').value)
+    };
+    
+    try {
+        const response = await fetch(`${API_BASE}/company/${companyId}/weights/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(weights)
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            btn.innerHTML = '<i class="fas fa-check"></i> Saved!';
+            btn.style.background = 'linear-gradient(135deg, #00b86b, #008c4a)';
+        } else {
+            btn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Failed';
+        }
+        
         setTimeout(() => {
             btn.innerHTML = '<i class="fas fa-save"></i> Save Weights';
+            btn.style.background = ''; // Reset to default
         }, 2000);
-    }, 1000);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        btn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error';
+    }
 });
 
 // Actions

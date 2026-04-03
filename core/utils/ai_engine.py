@@ -4,12 +4,22 @@ from django.db.models import Avg, Count
 from core.models import AIFeedbackLog, Application, Job, Student, StudentSkill, MatchExplanation, Skill, StudentBehaviorLog
 from django.utils import timezone 
 class AIMatchingEngine:
-    def __init__(self, company=None):
+    def __init__(self, company=None, job=None):
         self.company = company
-        self.weights = company.get_weights() if company else {
+        self.job = job  # Store job reference
+        
+        # Start with company weights as default
+        base_weights = company.get_weights() if company else {
             'skills': 0.4, 'cgpa': 0.2, 'projects': 0.2, 
             'activity': 0.1, 'trust': 0.1
         }
+        
+        # Override with job-specific weights if they exist
+        if job and job.custom_weights:
+            self.weights = {**base_weights, **job.custom_weights}
+        else:
+            self.weights = base_weights
+        
         # A/B Testing: Check if student is in variant group
         self.ab_test_variant = None
     
