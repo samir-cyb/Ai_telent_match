@@ -34,11 +34,17 @@ urlpatterns = [
     path('application/hire/', views.HireCandidateView.as_view(), name='hire_candidate'),
     path('applications/', views.ApplicationsListView.as_view(), name='applications_list'),
     path('application/update/', views.UpdateApplicationView.as_view(), name='update_application'),
+    path('company/<uuid:company_id>/weights/', views.CompanyWeightsView.as_view(), name='company_weights'),
     
     # Admin endpoints
     path('admin/analytics/', views.AdminAnalyticsView.as_view(), name='admin_analytics'),
     path('admin/fraud-flags/', views.FraudFlagsListView.as_view(), name='fraud_flags_list'),
     path('admin/resolve-fraud/', views.ResolveFraudFlagView.as_view(), name='resolve_fraud'),
+    # Admin Auth endpoints - ADD THESE
+    path('auth/admin/login/', views.AdminLoginView.as_view(), name='admin_login'),
+    path('auth/admin/logout/', views.AdminLogoutView.as_view(), name='admin_logout'),
+    path('admin/add/', views.AddAdminView.as_view(), name='add_admin'),
+    path('admin/list/', views.ListAdminsView.as_view(), name='list_admins'),
     
     # Notifications & Scheduling
     path('notifications/<uuid:user_id>/<str:user_type>/', views.NotificationsView.as_view(), name='notifications'),
