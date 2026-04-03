@@ -618,12 +618,25 @@ class PostJobView(View):
             deadline=data.get('deadline')
         )
         
-        # Add required skills
+        # Add required skills - FIXED: Normalize to lowercase for consistency
         for skill_name in data.get('required_skills', []):
+            # Normalize: strip whitespace and convert to lowercase
+            skill_name_clean = skill_name.strip().lower()
+            
+            # Use case-insensitive lookup to avoid duplicates
             skill, _ = Skill.objects.get_or_create(
-                name=skill_name,
-                defaults={'category': 'Uncategorized'}
+                name__iexact=skill_name_clean,
+                defaults={
+                    'name': skill_name_clean,  # Store as lowercase
+                    'category': 'Uncategorized'
+                }
             )
+            
+            # If skill existed with different case, update to lowercase
+            if skill.name != skill_name_clean:
+                skill.name = skill_name_clean
+                skill.save()
+            
             job.required_skills.add(skill)
         
         # Custom weights for this job type
@@ -1037,10 +1050,22 @@ class AddSkillView(View):
         data = json.loads(request.body)
         student = get_object_or_404(Student, id=data['student_id'])
         
+        # FIXED: Normalize skill name to lowercase for case-insensitive matching
+        skill_name_clean = data['skill_name'].strip().lower()
+        
+        # FIXED: Use case-insensitive lookup with iexact
         skill, created = Skill.objects.get_or_create(
-            name=data['skill_name'],
-            defaults={'category': data.get('category', 'Uncategorized')}
+            name__iexact=skill_name_clean,
+            defaults={
+                'name': skill_name_clean,  # Store as lowercase
+                'category': data.get('category', 'Uncategorized')
+            }
         )
+        
+        # If skill existed with different case, update to lowercase for consistency
+        if not created and skill.name != skill_name_clean:
+            skill.name = skill_name_clean
+            skill.save()
         
         student_skill, created = StudentSkill.objects.get_or_create(
             student=student,
@@ -1055,7 +1080,11 @@ class AddSkillView(View):
             student_skill.proficiency_level = data['proficiency_level']
             student_skill.save()
         
-        return JsonResponse({'status': 'success', 'message': 'Skill added'})
+        return JsonResponse({
+            'status': 'success', 
+            'message': 'Skill added',
+            'skill_name': skill.name  # Return the normalized name
+        })
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AddExperienceView(View):
