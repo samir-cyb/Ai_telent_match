@@ -1,188 +1,236 @@
-{% extends "base.html" %}
-{% block title %}Company Dashboard | AI Talent Match{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Company Dashboard | AI Talent
+Match{%endblock %} {% block content %}
 <div class="container dashboard-container">
-    <!-- Header -->
-    <div class="welcome-header glass-card">
-        <div class="welcome-text">
-            <h1>Welcome, <span id="company-name">Company</span>! 🏢</h1>
-            <p>Manage your job postings and find top talent</p>
+  <!-- Header -->
+  <div class="welcome-header glass-card">
+    <div class="welcome-text">
+      <h1>Welcome! <span id="company-name">{{ company_name }}</span> 🏢</h1>
+      <p>Manage your job postings and find top talent</p>
+    </div>
+    <button class="btn-primary" onclick="location.href = '/company/post-job/'">
+      <i class="fas fa-plus"></i> Post New Job
+    </button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="glass-card stat-card">
+      <i class="fas fa-briefcase"></i>
+      <div class="stat-info">
+        <h3 id="active-jobs">0</h3>
+        <p>Active Jobs</p>
+      </div>
+    </div>
+    <div class="glass-card stat-card">
+      <i class="fas fa-users"></i>
+      <div class="stat-info">
+        <h3 id="total-applicants">0</h3>
+        <p>Total Applicants</p>
+      </div>
+    </div>
+    <div class="glass-card stat-card">
+      <i class="fas fa-star"></i>
+      <div class="stat-info">
+        <h3 id="shortlisted">0</h3>
+        <p>Shortlisted</p>
+      </div>
+    </div>
+    <div class="glass-card stat-card">
+      <i class="fas fa-check-circle"></i>
+      <div class="stat-info">
+        <h3 id="hired">0</h3>
+        <p>Hired</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="dashboard-grid">
+    <!-- Left: Job Listings -->
+    <div class="jobs-section">
+      <div class="glass-card jobs-card">
+        <div class="card-header">
+          <h3><i class="fas fa-list"></i> Your Job Postings</h3>
         </div>
-        <button class="btn-primary" onclick="location.href='/company/post-job/'">
-            <i class="fas fa-plus"></i> Post New Job
+        <div id="jobs-list" class="jobs-list">
+          <div class="loading">Loading jobs...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: AI Insights -->
+    <div class="insights-section">
+      <!-- AI Weights -->
+      <div class="glass-card weights-card">
+        <h3><i class="fas fa-sliders-h"></i> AI Matching Weights</h3>
+        <p class="weights-desc">
+          Adjust how the AI prioritizes candidate criteria
+        </p>
+
+        <div class="weight-controls">
+          <div class="weight-item">
+            <label>Skills <span id="w-skills-val">0.4</span></label>
+            <input
+              type="range"
+              id="weight-skills"
+              min="0"
+              max="1"
+              step="0.05"
+              value="0.4"
+            />
+          </div>
+          <div class="weight-item">
+            <label>CGPA <span id="w-cgpa-val">0.2</span></label>
+            <input
+              type="range"
+              id="weight-cgpa"
+              min="0"
+              max="1"
+              step="0.05"
+              value="0.2"
+            />
+          </div>
+          <div class="weight-item">
+            <label>Projects <span id="w-proj-val">0.2</span></label>
+            <input
+              type="range"
+              id="weight-projects"
+              min="0"
+              max="1"
+              step="0.05"
+              value="0.2"
+            />
+          </div>
+          <div class="weight-item">
+            <label>Activity <span id="w-act-val">0.1</span></label>
+            <input
+              type="range"
+              id="weight-activity"
+              min="0"
+              max="1"
+              step="0.05"
+              value="0.1"
+            />
+          </div>
+          <div class="weight-item">
+            <label>Trust <span id="w-trust-val">0.1</span></label>
+            <input
+              type="range"
+              id="weight-trust"
+              min="0"
+              max="1"
+              step="0.05"
+              value="0.1"
+            />
+          </div>
+        </div>
+
+        <button id="save-weights" class="btn-primary btn-sm">
+          <i class="fas fa-save"></i> Save Weights
         </button>
+      </div>
+
+      <!-- Top Candidates -->
+      <div class="glass-card candidates-card">
+        <h3><i class="fas fa-trophy"></i> Recommended Candidates</h3>
+        <div id="candidates-list" class="candidates-list">
+          <p class="no-data">Select a job to see recommendations</p>
+        </div>
+      </div>
+
+      <!-- Weight Evolution -->
+      <div class="glass-card evolution-card">
+        <h3><i class="fas fa-chart-line"></i> AI Learning History</h3>
+        <div id="evolution-list" class="evolution-list">
+          <p class="no-data">No adjustments yet</p>
+        </div>
+      </div>
     </div>
-
-    <!-- Stats -->
-    <div class="stats-row">
-        <div class="glass-card stat-card">
-            <i class="fas fa-briefcase"></i>
-            <div class="stat-info">
-                <h3 id="active-jobs">0</h3>
-                <p>Active Jobs</p>
-            </div>
-        </div>
-        <div class="glass-card stat-card">
-            <i class="fas fa-users"></i>
-            <div class="stat-info">
-                <h3 id="total-applicants">0</h3>
-                <p>Total Applicants</p>
-            </div>
-        </div>
-        <div class="glass-card stat-card">
-            <i class="fas fa-star"></i>
-            <div class="stat-info">
-                <h3 id="shortlisted">0</h3>
-                <p>Shortlisted</p>
-            </div>
-        </div>
-        <div class="glass-card stat-card">
-            <i class="fas fa-check-circle"></i>
-            <div class="stat-info">
-                <h3 id="hired">0</h3>
-                <p>Hired</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Grid -->
-    <div class="dashboard-grid">
-        <!-- Left: Job Listings -->
-        <div class="jobs-section">
-            <div class="glass-card jobs-card">
-                <div class="card-header">
-                    <h3><i class="fas fa-list"></i> Your Job Postings</h3>
-                </div>
-                <div id="jobs-list" class="jobs-list">
-                    <div class="loading">Loading jobs...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right: AI Insights -->
-        <div class="insights-section">
-            <!-- AI Weights -->
-            <div class="glass-card weights-card">
-                <h3><i class="fas fa-sliders-h"></i> AI Matching Weights</h3>
-                <p class="weights-desc">Adjust how the AI prioritizes candidate criteria</p>
-                
-                <div class="weight-controls">
-                    <div class="weight-item">
-                        <label>Skills <span id="w-skills-val">0.4</span></label>
-                        <input type="range" id="weight-skills" min="0" max="1" step="0.05" value="0.4">
-                    </div>
-                    <div class="weight-item">
-                        <label>CGPA <span id="w-cgpa-val">0.2</span></label>
-                        <input type="range" id="weight-cgpa" min="0" max="1" step="0.05" value="0.2">
-                    </div>
-                    <div class="weight-item">
-                        <label>Projects <span id="w-proj-val">0.2</span></label>
-                        <input type="range" id="weight-projects" min="0" max="1" step="0.05" value="0.2">
-                    </div>
-                    <div class="weight-item">
-                        <label>Activity <span id="w-act-val">0.1</span></label>
-                        <input type="range" id="weight-activity" min="0" max="1" step="0.05" value="0.1">
-                    </div>
-                    <div class="weight-item">
-                        <label>Trust <span id="w-trust-val">0.1</span></label>
-                        <input type="range" id="weight-trust" min="0" max="1" step="0.05" value="0.1">
-                    </div>
-                </div>
-                
-                <button id="save-weights" class="btn-primary btn-sm">
-                    <i class="fas fa-save"></i> Save Weights
-                </button>
-            </div>
-
-            <!-- Top Candidates -->
-            <div class="glass-card candidates-card">
-                <h3><i class="fas fa-trophy"></i> Recommended Candidates</h3>
-                <div id="candidates-list" class="candidates-list">
-                    <p class="no-data">Select a job to see recommendations</p>
-                </div>
-            </div>
-
-            <!-- Weight Evolution -->
-            <div class="glass-card evolution-card">
-                <h3><i class="fas fa-chart-line"></i> AI Learning History</h3>
-                <div id="evolution-list" class="evolution-list">
-                    <p class="no-data">No adjustments yet</p>
-                </div>
-            </div>
-        </div>
-    </div>
+  </div>
 </div>
 
 <script>
-const API_BASE = "http://127.0.0.1:8000/api";
-const companyId = localStorage.getItem('company_id');
+  const API_BASE = "http://127.0.0.1:8000/api";
+  const companyId = localStorage.getItem("company_id");
 
-if (!companyId) {
-    window.location.href = '/company/login/';
-}
+  if (!companyId) {
+    window.location.href = "/company/login/";
+  }
 
-let currentWeights = {};
+  let currentWeights = {};
 
-// Load dashboard
-async function loadDashboard() {
+  // Load dashboard
+  async function loadDashboard() {
     try {
-        const response = await fetch(`${API_BASE}/company/${companyId}/dashboard/`);
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            updateDashboard(data);
-        }
-    } catch (error) {
-        console.error('Error:', error);
-    }
-}
+      const response = await fetch(
+        `${API_BASE}/company/${companyId}/dashboard/`,
+      );
+      const data = await response.json();
 
-function updateDashboard(data) {
+      if (data.status === "success") {
+        updateDashboard(data);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  }
+
+  function updateDashboard(data) {
     // Update company name
-    document.getElementById('company-name').textContent = data.company_name || 'Company';
-    
+    document.getElementById("company-name").textContent =
+      data.company_name || "Company";
+
     // Calculate stats
     const jobs = data.jobs || [];
-    const activeJobs = jobs.filter(j => j.status === 'active').length;
-    const totalApplicants = jobs.reduce((sum, j) => sum + j.total_applicants, 0);
+    const activeJobs = jobs.filter((j) => j.status === "active").length;
+    const totalApplicants = jobs.reduce(
+      (sum, j) => sum + j.total_applicants,
+      0,
+    );
     const shortlisted = jobs.reduce((sum, j) => sum + j.shortlisted, 0);
     const hired = jobs.reduce((sum, j) => sum + j.hired, 0);
-    
-    document.getElementById('active-jobs').textContent = activeJobs;
-    document.getElementById('total-applicants').textContent = totalApplicants;
-    document.getElementById('shortlisted').textContent = shortlisted;
-    document.getElementById('hired').textContent = hired;
-    
+
+    document.getElementById("active-jobs").textContent = activeJobs;
+    document.getElementById("total-applicants").textContent = totalApplicants;
+    document.getElementById("shortlisted").textContent = shortlisted;
+    document.getElementById("hired").textContent = hired;
+
     // Update jobs list
     updateJobsList(jobs);
-    
+
     // Update weights
     if (data.current_weights) {
-        currentWeights = data.current_weights;
-        document.getElementById('weight-skills').value = currentWeights.skills || 0.4;
-        document.getElementById('weight-cgpa').value = currentWeights.cgpa || 0.2;
-        document.getElementById('weight-projects').value = currentWeights.projects || 0.2;
-        document.getElementById('weight-activity').value = currentWeights.activity || 0.1;
-        document.getElementById('weight-trust').value = currentWeights.trust || 0.1;
-        updateWeightLabels();
+      currentWeights = data.current_weights;
+      document.getElementById("weight-skills").value =
+        currentWeights.skills || 0.4;
+      document.getElementById("weight-cgpa").value = currentWeights.cgpa || 0.2;
+      document.getElementById("weight-projects").value =
+        currentWeights.projects || 0.2;
+      document.getElementById("weight-activity").value =
+        currentWeights.activity || 0.1;
+      document.getElementById("weight-trust").value =
+        currentWeights.trust || 0.1;
+      updateWeightLabels();
     }
-    
+
     // Update evolution
     if (data.ai_weight_evolution) {
-        updateEvolution(data.ai_weight_evolution);
+      updateEvolution(data.ai_weight_evolution);
     }
-}
+  }
 
-function updateJobsList(jobs) {
-    const container = document.getElementById('jobs-list');
-    
+  function updateJobsList(jobs) {
+    const container = document.getElementById("jobs-list");
+
     if (jobs.length === 0) {
-        container.innerHTML = '<p class="no-data">No jobs posted yet. <a href="/company/post-job/">Post your first job!</a></p>';
-        return;
+      container.innerHTML =
+        '<p class="no-data">No jobs posted yet. <a href="/company/post-job/">Post your first job!</a></p>';
+      return;
     }
-    
-    container.innerHTML = jobs.map(job => `
+
+    container.innerHTML = jobs
+      .map(
+        (job) => `
         <div class="job-item" data-job-id="${job.job_id}">
             <div class="job-info">
                 <h4>${job.title}</h4>
@@ -205,125 +253,144 @@ function updateJobsList(jobs) {
                 </button>
             </div>
         </div>
-    `).join('');
-}
+    `,
+      )
+      .join("");
+  }
 
-function updateEvolution(evolution) {
-    const container = document.getElementById('evolution-list');
-    
+  function updateEvolution(evolution) {
+    const container = document.getElementById("evolution-list");
+
     if (evolution.length === 0) {
-        container.innerHTML = '<p class="no-data">No adjustments yet. Hire candidates to train the AI.</p>';
-        return;
+      container.innerHTML =
+        '<p class="no-data">No adjustments yet. Hire candidates to train the AI.</p>';
+      return;
     }
-    
-    container.innerHTML = evolution.slice(0, 5).map(item => `
+
+    container.innerHTML = evolution
+      .slice(0, 5)
+      .map(
+        (item) => `
         <div class="evolution-item">
             <div class="evolution-date">${new Date(item.date).toLocaleDateString()}</div>
             <div class="evolution-changes">
-                ${Object.keys(item.adjusted).map(key => `
-                    <span class="weight-change ${item.adjusted[key] > item.previous[key] ? 'up' : 'down'}">
+                ${Object.keys(item.adjusted)
+                  .map(
+                    (key) => `
+                    <span class="weight-change ${item.adjusted[key] > item.previous[key] ? "up" : "down"}">
                         ${key}: ${(item.previous[key] || 0).toFixed(2)} → ${(item.adjusted[key] || 0).toFixed(2)}
                     </span>
-                `).join('')}
+                `,
+                  )
+                  .join("")}
             </div>
         </div>
-    `).join('');
-}
+    `,
+      )
+      .join("");
+  }
 
-// Weight controls
-function updateWeightLabels() {
-    document.getElementById('w-skills-val').textContent = document.getElementById('weight-skills').value;
-    document.getElementById('w-cgpa-val').textContent = document.getElementById('weight-cgpa').value;
-    document.getElementById('w-proj-val').textContent = document.getElementById('weight-projects').value;
-    document.getElementById('w-act-val').textContent = document.getElementById('weight-activity').value;
-    document.getElementById('w-trust-val').textContent = document.getElementById('weight-trust').value;
-}
+  // Weight controls
+  function updateWeightLabels() {
+    document.getElementById("w-skills-val").textContent =
+      document.getElementById("weight-skills").value;
+    document.getElementById("w-cgpa-val").textContent =
+      document.getElementById("weight-cgpa").value;
+    document.getElementById("w-proj-val").textContent =
+      document.getElementById("weight-projects").value;
+    document.getElementById("w-act-val").textContent =
+      document.getElementById("weight-activity").value;
+    document.getElementById("w-trust-val").textContent =
+      document.getElementById("weight-trust").value;
+  }
 
-document.querySelectorAll('.weight-controls input').forEach(input => {
-    input.addEventListener('input', updateWeightLabels);
-});
+  document.querySelectorAll(".weight-controls input").forEach((input) => {
+    input.addEventListener("input", updateWeightLabels);
+  });
 
-document.getElementById('save-weights').addEventListener('click', async () => {
-    const btn = document.getElementById('save-weights');
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-    
-    // In production, send to API
-    setTimeout(() => {
+  document
+    .getElementById("save-weights")
+    .addEventListener("click", async () => {
+      const btn = document.getElementById("save-weights");
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+      // In production, send to API
+      setTimeout(() => {
         btn.innerHTML = '<i class="fas fa-check"></i> Saved!';
         setTimeout(() => {
-            btn.innerHTML = '<i class="fas fa-save"></i> Save Weights';
+          btn.innerHTML = '<i class="fas fa-save"></i> Save Weights';
         }, 2000);
-    }, 1000);
-});
+      }, 1000);
+    });
 
-// Actions
-function viewApplicants(jobId) {
+  // Actions
+  function viewApplicants(jobId) {
     window.location.href = `/company/applicants/?job_id=${jobId}`;
-}
+  }
 
-async function autoShortlist(jobId) {
+  async function autoShortlist(jobId) {
     try {
-        const response = await fetch(`${API_BASE}/job/shortlist/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                job_id: jobId,
-                top_n: 10
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            alert(`Shortlisted ${data.shortlisted_count} candidates!`);
-            loadDashboard();
-        }
-    } catch (error) {
-        console.error('Error:', error);
-    }
-}
+      const response = await fetch(`${API_BASE}/job/shortlist/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          job_id: jobId,
+          top_n: 10,
+        }),
+      });
 
-// Load on page load
-loadDashboard();
+      const data = await response.json();
+
+      if (data.status === "success") {
+        alert(`Shortlisted ${data.shortlisted_count} candidates!`);
+        loadDashboard();
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  }
+
+  // Load on page load
+  loadDashboard();
 </script>
 
 <style>
-.dashboard-container {
+  .dashboard-container {
     padding: 2rem 0;
-}
+  }
 
-.welcome-header {
+  .welcome-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 2rem;
     margin-bottom: 2rem;
-}
+  }
 
-.welcome-text h1 {
+  .welcome-text h1 {
     font-size: 2rem;
     margin-bottom: 0.5rem;
-}
+  }
 
-.welcome-text p {
+  .welcome-text p {
     color: #94a3b8;
-}
+  }
 
-.stats-row {
+  .stats-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 1.5rem;
     margin-bottom: 2rem;
-}
+  }
 
-.stat-card {
+  .stat-card {
     display: flex;
     align-items: center;
     gap: 1rem;
     padding: 1.5rem;
-}
+  }
 
-.stat-card i {
+  .stat-card i {
     font-size: 2rem;
     color: #48bbff;
     width: 50px;
@@ -333,49 +400,52 @@ loadDashboard();
     justify-content: center;
     background: rgba(72, 187, 255, 0.1);
     border-radius: 1rem;
-}
+  }
 
-.stat-info h3 {
+  .stat-info h3 {
     font-size: 1.8rem;
     color: #48bbff;
-}
+  }
 
-.stat-info p {
+  .stat-info p {
     color: #94a3b8;
     font-size: 0.9rem;
-}
+  }
 
-.dashboard-grid {
+  .dashboard-grid {
     display: grid;
     grid-template-columns: 1fr 400px;
     gap: 2rem;
-}
+  }
 
-.jobs-card, .weights-card, .candidates-card, .evolution-card {
+  .jobs-card,
+  .weights-card,
+  .candidates-card,
+  .evolution-card {
     padding: 1.5rem;
     margin-bottom: 1.5rem;
-}
+  }
 
-.card-header {
+  .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1rem;
-}
+  }
 
-.card-header h3 {
+  .card-header h3 {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     color: #48bbff;
-}
+  }
 
-.jobs-list {
+  .jobs-list {
     max-height: 500px;
     overflow-y: auto;
-}
+  }
 
-.job-item {
+  .job-item {
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(72, 187, 255, 0.2);
     border-radius: 1rem;
@@ -385,155 +455,156 @@ loadDashboard();
     justify-content: space-between;
     align-items: center;
     transition: all 0.3s;
-}
+  }
 
-.job-item:hover {
+  .job-item:hover {
     border-color: #48bbff;
-}
+  }
 
-.job-info h4 {
+  .job-info h4 {
     font-size: 1.1rem;
     margin-bottom: 0.5rem;
     color: #f0f9ff;
-}
+  }
 
-.job-stats {
+  .job-stats {
     display: flex;
     gap: 1rem;
     margin-bottom: 0.5rem;
     font-size: 0.9rem;
     color: #94a3b8;
-}
+  }
 
-.job-stats .active {
+  .job-stats .active {
     color: #00b86b;
-}
+  }
 
-.job-metrics {
+  .job-metrics {
     display: flex;
     gap: 1rem;
     font-size: 0.8rem;
     color: #64748b;
-}
+  }
 
-.job-actions {
+  .job-actions {
     display: flex;
     gap: 0.5rem;
-}
+  }
 
-.weights-desc {
+  .weights-desc {
     color: #94a3b8;
     font-size: 0.9rem;
     margin-bottom: 1rem;
-}
+  }
 
-.weight-controls {
+  .weight-controls {
     display: flex;
     flex-direction: column;
     gap: 1rem;
     margin-bottom: 1.5rem;
-}
+  }
 
-.weight-item {
+  .weight-item {
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
-}
+  }
 
-.weight-item label {
+  .weight-item label {
     display: flex;
     justify-content: space-between;
     color: #cbd5e1;
     font-size: 0.9rem;
-}
+  }
 
-.weight-item label span {
+  .weight-item label span {
     color: #48bbff;
     font-weight: 600;
-}
+  }
 
-.weight-item input[type="range"] {
+  .weight-item input[type="range"] {
     width: 100%;
     height: 6px;
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 3px;
     outline: none;
     -webkit-appearance: none;
-}
+  }
 
-.weight-item input[type="range"]::-webkit-slider-thumb {
+  .weight-item input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 18px;
     height: 18px;
     background: #48bbff;
     border-radius: 50%;
     cursor: pointer;
-}
+  }
 
-.candidates-list, .evolution-list {
+  .candidates-list,
+  .evolution-list {
     max-height: 300px;
     overflow-y: auto;
-}
+  }
 
-.evolution-item {
+  .evolution-item {
     padding: 1rem;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-}
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
 
-.evolution-date {
+  .evolution-date {
     color: #64748b;
     font-size: 0.8rem;
     margin-bottom: 0.5rem;
-}
+  }
 
-.evolution-changes {
+  .evolution-changes {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-}
+  }
 
-.weight-change {
+  .weight-change {
     font-size: 0.85rem;
     padding: 0.2rem 0.5rem;
     border-radius: 1rem;
-}
+  }
 
-.weight-change.up {
+  .weight-change.up {
     background: rgba(0, 184, 107, 0.2);
     color: #00b86b;
-}
+  }
 
-.weight-change.down {
+  .weight-change.down {
     background: rgba(255, 88, 88, 0.2);
     color: #ff5858;
-}
+  }
 
-.no-data {
+  .no-data {
     text-align: center;
     color: #64748b;
     padding: 2rem;
-}
+  }
 
-@media (max-width: 968px) {
+  @media (max-width: 968px) {
     .dashboard-grid {
-        grid-template-columns: 1fr;
+      grid-template-columns: 1fr;
     }
-    
+
     .welcome-header {
-        flex-direction: column;
-        gap: 1rem;
-        text-align: center;
+      flex-direction: column;
+      gap: 1rem;
+      text-align: center;
     }
-    
+
     .stats-row {
-        grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(2, 1fr);
     }
-    
+
     .job-item {
-        flex-direction: column;
-        gap: 1rem;
-        text-align: center;
+      flex-direction: column;
+      gap: 1rem;
+      text-align: center;
     }
-}
+  }
 </style>
 {% endblock %}
