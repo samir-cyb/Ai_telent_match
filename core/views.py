@@ -11,7 +11,7 @@ from .decorators import student_login_required, company_login_required
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-
+from django.contrib.auth.hashers import make_password, check_password
 from .models import *
 from .utils.ai_engine import AIMatchingEngine
 from .utils.github_scraper import GitHubValidator
@@ -572,7 +572,7 @@ class AnalyzeMatchView(View):
         job = get_object_or_404(Job, id=data['job_id'])
         
         # Get company weights
-        engine = AIMatchingEngine(job.company)
+        engine = AIMatchingEngine(company=job.company, job=job)
         score, explanation = engine.calculate_match(student, job, save_explanation=False)
         
         # Log behavior (viewed analysis)
@@ -635,7 +635,7 @@ class StudentDashboardView(View):
         
         for job in all_jobs:
             if not Application.objects.filter(student=student, job=job).exists():
-                engine = AIMatchingEngine(job.company)
+                engine = AIMatchingEngine(company=job.company, job=job)
                 score, explanation = engine.calculate_match(student, job, save_explanation=False)
                 if score >= 60:
                     recommendations.append({
@@ -785,7 +785,7 @@ class ApplyJobView(View):
             return JsonResponse({'status': 'error', 'message': 'Already applied to this job'}, status=400)
         
         # Calculate match score
-        engine = AIMatchingEngine(job.company)
+        engine = AIMatchingEngine(company=job.company, job=job)
         score, explanation = engine.calculate_match(student, job, save_explanation=True)
         
         application = Application.objects.create(
@@ -854,7 +854,7 @@ class CompanyDashboardView(View):
         top_candidates = []
         
         for job in active_jobs:
-            engine = AIMatchingEngine(company)
+            engine = AIMatchingEngine(company=company, job=job)
             # Find best unmatched candidates
             candidates = Student.objects.exclude(
                 applications__job=job
@@ -1278,7 +1278,7 @@ class StudentMatchesView(View):
         
         for job in all_jobs:
             if not Application.objects.filter(student=student, job=job).exists():
-                engine = AIMatchingEngine(job.company)
+                engine = AIMatchingEngine(company=job.company, job=job)
                 score, explanation = engine.calculate_match(student, job, save_explanation=False)
                 if score >= min_score:
                     matches.append({
@@ -1776,3 +1776,170 @@ class StudentApplicationsView(View):
             'status': 'success',
             'applied_job_ids': [str(job_id) for job_id in applications]
         })
+        
+# ==================== SUPER ADMIN SETUP ====================
+# ==================== SUPER ADMIN SETUP ====================
+# Hardcoded super admin credentials
+SUPER_ADMIN_EMAIL = "redwansamir90@gmail.com"
+SUPER_ADMIN_PASSWORD = "samir7232"
+
+def ensure_super_admin_exists():
+    """Create super admin if not exists (hardcoded you) - handles missing table gracefully"""
+    try:
+        if not Admin.objects.filter(email=SUPER_ADMIN_EMAIL).exists():
+            admin = Admin.objects.create(
+                email=SUPER_ADMIN_EMAIL,
+                is_super_admin=True
+            )
+            admin.set_password(SER_ADMIN_PASSWORD)
+            admin.save()
+            print(f"✅ Super admin created: {SUPER_ADMIN_EMAIL}")
+    except Exception as e:
+        # Table doesn't exist yet or other error - skip silently
+        # This happens during migrations before table is created
+        print(f"⚠️  Super admin check skipped (database not ready): {str(e)[:50]}...")
+        pass
+
+# DON'T call it here at module level - causes startup crash
+# ensure_super_admin_exists()  <- REMOVE THIS LINE
+
+
+# ==================== ADMIN AUTH VIEWS ====================
+@method_decorator(csrf_exempt, name='dispatch')
+class AdminLoginView(View):
+    
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            email = data.get('email')
+            password = data.get('password')
+            
+            # Check hardcoded super admin first
+            if email == SUPER_ADMIN_EMAIL and password == SUPER_ADMIN_PASSWORD:
+                ensure_super_admin_exists()
+                admin = Admin.objects.get(email=SUPER_ADMIN_EMAIL)
+                request.session['admin_id'] = str(admin.id)
+                request.session['user_type'] = 'admin'
+                request.session['is_super_admin'] = True
+                
+                return JsonResponse({
+                    'status': 'success',
+                    'admin_id': str(admin.id),
+                    'email': admin.email,
+                    'is_super_admin': True,
+                    'redirect': '/admin/dashboard/'
+                })
+            
+            # Check other admins in database
+            admin = Admin.objects.filter(email=email).first()
+            if admin and admin.check_password(password):
+                request.session['admin_id'] = str(admin.id)
+                request.session['user_type'] = 'admin'
+                request.session['is_super_admin'] = admin.is_super_admin
+                
+                return JsonResponse({
+                    'status': 'success',
+                    'admin_id': str(admin.id),
+                    'email': admin.email,
+                    'is_super_admin': admin.is_super_admin,
+                    'redirect': '/admin/dashboard/'
+                })
+            
+            return JsonResponse({'status': 'error', 'message': 'Invalid credentials'}, status=401)
+            
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AddAdminView(View):
+    """Only super admin can add new admins"""
+    
+    def post(self, request):
+        try:
+            # Verify super admin
+            admin_id = request.session.get('admin_id')
+            is_super = request.session.get('is_super_admin', False)
+            
+            if not admin_id or not is_super:
+                return JsonResponse({'status': 'error', 'message': 'Unauthorized - Super Admin only'}, status=403)
+            
+            data = json.loads(request.body)
+            new_email = data.get('email')
+            new_password = data.get('password')
+            
+            if not new_email or not new_password:
+                return JsonResponse({'status': 'error', 'message': 'Email and password required'}, status=400)
+            
+            if Admin.objects.filter(email=new_email).exists():
+                return JsonResponse({'status': 'error', 'message': 'Admin with this email already exists'}, status=400)
+            
+            # Create new admin
+            new_admin = Admin.objects.create(
+                email=new_email,
+                is_super_admin=False,
+                created_by_id=admin_id
+            )
+            new_admin.set_password(new_password)
+            new_admin.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': f'Admin {new_email} created successfully',
+                'admin_id': str(new_admin.id)
+            })
+            
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AdminLogoutView(View):
+    def post(self, request):
+        request.session.flush()
+        return JsonResponse({'status': 'success', 'message': 'Logged out'})
+
+
+def admin_login_page(request):
+    return render(request, 'admin/admin_login.html')
+
+class ListAdminsView(View):
+    """List all admins (super admin only)"""
+    
+    def get(self, request):
+        admin_id = request.session.get('admin_id')
+        is_super = request.session.get('is_super_admin', False)
+        
+        if not admin_id or not is_super:
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+        
+        admins = Admin.objects.all().values('id', 'email', 'is_super_admin', 'created_at', 'created_by__email')
+        return JsonResponse({
+            'status': 'success',
+            'admins': list(admins)
+        })
+        
+@method_decorator(csrf_exempt, name='dispatch')
+class CompanyWeightsView(View):
+    def post(self, request, company_id):
+        """Update company AI matching weights"""
+        try:
+            data = json.loads(request.body)
+            company = get_object_or_404(Company, id=company_id)
+            
+            company.custom_weights = {
+                'skills': float(data.get('skills', 0.4)),
+                'cgpa': float(data.get('cgpa', 0.2)),
+                'projects': float(data.get('projects', 0.2)),
+                'activity': float(data.get('activity', 0.1)),
+                'trust': float(data.get('trust', 0.1))
+            }
+            company.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Weights updated successfully',
+                'weights': company.get_weights()
+            })
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

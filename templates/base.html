@@ -12,6 +12,85 @@
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     {% block extra_head %}{% endblock %}
+    
+    <style>
+        /* Modal Styles for Add Admin */
+        .modal-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            position: relative;
+            padding: 2rem;
+            border-radius: 1rem;
+            min-width: 400px;
+            z-index: 10001;
+            background: rgba(15, 30, 55, 0.95);
+            border: 1px solid rgba(72, 187, 255, 0.3);
+        }
+
+        .modal-content h3 {
+            color: #48bbff;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .modal-desc {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+        }
+
+        .modal-content .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .modal-content .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #cbd5e1;
+            font-size: 0.9rem;
+        }
+
+        .modal-content .form-group input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid rgba(72, 187, 255, 0.3);
+            border-radius: 0.5rem;
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .modal-content .form-group input:focus {
+            outline: none;
+            border-color: #48bbff;
+            box-shadow: 0 0 0 3px rgba(72, 187, 255, 0.1);
+        }
+
+        /* Admin badge in navbar */
+        .admin-badge {
+            background: #ff5858;
+            color: white;
+            padding: 0.1rem 0.4rem;
+            border-radius: 1rem;
+            font-size: 0.65rem;
+            margin-left: 0.3rem;
+        }
+    </style>
 </head>
 <body>
 
@@ -31,9 +110,9 @@
             <a href="/services/">Services</a>
             
             {% if request.session.student_id %}
-                <!-- LOGGED IN: Show Dashboard & Profile -->
+                <!-- STUDENT LOGGED IN -->
                 <div class="dropdown">
-                    <a href="#" class="dropdown-toggle">Student <i class="fas fa-chevron-down"></i></a>
+                    <a href="#" class="dropdown-toggle"><i class="fas fa-user-graduate"></i> Student <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-menu">
                         <a href="/student/dashboard/"><i class="fas fa-home"></i> Dashboard</a>
                         <a href="/student/jobs/"><i class="fas fa-briefcase"></i> Browse Jobs</a>
@@ -42,19 +121,46 @@
                         <a href="#" onclick="logoutStudent()"><i class="fas fa-sign-out-alt"></i> Logout</a>
                     </div>
                 </div>
+                
             {% elif request.session.company_id %}
                 <!-- COMPANY LOGGED IN -->
                 <div class="dropdown">
-                    <a href="#" class="dropdown-toggle">Company <i class="fas fa-chevron-down"></i></a>
+                    <a href="#" class="dropdown-toggle"><i class="fas fa-building"></i> Company <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-menu">
                         <a href="/company/dashboard/"><i class="fas fa-home"></i> Dashboard</a>
+                        <a href="/company/post-job/"><i class="fas fa-plus-circle"></i> Post Job</a>
+                        <a href="/company/applicants/"><i class="fas fa-users"></i> Applicants</a>
+                        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 0.5rem 0;">
                         <a href="#" onclick="logoutCompany()"><i class="fas fa-sign-out-alt"></i> Logout</a>
                     </div>
                 </div>
-            {% else %}
-                <!-- NOT LOGGED IN: Only Browse, Login, Register -->
+                
+            {% elif request.session.admin_id %}
+                <!-- ADMIN LOGGED IN -->
                 <div class="dropdown">
-                    <a href="#" class="dropdown-toggle">Student <i class="fas fa-chevron-down"></i></a>
+                    <a href="#" class="dropdown-toggle">
+                        <i class="fas fa-shield-alt"></i> 
+                        Admin 
+                        {% if request.session.is_super_admin %}<span class="admin-badge">SUPER</span>{% endif %}
+                        <i class="fas fa-chevron-down"></i>
+                    </a>
+                    <div class="dropdown-menu">
+                        <a href="/admin/dashboard/"><i class="fas fa-home"></i> Dashboard</a>
+                        <a href="/admin/analytics/"><i class="fas fa-chart-line"></i> Analytics</a>
+                        <a href="/admin/fraud-review/"><i class="fas fa-exclamation-triangle"></i> Fraud Review</a>
+                        {% if request.session.is_super_admin %}
+                            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 0.5rem 0;">
+                            <a href="#" onclick="showAddAdminModal()"><i class="fas fa-user-plus"></i> Add Admin</a>
+                        {% endif %}
+                        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 0.5rem 0;">
+                        <a href="#" onclick="logoutAdmin()"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                    </div>
+                </div>
+                
+            {% else %}
+                <!-- NO ONE LOGGED IN -->
+                <div class="dropdown">
+                    <a href="#" class="dropdown-toggle"><i class="fas fa-user-graduate"></i> Student <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-menu">
                         <a href="/student/jobs/"><i class="fas fa-briefcase"></i> Browse Jobs</a>
                         <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 0.5rem 0;">
@@ -62,20 +168,21 @@
                         <a href="/student/register/">Register</a>
                     </div>
                 </div>
+                
                 <div class="dropdown">
-                    <a href="#" class="dropdown-toggle">Company <i class="fas fa-chevron-down"></i></a>
+                    <a href="#" class="dropdown-toggle"><i class="fas fa-building"></i> Company <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-menu">
                         <a href="/company/login/">Login</a>
                         <a href="/company/register/">Register</a>
                     </div>
                 </div>
-            {% endif %}
-            
-            {% if request.session.is_staff %}
-                <a href="/admin/dashboard/">Admin</a>
+                
+                <!-- ADMIN LOGIN LINK -->
+                <a href="/admin/login/" style="color: #ff5858; font-weight: 600;">
+                    <i class="fas fa-shield-alt"></i> Admin
+                </a>
             {% endif %}
         </div>
-
 
         <div class="mobile-menu-toggle">
             <i class="fas fa-bars"></i>
@@ -112,11 +219,11 @@
     <script src="{% static 'js/main.js' %}"></script>
     {% block extra_js %}{% endblock %}
 
-    <!-- Logout Functions -->
+    <!-- Authentication Functions -->
     <script>
+        // Student Logout
         async function logoutStudent() {
             try {
-                // Call backend to clear Django session
                 await fetch('/api/auth/student/logout/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
@@ -125,18 +232,16 @@
                 console.error('Logout error:', e);
             }
             
-            // Clear frontend storage
             localStorage.removeItem('student_id');
             localStorage.removeItem('user_name');
             localStorage.removeItem('user_type');
             
-            // Redirect to home
             window.location.href = '/';
         }
 
+        // Company Logout
         async function logoutCompany() {
             try {
-                // Call backend to clear Django session
                 await fetch('/api/auth/company/logout/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
@@ -145,14 +250,134 @@
                 console.error('Logout error:', e);
             }
             
-            // Clear frontend storage
             localStorage.removeItem('company_id');
             localStorage.removeItem('user_name');
             localStorage.removeItem('user_type');
             
-            // Redirect to home
             window.location.href = '/';
         }
+
+        // Admin Logout
+        async function logoutAdmin() {
+            try {
+                await fetch('/api/auth/admin/logout/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            } catch (e) {
+                console.error('Logout error:', e);
+            }
+            
+            localStorage.removeItem('admin_id');
+            localStorage.removeItem('user_type');
+            localStorage.removeItem('is_super_admin');
+            
+            window.location.href = '/';
+        }
+
+        // Add Admin Modal (Super Admin only)
+        function showAddAdminModal() {
+            // Remove existing modal if any
+            const existingModal = document.getElementById('add-admin-modal');
+            if (existingModal) existingModal.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'add-admin-modal';
+            modal.innerHTML = `
+                <div class="modal-overlay" onclick="closeAddAdminModal()"></div>
+                <div class="modal-content">
+                    <h3><i class="fas fa-user-shield"></i> Add New Admin</h3>
+                    <p class="modal-desc">Create admin account. They can access dashboard immediately.</p>
+                    
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="new-admin-email" placeholder="newadmin@company.com" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="new-admin-password" placeholder="Minimum 8 characters" required minlength="8">
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button class="btn-outline" onclick="closeAddAdminModal()" style="padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer;">Cancel</button>
+                        <button class="btn-primary" onclick="submitNewAdmin()" style="padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; background: #48bbff; color: white; border: none;">
+                            <i class="fas fa-plus"></i> Create Admin
+                        </button>
+                    </div>
+                </div>
+            `;
+            modal.style.cssText = `
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+            `;
+            document.body.appendChild(modal);
+            
+            // Auto-focus email input
+            setTimeout(() => document.getElementById('new-admin-email').focus(), 100);
+        }
+
+        function closeAddAdminModal() {
+            const modal = document.getElementById('add-admin-modal');
+            if (modal) modal.remove();
+        }
+
+        async function submitNewAdmin() {
+            const email = document.getElementById('new-admin-email').value.trim();
+            const password = document.getElementById('new-admin-password').value;
+            
+            if (!email || !password) {
+                alert('Please fill in all fields');
+                return;
+            }
+            
+            if (password.length < 8) {
+                alert('Password must be at least 8 characters long');
+                return;
+            }
+
+            // Email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('Please enter a valid email address');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/add/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    alert('✅ Admin created successfully!\n\nThey can now login with:\nEmail: ' + email + '\nPassword: (as you set)');
+                    closeAddAdminModal();
+                    // Refresh page to show new admin in list if on dashboard
+                    if (window.location.pathname.includes('/admin/dashboard')) {
+                        window.location.reload();
+                    }
+                } else {
+                    alert('❌ Error: ' + (data.message || 'Failed to create admin'));
+                }
+            } catch (error) {
+                alert('❌ Network error. Please check your connection and try again.');
+                console.error('Error creating admin:', error);
+            }
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeAddAdminModal();
+            }
+        });
     </script>
 </body>
 </html>

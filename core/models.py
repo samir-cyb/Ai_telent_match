@@ -290,3 +290,21 @@ class AIFeedbackLog(models.Model):
     
     def __str__(self):
         return f"AI Feedback for {self.company.name} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+    
+    
+class Admin(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=255)  # Hashed
+    is_super_admin = models.BooleanField(default=False)  # Only you
+    created_by = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def set_password(self, raw_password):
+        self.password = make_password(raw_password)
+    
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
+    
+    def __str__(self):
+        return f"{self.email} ({'Super' if self.is_super_admin else 'Admin'})"
