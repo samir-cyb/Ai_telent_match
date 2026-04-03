@@ -184,7 +184,7 @@ class AIMatchingEngine:
             ],
             'job_requirements': [
                 80,  # Skills threshold
-                (job.min_cgpa or 3.0) / 4.0 * 100 if job.min_cgpa else 60,
+                float(job.min_cgpa or 3.0) / 4.0 * 100 if job.min_cgpa else 60,
                 60,  # Project threshold
                 40,  # Activity threshold
                 50   # Trust threshold
@@ -218,7 +218,7 @@ class AIMatchingEngine:
         cgpa_score = self.calculate_cgpa_score(student, job)
         project_score = self.calculate_project_score(student)
         activity_score = self.calculate_activity_score(student)
-        trust_score = student.trust_score / 100.0 if student.trust_score else 0.0
+        trust_score = float(student.trust_score) / 100.0 if student.trust_score else 0.0
         
         # Contextual adjustments
         factors = self.calculate_contextual_factors(student, job)

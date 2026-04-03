@@ -424,3 +424,20 @@ select {
         text-align: center;
     }
 }
+.back-link:hover {
+    color: #48bbff;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #94a3b8;
+    text-decoration: none;
+    margin-bottom: 1.5rem;
+    transition: color 0.3s;
+}
+
+.back-link:hover {
+    color: #48bbff;
+}

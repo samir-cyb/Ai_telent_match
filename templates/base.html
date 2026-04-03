@@ -29,25 +29,54 @@
             <a href="/">Home</a>
             <a href="/about/">About Us</a>
             <a href="/services/">Services</a>
-            <div class="dropdown">
-                <a href="#" class="dropdown-toggle">Student <i class="fas fa-chevron-down"></i></a>
-                <div class="dropdown-menu">
-                    <a href="/student/login/">Login</a>
-                    <a href="/student/register/">Register</a>
-                    <a href="/student/dashboard/">Dashboard</a>
+            
+            {% if request.session.student_id %}
+                <!-- LOGGED IN: Show Dashboard & Profile -->
+                <div class="dropdown">
+                    <a href="#" class="dropdown-toggle">Student <i class="fas fa-chevron-down"></i></a>
+                    <div class="dropdown-menu">
+                        <a href="/student/dashboard/"><i class="fas fa-home"></i> Dashboard</a>
+                        <a href="/student/jobs/"><i class="fas fa-briefcase"></i> Browse Jobs</a>
+                        <a href="/student/profile/"><i class="fas fa-user"></i> My Profile</a>
+                        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 0.5rem 0;">
+                        <a href="#" onclick="logoutStudent()"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                    </div>
                 </div>
-            </div>
-            <div class="dropdown">
-                <a href="#" class="dropdown-toggle">Company <i class="fas fa-chevron-down"></i></a>
-                <div class="dropdown-menu">
-                    <a href="/company/login/">Login</a>
-                    <a href="/company/register/">Register</a>
-                    <a href="/company/dashboard/">Dashboard</a>
+            {% elif request.session.company_id %}
+                <!-- COMPANY LOGGED IN -->
+                <div class="dropdown">
+                    <a href="#" class="dropdown-toggle">Company <i class="fas fa-chevron-down"></i></a>
+                    <div class="dropdown-menu">
+                        <a href="/company/dashboard/"><i class="fas fa-home"></i> Dashboard</a>
+                        <a href="#" onclick="logoutCompany()"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                    </div>
                 </div>
-            </div>
-            <a href="/admin/dashboard/">Admin</a>
-            {% block nav_extra %}{% endblock %}
+            {% else %}
+                <!-- NOT LOGGED IN: Only Browse, Login, Register -->
+                <div class="dropdown">
+                    <a href="#" class="dropdown-toggle">Student <i class="fas fa-chevron-down"></i></a>
+                    <div class="dropdown-menu">
+                        <a href="/student/jobs/"><i class="fas fa-briefcase"></i> Browse Jobs</a>
+                        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 0.5rem 0;">
+                        <a href="/student/login/">Login</a>
+                        <a href="/student/register/">Register</a>
+                    </div>
+                </div>
+                <div class="dropdown">
+                    <a href="#" class="dropdown-toggle">Company <i class="fas fa-chevron-down"></i></a>
+                    <div class="dropdown-menu">
+                        <a href="/company/login/">Login</a>
+                        <a href="/company/register/">Register</a>
+                    </div>
+                </div>
+            {% endif %}
+            
+            {% if request.session.is_staff %}
+                <a href="/admin/dashboard/">Admin</a>
+            {% endif %}
         </div>
+
+
         <div class="mobile-menu-toggle">
             <i class="fas fa-bars"></i>
         </div>
@@ -82,5 +111,48 @@
     <script src="{% static 'js/gsap-animations.js' %}"></script>
     <script src="{% static 'js/main.js' %}"></script>
     {% block extra_js %}{% endblock %}
+
+    <!-- Logout Functions -->
+    <script>
+        async function logoutStudent() {
+            try {
+                // Call backend to clear Django session
+                await fetch('/api/auth/student/logout/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            } catch (e) {
+                console.error('Logout error:', e);
+            }
+            
+            // Clear frontend storage
+            localStorage.removeItem('student_id');
+            localStorage.removeItem('user_name');
+            localStorage.removeItem('user_type');
+            
+            // Redirect to home
+            window.location.href = '/';
+        }
+
+        async function logoutCompany() {
+            try {
+                // Call backend to clear Django session
+                await fetch('/api/auth/company/logout/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            } catch (e) {
+                console.error('Logout error:', e);
+            }
+            
+            // Clear frontend storage
+            localStorage.removeItem('company_id');
+            localStorage.removeItem('user_name');
+            localStorage.removeItem('user_type');
+            
+            // Redirect to home
+            window.location.href = '/';
+        }
+    </script>
 </body>
 </html>

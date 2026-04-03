@@ -11,8 +11,16 @@ urlpatterns = [
     # Student endpoints
     path('student/<uuid:student_id>/profile/', views.StudentProfileView.as_view(), name='student_profile'),
     path('student/create/', views.StudentProfileView.as_view(), name='create_student'),
+    # ADD THIS NEW ENDPOINT for explicit updates:
+    path('student/<uuid:student_id>/profile/update/', views.StudentProfileView.as_view(), name='update_student_profile'),
     path('student/<uuid:student_id>/dashboard/', views.StudentDashboardView.as_view(), name='student_dashboard'),
     path('student/<uuid:student_id>/matches/', views.StudentMatchesView.as_view(), name='student_matches'),
+    
+    # ADD THESE TWO NEW ENDPOINTS HERE
+    path('student/<uuid:student_id>/skills/', views.AddSkillView.as_view(), name='add_skill'),
+    path('student/<uuid:student_id>/experience/', views.AddExperienceView.as_view(), name='add_experience'),
+    path('student/<uuid:student_id>/preferences/', views.UpdatePreferencesView.as_view(), name='update_preferences'),
+    
     path('analyze-match/', views.AnalyzeMatchView.as_view(), name='analyze_match'),
     path('smart-apply/', views.SmartApplyView.as_view(), name='smart_apply'),
     path('jobs/', views.JobsListView.as_view(), name='jobs_list'),
