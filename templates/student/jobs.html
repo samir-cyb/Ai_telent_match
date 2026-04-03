@@ -53,10 +53,27 @@ if (!studentId) {
 }
 
 let allJobs = [];
+let appliedJobIds = new Set();
+
+// Load student's applied jobs first
+async function loadAppliedJobs() {
+    try {
+        const response = await fetch(`${API_BASE}/student/${studentId}/applications/`);
+        const data = await response.json();
+        if (data.status === 'success') {
+            appliedJobIds = new Set(data.applied_job_ids);
+        }
+    } catch (error) {
+        console.error('Error loading applications:', error);
+    }
+}
 
 // Load jobs
 async function loadJobs() {
     try {
+        // Load applied jobs first
+        await loadAppliedJobs();
+        
         const response = await fetch(`${API_BASE}/jobs/`);
         const data = await response.json();
         
@@ -75,15 +92,27 @@ function displayJobs(jobs) {
     const container = document.getElementById('jobs-grid');
     const countLabel = document.getElementById('jobs-count');
     
-    countLabel.textContent = `${jobs.length} jobs available`;
+    const appliedCount = jobs.filter(job => appliedJobIds.has(job.id)).length;
+    const availableCount = jobs.length - appliedCount;
+    
+    countLabel.innerHTML = `${availableCount} jobs available${appliedCount > 0 ? ` <span class="applied-count">(${appliedCount} already applied)</span>` : ''}`;
     
     if (jobs.length === 0) {
         container.innerHTML = '<p class="no-data">No jobs found matching your criteria.</p>';
         return;
     }
     
-    container.innerHTML = jobs.map(job => `
-        <div class="job-card glass-card" onclick="viewJobDetail('${job.id}')">
+    // Sort: non-applied first, then applied
+    const sortedJobs = [...jobs].sort((a, b) => {
+        const aApplied = appliedJobIds.has(a.id);
+        const bApplied = appliedJobIds.has(b.id);
+        return aApplied - bApplied;
+    });
+    
+    container.innerHTML = sortedJobs.map(job => {
+        const isApplied = appliedJobIds.has(job.id);
+        return `
+        <div class="job-card glass-card ${isApplied ? 'applied' : ''}" onclick="viewJobDetail('${job.id}')">
             <div class="job-card-header">
                 <div class="company-icon">
                     <i class="fas fa-building"></i>
@@ -92,7 +121,10 @@ function displayJobs(jobs) {
                     <h3>${job.title}</h3>
                     <p class="company-name">${job.company_name}</p>
                 </div>
-                <span class="job-type-badge">${job.job_type}</span>
+                <div class="job-badges">
+                    <span class="job-type-badge">${job.job_type}</span>
+                    ${isApplied ? '<span class="applied-badge"><i class="fas fa-check"></i> Applied</span>' : ''}
+                </div>
             </div>
             
             <div class="job-description">
@@ -112,12 +144,13 @@ function displayJobs(jobs) {
                     <span><i class="fas fa-map-marker-alt"></i> ${job.location || 'Remote'}</span>
                     <span><i class="fas fa-graduation-cap"></i> CGPA: ${job.min_cgpa || 'Any'}</span>
                 </div>
-                <button class="btn-primary btn-sm">
-                    View Details <i class="fas fa-arrow-right"></i>
-                </button>
+                ${isApplied ? 
+                    '<span class="applied-text"><i class="fas fa-check-circle"></i> Already Applied</span>' : 
+                    '<button class="btn-primary btn-sm">View Details <i class="fas fa-arrow-right"></i></button>'
+                }
             </div>
         </div>
-    `).join('');
+    `}).join('');
 }
 
 function filterJobs() {
@@ -238,6 +271,11 @@ loadJobs();
     font-size: 0.9rem;
 }
 
+.applied-count {
+    color: #00b86b;
+    font-weight: 600;
+}
+
 .jobs-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -255,6 +293,18 @@ loadJobs();
     transform: translateY(-5px);
     border-color: rgba(72, 187, 255, 0.4);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.job-card.applied {
+    opacity: 0.75;
+    border-color: #00b86b;
+    background: rgba(0, 184, 107, 0.05);
+}
+
+.job-card.applied:hover {
+    transform: translateY(-2px);
+    border-color: #00b86b;
+    box-shadow: 0 5px 20px rgba(0, 184, 107, 0.2);
 }
 
 .job-card-header {
@@ -291,6 +341,13 @@ loadJobs();
     font-size: 0.9rem;
 }
 
+.job-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    align-items: flex-end;
+}
+
 .job-type-badge {
     background: rgba(72, 187, 255, 0.2);
     color: #48bbff;
@@ -298,6 +355,18 @@ loadJobs();
     border-radius: 2rem;
     font-size: 0.8rem;
     font-weight: 500;
+}
+
+.applied-badge {
+    background: #00b86b;
+    color: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
 }
 
 .job-description {
@@ -350,6 +419,15 @@ loadJobs();
     color: #48bbff;
 }
 
+.applied-text {
+    color: #00b86b;
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
 .no-data {
     text-align: center;
     color: #64748b;
@@ -369,6 +447,10 @@ loadJobs();
     
     .search-box {
         min-width: 100%;
+    }
+    
+    .job-badges {
+        align-items: flex-start;
     }
 }
 </style>

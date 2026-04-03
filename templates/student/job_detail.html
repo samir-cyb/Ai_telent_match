@@ -48,7 +48,7 @@
             </div>
         </div>
 
-        <!-- Right Column: AI Analysis - FIXED: Compact Layout -->
+        <!-- Right Column: AI Analysis -->
         <div class="analysis-section">
             <div class="glass-card analysis-card compact">
                 <h3><i class="fas fa-robot"></i> AI Match Analysis</h3>
@@ -63,7 +63,19 @@
                     </button>
                 </div>
 
-                <!-- FIXED: All results in a compact grid layout -->
+                <!-- Already Applied Message (Hidden by default) -->
+                <div id="already-applied-message" style="display: none;">
+                    <div class="already-applied-card">
+                        <i class="fas fa-check-circle"></i>
+                        <h4>Already Applied!</h4>
+                        <p>You have already submitted your application for this position.</p>
+                        <a href="/student/dashboard/" class="btn-primary">
+                            <i class="fas fa-arrow-left"></i> Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Analysis Results -->
                 <div id="analysis-results" class="analysis-results" style="display: none;">
                     
                     <!-- Top Row: Score + Radar side by side -->
@@ -93,7 +105,7 @@
                         <ul id="recommendations-list"></ul>
                     </div>
 
-                    <!-- FIXED: Apply Button Section - Always Visible -->
+                    <!-- Apply Button Section -->
                     <div class="apply-section" id="apply-section">
                         <div class="apply-card">
                             <div class="apply-info">
@@ -114,7 +126,7 @@
 </div>
 
 <script>
-// FIXED: Use window.API_BASE to avoid redeclaration conflicts
+// Use window.API_BASE to avoid redeclaration conflicts
 window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
 const urlParams = new URLSearchParams(window.location.search);
 const jobId = urlParams.get('id');
@@ -125,6 +137,45 @@ if (!studentId) {
 }
 
 let comparisonChart;
+let hasApplied = false;
+
+// Check if student already applied to this job
+async function checkApplicationStatus() {
+    try {
+        const response = await fetch(`${window.API_BASE}/student/${studentId}/applications/`);
+        const data = await response.json();
+        if (data.status === 'success') {
+            hasApplied = data.applied_job_ids.includes(jobId);
+            if (hasApplied) {
+                showAlreadyAppliedUI();
+            }
+        }
+    } catch (error) {
+        console.error('Error checking application status:', error);
+    }
+}
+
+function showAlreadyAppliedUI() {
+    // Hide analyze button and results
+    document.getElementById('analyze-btn').style.display = 'none';
+    document.getElementById('analysis-results').style.display = 'none';
+    
+    // Show already applied message
+    const messageDiv = document.getElementById('already-applied-message');
+    messageDiv.style.display = 'block';
+    
+    // Update score display
+    const scoreDisplay = document.getElementById('match-score-display');
+    scoreDisplay.innerHTML = `
+        <div class="already-applied-score">
+            <i class="fas fa-check-circle"></i>
+            <span>Application Submitted</span>
+        </div>
+    `;
+    
+    // Style the card as applied
+    document.querySelector('.analysis-card').classList.add('applied-state');
+}
 
 // Load job details
 async function loadJobDetails() {
@@ -136,10 +187,13 @@ async function loadJobDetails() {
             const job = data.jobs.find(j => j.id === jobId);
             if (job) {
                 displayJobDetails(job);
+            } else {
+                document.getElementById('job-title').textContent = 'Job Not Found';
             }
         }
     } catch (error) {
         console.error('Error loading job:', error);
+        document.getElementById('job-title').textContent = 'Error Loading Job';
     }
 }
 
@@ -159,6 +213,8 @@ function displayJobDetails(job) {
 
 // Analyze match
 document.getElementById('analyze-btn').addEventListener('click', async () => {
+    if (hasApplied) return; // Don't analyze if already applied
+    
     const btn = document.getElementById('analyze-btn');
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
     btn.disabled = true;
@@ -366,6 +422,11 @@ async function applyToJob(jobId) {
         return;
     }
     
+    if (hasApplied) {
+        alert('You have already applied to this job!');
+        return;
+    }
+    
     const btn = document.getElementById('apply-btn');
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
@@ -386,7 +447,12 @@ async function applyToJob(jobId) {
         if (data.status === 'success') {
             btn.innerHTML = '<i class="fas fa-check"></i> Applied!';
             btn.style.background = 'linear-gradient(135deg, #00b86b, #008c4a)';
+            hasApplied = true;
             setTimeout(() => window.location.href = '/student/dashboard/', 1500);
+        } else if (data.message && data.message.includes('Already applied')) {
+            // Handle already applied error gracefully
+            hasApplied = true;
+            showAlreadyAppliedUI();
         } else {
             btn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Failed';
             btn.disabled = false;
@@ -400,12 +466,18 @@ async function applyToJob(jobId) {
     }
 }
 
+// Initialize page - check application status first, then load job details
+async function initPage() {
+    await checkApplicationStatus();
+    await loadJobDetails();
+}
+
 // Load on page load
-loadJobDetails();
+initPage();
 </script>
 
 <style>
-/* FIXED: Container with proper constraints */
+/* Container with proper constraints */
 .job-detail-container {
     padding: 1.5rem 1rem;
     max-width: 1400px;
@@ -426,7 +498,7 @@ loadJobDetails();
 
 .back-link:hover { color: #48bbff; }
 
-/* FIXED: Grid with better proportions */
+/* Grid with better proportions */
 .job-detail-grid {
     display: grid;
     grid-template-columns: 1fr 420px;
@@ -550,7 +622,7 @@ loadJobDetails();
     font-size: 0.85rem;
 }
 
-/* FIXED: Analysis section - compact and contained */
+/* Analysis section - compact and contained */
 .analysis-section {
     display: flex;
     flex-direction: column;
@@ -589,6 +661,11 @@ loadJobDetails();
     margin-bottom: 1rem;
     color: #48bbff;
     font-size: 1rem;
+}
+
+.analysis-card.applied-state {
+    border-color: #00b86b;
+    background: rgba(0, 184, 107, 0.05);
 }
 
 .match-score-display {
@@ -641,7 +718,54 @@ loadJobDetails();
     text-transform: uppercase;
 }
 
-/* FIXED: Results layout - horizontal top row */
+/* Already Applied Styles */
+.already-applied-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 2rem;
+    color: #00b86b;
+}
+
+.already-applied-score i {
+    font-size: 3rem;
+}
+
+.already-applied-score span {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.already-applied-card {
+    background: linear-gradient(135deg, rgba(0, 184, 107, 0.2), rgba(0, 140, 74, 0.2));
+    border: 2px solid #00b86b;
+    border-radius: 1rem;
+    padding: 2rem;
+    text-align: center;
+    color: #f0f9ff;
+    margin-top: 1rem;
+}
+
+.already-applied-card i {
+    font-size: 3rem;
+    color: #00b86b;
+    margin-bottom: 1rem;
+}
+
+.already-applied-card h4 {
+    font-size: 1.3rem;
+    margin-bottom: 0.5rem;
+    color: #00b86b;
+}
+
+.already-applied-card p {
+    color: #94a3b8;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+/* Results layout - horizontal top row */
 .analysis-results {
     text-align: left;
     margin-top: 1rem;
@@ -781,7 +905,7 @@ loadJobDetails();
     font-size: 0.75rem;
 }
 
-/* FIXED: Apply Section - Prominent and Always Visible */
+/* Apply Section - Prominent and Always Visible */
 .apply-section {
     margin-top: 1rem;
     padding-top: 1rem;
@@ -914,6 +1038,10 @@ loadJobDetails();
     .btn-apply {
         width: 100%;
     }
+    
+    .already-applied-card {
+        padding: 1.5rem;
+    }
 }
 
 @media (max-width: 480px) {
@@ -942,6 +1070,10 @@ loadJobDetails();
     
     .apply-info h4 {
         font-size: 1rem;
+    }
+    
+    .already-applied-card h4 {
+        font-size: 1.1rem;
     }
 }
 </style>

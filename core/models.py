@@ -130,9 +130,15 @@ class Project(models.Model):
     live_url = models.URLField(blank=True)
     tech_stack = models.ManyToManyField(Skill)
     duration_weeks = models.IntegerField(null=True, blank=True)
-    complexity_score = models.IntegerField(default=1)  # 1-5
+    complexity_score = models.IntegerField(default=1)
     verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['student', 'title']  # ADD THIS LINE
+    
+    def __str__(self):
+        return f"{self.title} ({self.student.name})"
 
 class WorkExperience(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
