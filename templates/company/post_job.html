@@ -1,329 +1,484 @@
-{% extends "base.html" %}
-{% block title %}Post a Job | AI Talent Match{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Post a Job | AI Talent
+Match{%endblock %} {% block content %}
 <div class="container post-job-container">
-    <div class="page-header glass-card">
-        <a href="/company/dashboard/" class="back-link">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
-        <h1>Post a New Job</h1>
-        <p>Create a job posting and let AI find the perfect candidates</p>
-    </div>
+  <div class="page-header glass-card">
+    <a href="/company/dashboard/" class="back-link">
+      <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+    <h1>Post a New Job</h1>
+    <p>Create a job posting and let AI find the perfect candidates</p>
+  </div>
 
-    <div class="form-container">
-        <form id="post-job-form" class="job-form glass-card">
-            <div class="form-section">
-                <h3><i class="fas fa-info-circle"></i> Basic Information</h3>
-                
-                <div class="form-group">
-                    <label for="title">Job Title *</label>
-                    <input type="text" id="title" name="title" placeholder="e.g., Senior Full Stack Developer" required>
-                </div>
+  <div class="form-container">
+    <form id="post-job-form" class="job-form glass-card">
+      <div class="form-section">
+        <h3><i class="fas fa-info-circle"></i> Basic Information</h3>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="job_type">Job Type *</label>
-                        <select id="job_type" name="job_type" required>
-                            <option value="">Select Type</option>
-                            <option value="Remote">Remote</option>
-                            <option value="Hybrid">Hybrid</option>
-                            <option value="On-site">On-site</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="location">Location</label>
-                        <input type="text" id="location" name="location" placeholder="e.g., New York, NY">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="description">Job Description *</label>
-                    <textarea id="description" name="description" rows="5" placeholder="Describe the role, responsibilities, and ideal candidate..." required></textarea>
-                </div>
-            </div>
-
-            <div class="form-section">
-                <h3><i class="fas fa-list-check"></i> Requirements</h3>
-                
-                <div class="form-group">
-                    <label for="skills">Required Skills * (comma separated)</label>
-                    <input type="text" id="skills" name="skills" placeholder="e.g., Python, React, SQL, AWS" required>
-                    <small class="help-text">Enter skills separated by commas. These will be matched against candidate profiles.</small>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="min_cgpa">Minimum CGPA (optional)</label>
-                        <input type="number" id="min_cgpa" name="min_cgpa" step="0.01" min="0" max="4.0" placeholder="3.0">
-                    </div>
-                    <div class="form-group">
-                        <label for="deadline">Application Deadline</label>
-                        <input type="date" id="deadline" name="deadline">
-                    </div>
-                </div>
-            </div>
-
-            <div class="form-section">
-                <h3><i class="fas fa-dollar-sign"></i> Compensation</h3>
-                
-                <div class="form-group">
-                    <label for="salary">Salary Range</label>
-                    <input type="text" id="salary" name="salary" placeholder="e.g., $80,000 - $120,000 per year">
-                </div>
-            </div>
-
-            <div class="form-section ai-weights">
-                <h3><i class="fas fa-sliders-h"></i> AI Matching Weights (Optional)</h3>
-                <p class="section-desc">Customize how the AI prioritizes candidates for this specific role. Starts with your company defaults.</p>
-                
-                <div class="weights-grid">
-                    <div class="weight-control">
-                        <label>Skills Weight: <span id="w-skills">40%</span></label>
-                        <input type="range" id="weight_skills" name="weight_skills" min="0" max="1" step="0.05" value="0.4">
-                    </div>
-                    <div class="weight-control">
-                        <label>CGPA Weight: <span id="w-cgpa">20%</span></label>
-                        <input type="range" id="weight_cgpa" name="weight_cgpa" min="0" max="1" step="0.05" value="0.2">
-                    </div>
-                    <div class="weight-control">
-                        <label>Projects Weight: <span id="w-projects">20%</span></label>
-                        <input type="range" id="weight_projects" name="weight_projects" min="0" max="1" step="0.05" value="0.2">
-                    </div>
-                    <div class="weight-control">
-                        <label>Activity Weight: <span id="w-activity">10%</span></label>
-                        <input type="range" id="weight_activity" name="weight_activity" min="0" max="1" step="0.05" value="0.1">
-                    </div>
-                    <div class="weight-control">
-                        <label>Trust Score Weight: <span id="w-trust">10%</span></label>
-                        <input type="range" id="weight_trust" name="weight_trust" min="0" max="1" step="0.05" value="0.1">
-                    </div>
-                </div>
-                
-                <button type="button" id="reset-to-defaults" class="btn-secondary btn-sm" style="margin-top: 1rem;">
-                    <i class="fas fa-undo"></i> Reset to Company Defaults
-                </button>
-            </div>
-
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="history.back()">Cancel</button>
-                <button type="submit" class="btn-primary btn-glow">
-                    <i class="fas fa-cloud-upload-alt"></i> Post Job
-                </button>
-            </div>
-
-            <div id="form-status"></div>
-        </form>
-
-        <!-- Preview Card -->
-        <div class="preview-card glass-card">
-            <h3><i class="fas fa-eye"></i> Preview</h3>
-            <div class="preview-content" id="preview">
-                <p class="preview-placeholder">Fill out the form to see a preview of your job posting</p>
-            </div>
+        <div class="form-group">
+          <label for="title">Job Title *</label>
+          <input
+            type="text"
+            id="title"
+            name="title"
+            placeholder="e.g., Senior Full Stack Developer"
+            required
+          />
         </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="job_type">Job Type *</label>
+            <select id="job_type" name="job_type" required>
+              <option value="">Select Type</option>
+              <option value="Remote">Remote</option>
+              <option value="Hybrid">Hybrid</option>
+              <option value="On-site">On-site</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="location">Location</label>
+            <input
+              type="text"
+              id="location"
+              name="location"
+              placeholder="e.g., New York, NY"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="description">Job Description *</label>
+          <textarea
+            id="description"
+            name="description"
+            rows="5"
+            placeholder="Describe the role, responsibilities, and ideal candidate..."
+            required
+          ></textarea>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3><i class="fas fa-list-check"></i> Requirements</h3>
+
+        <div class="form-group">
+          <label for="skills">Required Skills * (comma separated)</label>
+          <input
+            type="text"
+            id="skills"
+            name="skills"
+            placeholder="e.g., Python, React, SQL, AWS"
+            required
+          />
+          <small class="help-text"
+            >Enter skills separated by commas. These will be matched against
+            candidate profiles.</small
+          >
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="min_cgpa">Minimum CGPA (optional)</label>
+            <input
+              type="number"
+              id="min_cgpa"
+              name="min_cgpa"
+              step="0.01"
+              min="0"
+              max="4.0"
+              placeholder="3.0"
+            />
+          </div>
+          <div class="form-group">
+            <label for="deadline">Application Deadline</label>
+            <input type="date" id="deadline" name="deadline" />
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3><i class="fas fa-dollar-sign"></i> Compensation</h3>
+
+        <div class="form-group">
+          <label for="salary">Salary Range</label>
+          <input
+            type="text"
+            id="salary"
+            name="salary"
+            placeholder="e.g., $80,000 - $120,000 per year"
+          />
+        </div>
+      </div>
+
+      <div class="form-section ai-weights">
+        <h3><i class="fas fa-sliders-h"></i> AI Matching Weights (Optional)</h3>
+        <p class="section-desc">
+          Customize how the AI prioritizes candidates for this specific role.
+          Starts with your company defaults.
+        </p>
+
+        <div class="weights-grid">
+          <div class="weight-control">
+            <label>Skills Weight: <span id="w-skills">40%</span></label>
+            <input
+              type="range"
+              id="weight_skills"
+              name="weight_skills"
+              min="0"
+              max="1"
+              step="0.05"
+              value="0.4"
+            />
+          </div>
+          <div class="weight-control">
+            <label>CGPA Weight: <span id="w-cgpa">20%</span></label>
+            <input
+              type="range"
+              id="weight_cgpa"
+              name="weight_cgpa"
+              min="0"
+              max="1"
+              step="0.05"
+              value="0.2"
+            />
+          </div>
+          <div class="weight-control">
+            <label>Projects Weight: <span id="w-projects">20%</span></label>
+            <input
+              type="range"
+              id="weight_projects"
+              name="weight_projects"
+              min="0"
+              max="1"
+              step="0.05"
+              value="0.2"
+            />
+          </div>
+          <div class="weight-control">
+            <label>Activity Weight: <span id="w-activity">10%</span></label>
+            <input
+              type="range"
+              id="weight_activity"
+              name="weight_activity"
+              min="0"
+              max="1"
+              step="0.05"
+              value="0.1"
+            />
+          </div>
+          <div class="weight-control">
+            <label>Trust Score Weight: <span id="w-trust">10%</span></label>
+            <input
+              type="range"
+              id="weight_trust"
+              name="weight_trust"
+              min="0"
+              max="1"
+              step="0.05"
+              value="0.1"
+            />
+          </div>
+        </div>
+
+        <div class="reset-section">
+          <button
+            type="button"
+            id="reset-to-defaults"
+            class="btn-secondary btn-sm"
+          >
+            <i class="fas fa-undo"></i> Reset to Company Defaults
+          </button>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" onclick="history.back()">
+          Cancel
+        </button>
+        <button type="submit" class="btn-primary btn-glow">
+          <i class="fas fa-cloud-upload-alt"></i> Post Job
+        </button>
+      </div>
+
+      <div id="form-status"></div>
+    </form>
+
+    <!-- Preview Card -->
+    <div class="preview-card glass-card">
+      <h3><i class="fas fa-eye"></i> Preview</h3>
+      <div class="preview-content" id="preview">
+        <p class="preview-placeholder">
+          Fill out the form to see a preview of your job posting
+        </p>
+      </div>
     </div>
+  </div>
 </div>
 
 <script>
-const API_BASE = "http://127.0.0.1:8000/api";
-const companyId = localStorage.getItem('company_id');
+  const API_BASE = "http://127.0.0.1:8000/api";
+  const companyId = localStorage.getItem("company_id");
 
-if (!companyId) {
-    window.location.href = '/company/login/';
-}
+  if (!companyId) {
+    window.location.href = "/company/login/";
+  }
 
-// Store company defaults for reset functionality
-let companyDefaults = {
+  // Store company defaults for reset functionality
+  let companyDefaults = {
     skills: 0.4,
     cgpa: 0.2,
     projects: 0.2,
     activity: 0.1,
-    trust: 0.1
-};
+    trust: 0.1,
+  };
 
-// Update weight labels
-document.querySelectorAll('.weight-control input').forEach(input => {
-    input.addEventListener('input', updateWeightLabels);
-});
+  // Update weight labels
+  document.querySelectorAll(".weight-control input").forEach((input) => {
+    input.addEventListener("input", updateWeightLabels);
+  });
 
-function updateWeightLabels() {
-    document.getElementById('w-skills').textContent = Math.round(document.getElementById('weight_skills').value * 100) + '%';
-    document.getElementById('w-cgpa').textContent = Math.round(document.getElementById('weight_cgpa').value * 100) + '%';
-    document.getElementById('w-projects').textContent = Math.round(document.getElementById('weight_projects').value * 100) + '%';
-    document.getElementById('w-activity').textContent = Math.round(document.getElementById('weight_activity').value * 100) + '%';
-    document.getElementById('w-trust').textContent = Math.round(document.getElementById('weight_trust').value * 100) + '%';
-    
+  function updateWeightLabels() {
+    document.getElementById("w-skills").textContent =
+      Math.round(document.getElementById("weight_skills").value * 100) + "%";
+    document.getElementById("w-cgpa").textContent =
+      Math.round(document.getElementById("weight_cgpa").value * 100) + "%";
+    document.getElementById("w-projects").textContent =
+      Math.round(document.getElementById("weight_projects").value * 100) + "%";
+    document.getElementById("w-activity").textContent =
+      Math.round(document.getElementById("weight_activity").value * 100) + "%";
+    document.getElementById("w-trust").textContent =
+      Math.round(document.getElementById("weight_trust").value * 100) + "%";
+
     updatePreview();
-}
+  }
 
-// Live preview
-document.querySelectorAll('#post-job-form input, #post-job-form textarea, #post-job-form select').forEach(field => {
-    field.addEventListener('input', updatePreview);
-});
+  // Live preview
+  document.querySelectorAll(".weight-control input").forEach((input) => {
+    input.addEventListener("input", function (e) {
+      e.stopPropagation(); // Stop event bubbling
+      updateWeightLabels();
+    });
+  });
 
-function updatePreview() {
-    const title = document.getElementById('title').value || 'Job Title';
-    const type = document.getElementById('job_type').value || 'Job Type';
-    const location = document.getElementById('location').value || 'Location';
-    const description = document.getElementById('description').value || 'Job description will appear here...';
-    const skills = document.getElementById('skills').value.split(',').filter(s => s.trim()).map(s => s.trim());
-    const salary = document.getElementById('salary').value || 'Not specified';
-    
-    document.getElementById('preview').innerHTML = `
+  document
+    .getElementById("reset-to-defaults")
+    .addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Reset values
+      document.getElementById("weight_skills").value = companyDefaults.skills;
+      document.getElementById("weight_cgpa").value = companyDefaults.cgpa;
+      document.getElementById("weight_projects").value =
+        companyDefaults.projects;
+      document.getElementById("weight_activity").value =
+        companyDefaults.activity;
+      document.getElementById("weight_trust").value = companyDefaults.trust;
+
+      updateWeightLabels();
+
+      // Visual feedback
+      const btn = this;
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '<i class="fas fa-check"></i> Reset!';
+      btn.style.background = "rgba(0, 184, 107, 0.2)";
+      btn.style.color = "#00b86b";
+      btn.style.borderColor = "#00b86b";
+
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.style.background = "";
+        btn.style.color = "";
+        btn.style.borderColor = "";
+      }, 1500);
+    });
+
+  function updatePreview() {
+    const title = document.getElementById("title").value || "Job Title";
+    const type = document.getElementById("job_type").value || "Job Type";
+    const location = document.getElementById("location").value || "Location";
+    const description =
+      document.getElementById("description").value ||
+      "Job description will appear here...";
+    const skills = document
+      .getElementById("skills")
+      .value.split(",")
+      .filter((s) => s.trim())
+      .map((s) => s.trim());
+    const salary = document.getElementById("salary").value || "Not specified";
+
+    document.getElementById("preview").innerHTML = `
         <div class="preview-job">
             <h4>${title}</h4>
             <div class="preview-meta">
                 <span class="badge">${type}</span>
                 <span><i class="fas fa-map-marker-alt"></i> ${location}</span>
             </div>
-            <p class="preview-desc">${description.substring(0, 150)}${description.length > 150 ? '...' : ''}</p>
-            ${skills.length > 0 ? `
+            <p class="preview-desc">${description.substring(0, 150)}${description.length > 150 ? "..." : ""}</p>
+            ${
+              skills.length > 0
+                ? `
                 <div class="preview-skills">
-                    ${skills.map(s => `<span class="skill-tag">${s}</span>`).join('')}
+                    ${skills.map((s) => `<span class="skill-tag">${s}</span>`).join("")}
                 </div>
-            ` : ''}
+            `
+                : ""
+            }
             <div class="preview-salary">
                 <i class="fas fa-dollar-sign"></i> ${salary}
             </div>
         </div>
     `;
-}
+  }
 
-// Form submission
-document.getElementById('post-job-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const btn = e.target.querySelector('button[type="submit"]');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Posting...';
-    btn.disabled = true;
-    
-    const skillsArray = document.getElementById('skills').value.split(',').map(s => s.trim()).filter(s => s);
-    
-    const payload = {
+  // Form submission
+  document
+    .getElementById("post-job-form")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const btn = e.target.querySelector('button[type="submit"]');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Posting...';
+      btn.disabled = true;
+
+      const skillsArray = document
+        .getElementById("skills")
+        .value.split(",")
+        .map((s) => s.trim())
+        .filter((s) => s);
+
+      const payload = {
         company_id: companyId,
-        title: document.getElementById('title').value,
-        description: document.getElementById('description').value,
+        title: document.getElementById("title").value,
+        description: document.getElementById("description").value,
         required_skills: skillsArray,
-        min_cgpa: parseFloat(document.getElementById('min_cgpa').value) || null,
-        job_type: document.getElementById('job_type').value,
-        location: document.getElementById('location').value,
-        salary_range: { range: document.getElementById('salary').value },
-        deadline: document.getElementById('deadline').value || null,
+        min_cgpa: parseFloat(document.getElementById("min_cgpa").value) || null,
+        job_type: document.getElementById("job_type").value,
+        location: document.getElementById("location").value,
+        salary_range: { range: document.getElementById("salary").value },
+        deadline: document.getElementById("deadline").value || null,
         custom_weights: {
-            skills: parseFloat(document.getElementById('weight_skills').value),
-            cgpa: parseFloat(document.getElementById('weight_cgpa').value),
-            projects: parseFloat(document.getElementById('weight_projects').value),
-            activity: parseFloat(document.getElementById('weight_activity').value),
-            trust: parseFloat(document.getElementById('weight_trust').value)
-        }
-    };
-    
-    try {
+          skills: parseFloat(document.getElementById("weight_skills").value),
+          cgpa: parseFloat(document.getElementById("weight_cgpa").value),
+          projects: parseFloat(
+            document.getElementById("weight_projects").value,
+          ),
+          activity: parseFloat(
+            document.getElementById("weight_activity").value,
+          ),
+          trust: parseFloat(document.getElementById("weight_trust").value),
+        },
+      };
+
+      try {
         const response = await fetch(`${API_BASE}/job/post/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
-        
+
         const data = await response.json();
-        
-        if (data.status === 'success') {
-            document.getElementById('form-status').innerHTML = `
+
+        if (data.status === "success") {
+          document.getElementById("form-status").innerHTML = `
                 <div class="success-message">
                     <i class="fas fa-check-circle"></i> Job posted successfully! ID: ${data.job_id}
                 </div>
             `;
-            setTimeout(() => {
-                window.location.href = '/company/dashboard/';
-            }, 2000);
+          setTimeout(() => {
+            window.location.href = "/company/dashboard/";
+          }, 2000);
         } else {
-            document.getElementById('form-status').innerHTML = `
-                <div class="error-message">${data.message || 'Failed to post job'}</div>
+          document.getElementById("form-status").innerHTML = `
+                <div class="error-message">${data.message || "Failed to post job"}</div>
             `;
         }
-    } catch (error) {
-        document.getElementById('form-status').innerHTML = `
+      } catch (error) {
+        document.getElementById("form-status").innerHTML = `
             <div class="error-message">Network error. Please try again.</div>
         `;
-    } finally {
+      } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
-    }
-});
+      }
+    });
 
-// Reset to company defaults button
-document.getElementById('reset-to-defaults').addEventListener('click', () => {
-    document.getElementById('weight_skills').value = companyDefaults.skills;
-    document.getElementById('weight_cgpa').value = companyDefaults.cgpa;
-    document.getElementById('weight_projects').value = companyDefaults.projects;
-    document.getElementById('weight_activity').value = companyDefaults.activity;
-    document.getElementById('weight_trust').value = companyDefaults.trust;
+  // Reset to company defaults button
+  document.getElementById("reset-to-defaults").addEventListener("click", () => {
+    document.getElementById("weight_skills").value = companyDefaults.skills;
+    document.getElementById("weight_cgpa").value = companyDefaults.cgpa;
+    document.getElementById("weight_projects").value = companyDefaults.projects;
+    document.getElementById("weight_activity").value = companyDefaults.activity;
+    document.getElementById("weight_trust").value = companyDefaults.trust;
     updateWeightLabels();
-    
+
     // Visual feedback
-    const btn = document.getElementById('reset-to-defaults');
+    const btn = document.getElementById("reset-to-defaults");
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-check"></i> Reset!';
     setTimeout(() => {
-        btn.innerHTML = originalText;
+      btn.innerHTML = originalText;
     }, 1500);
-});
+  });
 
-// Load company defaults on page load
-async function loadCompanyDefaults() {
+  // Load company defaults on page load
+  async function loadCompanyDefaults() {
     try {
-        const response = await fetch(`${API_BASE}/company/${companyId}/dashboard/`);
-        const data = await response.json();
-        
-        if (data.status === 'success' && data.current_weights) {
-            const w = data.current_weights;
-            
-            // Store for reset functionality
-            companyDefaults = {
-                skills: w.skills ?? 0.4,
-                cgpa: w.cgpa ?? 0.2,
-                projects: w.projects ?? 0.2,
-                activity: w.activity ?? 0.1,
-                trust: w.trust ?? 0.1
-            };
-            
-            // Set slider values to company defaults
-            document.getElementById('weight_skills').value = companyDefaults.skills;
-            document.getElementById('weight_cgpa').value = companyDefaults.cgpa;
-            document.getElementById('weight_projects').value = companyDefaults.projects;
-            document.getElementById('weight_activity').value = companyDefaults.activity;
-            document.getElementById('weight_trust').value = companyDefaults.trust;
-            
-            // Update the percentage labels
-            updateWeightLabels();
-            
-            console.log('✅ Loaded company defaults:', companyDefaults);
-        } else {
-            console.log('⚠️ No company weights found, using defaults');
-        }
-    } catch (e) {
-        console.error('❌ Could not load company weights:', e);
-        // Silently fail - sliders will use default HTML values
-    }
-}
+      const response = await fetch(
+        `${API_BASE}/company/${companyId}/dashboard/`,
+      );
+      const data = await response.json();
 
-// Call it immediately
-loadCompanyDefaults();
+      if (data.status === "success" && data.current_weights) {
+        const w = data.current_weights;
+
+        // Store for reset functionality
+        companyDefaults = {
+          skills: w.skills ?? 0.4,
+          cgpa: w.cgpa ?? 0.2,
+          projects: w.projects ?? 0.2,
+          activity: w.activity ?? 0.1,
+          trust: w.trust ?? 0.1,
+        };
+
+        // Set slider values to company defaults
+        document.getElementById("weight_skills").value = companyDefaults.skills;
+        document.getElementById("weight_cgpa").value = companyDefaults.cgpa;
+        document.getElementById("weight_projects").value =
+          companyDefaults.projects;
+        document.getElementById("weight_activity").value =
+          companyDefaults.activity;
+        document.getElementById("weight_trust").value = companyDefaults.trust;
+
+        // Update the percentage labels
+        updateWeightLabels();
+
+        console.log("✅ Loaded company defaults:", companyDefaults);
+      } else {
+        console.log("⚠️ No company weights found, using defaults");
+      }
+    } catch (e) {
+      console.error("❌ Could not load company weights:", e);
+      // Silently fail - sliders will use default HTML values
+    }
+  }
+
+  // Call it immediately
+  loadCompanyDefaults();
 </script>
 
 <style>
-.post-job-container {
+  .post-job-container {
     padding: 2rem 0;
-}
+  }
 
-.page-header {
+  .page-header {
     padding: 2rem;
     margin-bottom: 2rem;
-}
+  }
 
-.back-link {
+  .back-link {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
@@ -331,226 +486,358 @@ loadCompanyDefaults();
     text-decoration: none;
     margin-bottom: 1rem;
     transition: color 0.3s;
-}
+  }
 
-.back-link:hover {
+  .back-link:hover {
     color: #48bbff;
-}
+  }
 
-.page-header h1 {
+  .page-header h1 {
     font-size: 1.8rem;
     margin-bottom: 0.5rem;
-}
+  }
 
-.form-container {
+  .form-container {
     display: grid;
     grid-template-columns: 1fr 350px;
     gap: 2rem;
-}
+  }
 
-.job-form {
+  .job-form {
     padding: 2rem;
-}
+  }
+  /* Glass Card Base - More Padding */
+  .glass-card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(72, 187, 255, 0.2);
+    border-radius: 1.5rem; /* বড় করা */
+    padding: 2.5rem; /* আগের চেয়ে বেশি padding */
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+  }
 
-.form-section {
-    margin-bottom: 2rem;
-    padding-bottom: 2rem;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-}
+  /* Hover এ border glow হবে, clickability বোঝা যাবে */
+  .glass-card:hover {
+    border-color: rgba(72, 187, 255, 0.4);
+    box-shadow: 0 12px 40px rgba(72, 187, 255, 0.1);
+  }
 
-.form-section:last-of-type {
+  .form-section {
+    margin-bottom: 2.5rem; /* বড় করা */
+    padding-bottom: 2.5rem; /* বড় করা */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .form-section:last-of-type {
     border-bottom: none;
-}
+  }
 
-.form-section h3 {
+  .form-section h3 {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 1.5rem;
     color: #48bbff;
     font-size: 1.1rem;
-}
+  }
 
-.form-group {
+  .form-group {
     margin-bottom: 1.5rem;
-}
+  }
 
-.form-row {
+  .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
-}
+  }
 
-.form-group label {
+  .form-group label {
     display: block;
     margin-bottom: 0.5rem;
     color: #cbd5e1;
     font-size: 0.9rem;
-}
+  }
 
-.form-group input,
-.form-group select,
-.form-group textarea {
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
     width: 100%;
-    padding: 1rem;
-    border: 1px solid rgba(72, 187, 255, 0.3);
-    border-radius: 0.8rem;
+    padding: 1.25rem; /* বড় করা (আগে 1rem ছিল) */
+    border: 2px solid rgba(72, 187, 255, 0.3); /* Thicker border */
+    border-radius: 1rem; /* বড় করা */
     background: rgba(0, 0, 0, 0.3);
     color: white;
-    font-size: 1rem;
-    font-family: inherit;
+    font-size: 1.1rem; /* বড় করা */
+    min-height: 48px; /* Minimum height */
     transition: all 0.3s;
-}
+  }
 
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
+  /* Focus state - Clear visual feedback */
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
     outline: none;
     border-color: #48bbff;
-    box-shadow: 0 0 0 3px rgba(72, 187, 255, 0.1);
-}
+    box-shadow: 0 0 0 4px rgba(72, 187, 255, 0.2); /* বড় glow */
+    background: rgba(0, 0, 0, 0.5);
+  }
 
-.help-text {
+  .help-text {
     display: block;
     margin-top: 0.5rem;
     color: #64748b;
     font-size: 0.85rem;
-}
+  }
 
-.ai-weights .section-desc {
+  .ai-weights .section-desc {
     color: #94a3b8;
     margin-bottom: 1.5rem;
     font-size: 0.9rem;
-}
+  }
 
-.weights-grid {
+  .weights-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
-}
+    gap: 2rem; /* Increased */
+    margin-bottom: 2rem; /* Space before reset button */
+    padding-bottom: 1rem;
+  }
+  .weight-control:last-child {
+    margin-bottom: 1rem;
+  }
 
-.weight-control {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
+  .reset-section {
+    margin-top: 2rem; /* Big gap from sliders */
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(72, 187, 255, 0.1); /* Visual separator */
+    text-align: left;
+  }
 
-.weight-control label {
+  #reset-to-defaults {
+    margin-top: 0.5rem;
+    position: relative;
+    z-index: 10; /* Above other elements */
+  }
+
+  .weight-control {
+    position: relative;
+    z-index: 5;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 1rem;
+    margin-bottom: 0.5rem;
+  }
+  .weight-control:hover {
+    background: rgba(72, 187, 255, 0.05); /* Hover feedback */
+  }
+  .weight-control label {
     display: flex;
     justify-content: space-between;
     color: #cbd5e1;
-    font-size: 0.9rem;
-}
+    font-size: 1rem; /* বড় করা */
+    font-weight: 500;
+    padding: 0 0.25rem;
+  }
 
-.weight-control label span {
+  .weight-control label span {
     color: #48bbff;
-    font-weight: 600;
-}
+    font-weight: 700;
+    font-size: 1.1rem; /* বড় করা */
+  }
 
-.weight-control input[type="range"] {
+  .weight-control input[type="range"] {
     width: 100%;
-    height: 6px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 3px;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
     outline: none;
     -webkit-appearance: none;
-}
+    cursor: pointer;
+    margin: 15px 0; /* More vertical space */
+    position: relative;
+    z-index: 6; /* Above container */
+  }
 
-.weight-control input[type="range"]::-webkit-slider-thumb {
+  .weight-control input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     background: #48bbff;
     border-radius: 50%;
-    cursor: pointer;
-}
+    cursor: grab; /* Grab cursor */
+    box-shadow: 0 2px 10px rgba(72, 187, 255, 0.6);
+    border: 3px solid white;
+    margin-top: -6px; /* Center on track */
+    position: relative;
+    z-index: 7;
+  }
 
-.form-actions {
+  .weight-control input[type="range"]::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.2);
+  }
+  .weight-control input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2); /* Hover এ বড় হয়ে যাবে */
+  }
+
+  .weight-control input[type="range"]::-moz-range-track {
+    height: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+  }
+
+  .weight-control input[type="range"]::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    background: #48bbff;
+    border-radius: 50%;
+    border: 2px solid white;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(72, 187, 255, 0.5);
+  }
+  .form-actions {
     display: flex;
     justify-content: flex-end;
     gap: 1rem;
     margin-top: 2rem;
-}
+  }
 
-.preview-card {
+  .preview-card {
     padding: 1.5rem;
     position: sticky;
     top: 100px;
     height: fit-content;
-}
+  }
 
-.preview-card h3 {
+  .preview-card h3 {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 1.5rem;
     color: #48bbff;
-}
+  }
 
-.preview-placeholder {
+  .preview-placeholder {
     color: #64748b;
     text-align: center;
     padding: 2rem;
-}
+  }
 
-.preview-job {
+  .preview-job {
     background: rgba(0, 0, 0, 0.3);
     border-radius: 1rem;
     padding: 1.5rem;
     border: 1px solid rgba(72, 187, 255, 0.2);
-}
+  }
 
-.preview-job h4 {
+  .preview-job h4 {
     font-size: 1.2rem;
     margin-bottom: 0.8rem;
     color: #f0f9ff;
-}
+  }
 
-.preview-meta {
+  .preview-meta {
     display: flex;
     gap: 1rem;
     margin-bottom: 1rem;
     font-size: 0.9rem;
     color: #94a3b8;
-}
+  }
 
-.preview-meta .badge {
+  .preview-meta .badge {
     background: rgba(72, 187, 255, 0.2);
     color: #48bbff;
     padding: 0.2rem 0.6rem;
     border-radius: 1rem;
     font-size: 0.8rem;
-}
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #48bbff 0%, #2d8bc9 100%);
+    color: white;
+    border: none;
+    padding: 1rem 2rem; /* বড় করা (আগে কম ছিল) */
+    border-radius: 2rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem; /* বড় করা */
+    font-weight: 600;
+    font-size: 1.1rem; /* বড় করা */
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(72, 187, 255, 0.3);
+    min-height: 48px; /* Minimum height ensure */
+  }
+  /* Secondary Button - Dark Theme */
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    padding: 1rem 2rem; /* বড় করা */
+    border-radius: 2rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 600;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+    min-height: 48px;
+  }
 
-.preview-desc {
+  .btn-secondary:hover {
+    background: rgba(72, 187, 255, 0.2);
+    color: #48bbff;
+    border-color: #48bbff;
+    transform: translateY(-2px);
+  }
+
+  /* Small variant */
+  .btn-sm {
+    padding: 0.75rem 1.25rem; /* বড় করা */
+    font-size: 1rem;
+    min-height: 40px;
+  }
+
+  .btn-primary:hover,
+  .btn-secondary:hover {
+    transform: translateY(-3px) scale(1.02); /* Slight scale up */
+    box-shadow: 0 8px 25px rgba(72, 187, 255, 0.4);
+  }
+
+  .btn-primary:active,
+  .btn-secondary:active {
+    transform: translateY(-1px) scale(0.98);
+  }
+  .preview-desc {
     color: #cbd5e1;
     font-size: 0.9rem;
     line-height: 1.6;
     margin-bottom: 1rem;
-}
+  }
 
-.preview-skills {
+  .preview-skills {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-bottom: 1rem;
-}
+  }
 
-.skill-tag {
+  .skill-tag {
     background: rgba(72, 187, 255, 0.15);
     color: #48bbff;
     padding: 0.3rem 0.6rem;
     border-radius: 1rem;
     font-size: 0.8rem;
-}
+  }
 
-.preview-salary {
+  .preview-salary {
     color: #00b86b;
     font-weight: 600;
     font-size: 0.95rem;
-}
+  }
 
-.success-message {
+  .success-message {
     background: rgba(0, 184, 107, 0.2);
     color: #00b86b;
     padding: 1rem;
@@ -559,32 +846,32 @@ loadCompanyDefaults();
     align-items: center;
     gap: 0.5rem;
     margin-top: 1rem;
-}
+  }
 
-.error-message {
+  .error-message {
     background: rgba(255, 88, 88, 0.2);
     color: #ff5858;
     padding: 1rem;
     border-radius: 0.5rem;
     margin-top: 1rem;
-}
+  }
 
-@media (max-width: 968px) {
+  @media (max-width: 968px) {
     .form-container {
-        grid-template-columns: 1fr;
+      grid-template-columns: 1fr;
     }
-    
+
     .preview-card {
-        position: static;
+      position: static;
     }
-    
+
     .form-row {
-        grid-template-columns: 1fr;
+      grid-template-columns: 1fr;
     }
-    
+
     .weights-grid {
-        grid-template-columns: 1fr;
+      grid-template-columns: 1fr;
     }
-}
+  }
 </style>
 {% endblock %}
