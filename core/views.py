@@ -16,7 +16,7 @@ from .models import *
 from .utils.ai_engine import AIMatchingEngine
 from .utils.github_scraper import GitHubValidator
 from .utils.fraud_detector import FraudDetectionEngine
-
+from datetime import datetime, date, time
 # ==================== PAGE RENDERING VIEWS ====================
 
 def landing_page(request):
@@ -687,17 +687,21 @@ class StudentDashboardView(View):
                 'verified_skills_count': StudentSkill.objects.filter(student=student, verified_via__isnull=False).count()
             },
             'career_trajectory': trajectory,
+            
             'recent_notifications': [
-                {
-                    'type': n.type,
-                    'title': n.title,
-                    'read': n.read,
-                    'created_at': n.created_at.isoformat()
-                } for n in Notification.objects.filter(
-                    user_id=student.id, 
-                    user_type='student'
-                ).order_by('-created_at')[:5]
-            ]
+            {
+                'id': str(n.id),
+                'type': n.type,
+                'title': n.title,
+                'message': n.message,
+                'read': n.read,
+                'created_at': n.created_at.isoformat(),
+                'data': n.data  # Include the full data object
+            } for n in Notification.objects.filter(
+                user_id=student.id, 
+                user_type='student'
+            ).order_by('-created_at')[:10]
+        ]
         }
         
         return JsonResponse({'status': 'success', 'data': dashboard})
@@ -1230,41 +1234,116 @@ class NotificationsView(View):
         ).update(read=True)
         
         return JsonResponse({'status': 'success'})
-@method_decorator(csrf_exempt, name='dispatch')  # Add this
+@method_decorator(csrf_exempt, name='dispatch')
 class ScheduleInterviewView(View):
     
     def post(self, request):
         data = json.loads(request.body)
         application = get_object_or_404(Application, id=data['application_id'])
         
+        # Format the interview datetime
+        interview_datetime = f"{data['date']} {data['start_time']}"
+        
         schedule = InterviewSchedule.objects.create(
             application=application,
-            proposed_times=data.get('proposed_times', []),
-            meeting_link=data.get('meeting_link', '')
+            proposed_times=[interview_datetime],
+            meeting_link=data.get('meeting_link', ''),
+            status='scheduled'
         )
         
         # Update application status
         application.status = 'interview'
         application.save()
         
-        # Notify student
+        # Format date for display
+        from datetime import datetime
+        interview_date = datetime.strptime(data['date'], '%Y-%m-%d')
+        formatted_date = interview_date.strftime('%A, %B %d, %Y')
+        
+        # Create notification for student with interview details
         Notification.objects.create(
             user_id=application.student.id,
             user_type='student',
             type='interview_scheduled',
-            title=f'Interview Scheduled: {application.job.title}',
-            message=f'Proposed times: {", ".join(data["proposed_times"])}',
+            title=f'🎤 Interview Scheduled: {application.job.title}',
+            message=f"""Your interview for {application.job.title} at {application.job.company.name} has been scheduled!
+
+            📅 Date: {formatted_date}
+            ⏰ Time: {data['start_time']} - {data['end_time']}
+            🔗 Meeting Link: {data.get('meeting_link', 'To be shared separately')}
+
+            Notes: {data.get('notes', 'No additional notes')}
+
+            Please join on time. Good luck!""",
             data={
                 'schedule_id': str(schedule.id),
-                'meeting_link': data.get('meeting_link')
+                'meeting_link': data.get('meeting_link', ''),
+                'interview_date': data['date'],
+                'interview_time': data['start_time'],
+                'job_title': application.job.title,
+                'company_name': application.job.company.name
             }
         )
         
         return JsonResponse({
             'status': 'success',
-            'schedule_id': str(schedule.id)
+            'schedule_id': str(schedule.id),
+            'details': {
+                'date': formatted_date,
+                'time': f"{data['start_time']} - {data['end_time']}",
+                'meeting_link': data.get('meeting_link', '')
+            }
         })
+class InterviewSlotAvailabilityView(View):
+    """Get detailed slot availability for company"""
+    
+    def get(self, request, job_id):
+        from core.models import InterviewSlot, ScheduledInterview  # Local imports
         
+        try:
+            job = get_object_or_404(Job, id=job_id)
+            company_id = request.session.get('company_id')
+            
+            if str(job.company.id) != company_id:
+                return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+            
+            slots = InterviewSlot.objects.filter(job=job, is_active=True)
+            
+            slot_data = []
+            for slot in slots:
+                generated_slots = slot.generate_time_slots()
+                
+                # Get booked interviews for this slot
+                booked = ScheduledInterview.objects.filter(
+                    slot=slot
+                ).select_related('application__student')
+                
+                booked_details = [{
+                    'time': b.start_time.strftime('%H:%M'),
+                    'student_name': b.application.student.name,
+                    'student_id': str(b.application.student.id),
+                    'interview_id': str(b.id),
+                    'status': b.status
+                } for b in booked]
+                
+                slot_data.append({
+                    'slot_id': str(slot.id),
+                    'date': slot.date.isoformat(),
+                    'date_display': slot.date.strftime('%A, %B %d, %Y'),
+                    'time_range': f"{slot.start_time.strftime('%H:%M')} - {slot.end_time.strftime('%H:%M')}",
+                    'all_slots': generated_slots,
+                    'booked_count': len(booked),
+                    'booked_details': booked_details,
+                    'available_count': len([s for s in generated_slots if s['available']])
+                })
+            
+            return JsonResponse({
+                'status': 'success',
+                'slots': slot_data
+            })
+            
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 class StudentMatchesView(View):
     def get(self, request, student_id):
         """Get job matches for a student with filtering"""
@@ -1943,3 +2022,249 @@ class CompanyWeightsView(View):
             })
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+@method_decorator(csrf_exempt, name='dispatch')
+class DeleteJobView(View):
+    def delete(self, request, job_id):
+        """Delete job and all associated applications"""
+        try:
+            job = get_object_or_404(Job, id=job_id)
+            company_id = request.session.get('company_id')
+            
+            # Security check: ensure company owns this job
+            if str(job.company.id) != company_id:
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Unauthorized: You can only delete your own jobs'
+                }, status=403)
+            
+            job_title = job.title
+            deleted_applications_count = Application.objects.filter(job=job).count()
+            
+            # Delete all associated applications first (cascade)
+            Application.objects.filter(job=job).delete()
+            
+            # Delete the job
+            job.delete()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': f'Job "{job_title}" deleted successfully',
+                'deleted_applications': deleted_applications_count
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)   
+            
+@method_decorator(csrf_exempt, name='dispatch')
+class InterviewSlotView(View):
+    """Manage interview slots for a job"""
+    
+    def get(self, request, job_id):
+        """Get all interview slots for a job"""
+        try:
+            job = get_object_or_404(Job, id=job_id)
+            company_id = request.session.get('company_id')
+            
+            # Security check
+            if str(job.company.id) != company_id:
+                return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+            
+            slots = InterviewSlot.objects.filter(job=job, is_active=True).order_by('date', 'start_time')
+            
+            data = []
+            for slot in slots:
+                data.append({
+                    'slot_id': str(slot.id),
+                    'date': slot.date.isoformat(),
+                    'start_time': slot.start_time.strftime('%H:%M'),
+                    'end_time': slot.end_time.strftime('%H:%M'),
+                    'duration': slot.slot_duration_minutes,
+                    'break_start': slot.break_start.strftime('%H:%M') if slot.break_start else None,
+                    'break_end': slot.break_end.strftime('%H:%M') if slot.break_end else None,
+                    'generated_slots': slot.generate_time_slots(),
+                    'total_booked': ScheduledInterview.objects.filter(slot=slot).count()
+                })
+            
+            return JsonResponse({'status': 'success', 'slots': data})
+            
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+    def post(self, request, job_id):
+        """Create new interview slots"""
+        try:
+            data = json.loads(request.body)
+            job = get_object_or_404(Job, id=job_id)
+            company_id = request.session.get('company_id')
+            
+            if str(job.company.id) != company_id:
+                return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+            
+            # Create slot
+            slot = InterviewSlot.objects.create(
+                job=job,
+                company=job.company,
+                date=data['date'],
+                start_time=data['start_time'],
+                end_time=data['end_time'],
+                slot_duration_minutes=data.get('slot_duration_minutes', 30),
+                break_start=data.get('break_start'),
+                break_end=data.get('break_end')
+            )
+            
+            return JsonResponse({
+                'status': 'success',
+                'slot_id': str(slot.id),
+                'message': 'Interview slots created successfully',
+                'available_slots': slot.generate_time_slots()
+            })
+            
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ScheduleInterviewView(View):
+    """Schedule interview for a shortlisted applicant"""
+    
+    def post(self, request, application_id):
+        try:
+            data = json.loads(request.body)
+            application = get_object_or_404(Application, id=application_id)
+            company_id = request.session.get('company_id')
+            
+            # Security check
+            if str(application.job.company.id) != company_id:
+                return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+            
+            # Verify applicant is shortlisted
+            if application.status != 'shortlisted':
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Applicant must be shortlisted before scheduling interview'
+                }, status=400)
+            
+            # Check if interview already scheduled
+            if hasattr(application, 'scheduled_interview'):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Interview already scheduled for this applicant'
+                }, status=400)
+            
+            # Create interview
+            interview = ScheduledInterview.objects.create(
+                application=application,
+                slot_id=data.get('slot_id'),
+                date=data['date'],
+                start_time=data['start_time'],
+                end_time=data['end_time'],
+                meeting_link=data.get('meeting_link', ''),
+                meeting_type=data.get('meeting_type', 'online'),
+                company_notes=data.get('notes', '')
+            )
+            
+            # Update application status
+            application.status = 'interview'
+            application.save()
+            
+            # Send notifications
+            self._send_notifications(interview)
+            
+            return JsonResponse({
+                'status': 'success',
+                'interview_id': str(interview.id),
+                'message': 'Interview scheduled successfully',
+                'details': {
+                    'date': interview.date.isoformat(),
+                    'time': f"{interview.start_time.strftime('%H:%M')} - {interview.end_time.strftime('%H:%M')}",
+                    'meeting_link': interview.meeting_link
+                }
+            })
+            
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+    def _send_notifications(self, interview):
+        """Send notifications to both student and company"""
+        app = interview.application
+        
+        # Notify Student
+        Notification.objects.create(
+            user_id=app.student.id,
+            user_type='student',
+            type='interview_scheduled',
+            title=f'🎤 Interview Scheduled: {app.job.title}',
+            message=(
+                f'Your interview for {app.job.title} at {app.job.company.name} '
+                f'is scheduled for {interview.date} at '
+                f'{interview.start_time.strftime("%I:%M %p")} - {interview.end_time.strftime("%I:%M %p")}.\n\n'
+                f'Meeting Link: {interview.meeting_link or "Will be shared soon"}'
+            ),
+            data={
+                'interview_id': str(interview.id),
+                'job_id': str(app.job.id),
+                'date': interview.date.isoformat(),
+                'start_time': interview.start_time.strftime('%H:%M'),
+                'end_time': interview.end_time.strftime('%H:%M'),
+                'meeting_link': interview.meeting_link
+            }
+        )
+        
+        # Notify Company
+        Notification.objects.create(
+            user_id=app.job.company.id,
+            user_type='company',
+            type='interview_scheduled',
+            title=f'Interview Scheduled with {app.student.name}',
+            message=(
+                f'Interview scheduled for {app.student.name} '
+                f'on {interview.date} at {interview.start_time.strftime("%I:%M %p")}'
+            ),
+            data={
+                'interview_id': str(interview.id),
+                'application_id': str(app.id),
+                'student_id': str(app.student.id)
+            }
+        )
+        
+        interview.student_notified = True
+        interview.company_notified = True
+        interview.save()
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AvailableSlotsView(View):
+    """Get available time slots for a job (for scheduling dropdown)"""
+    
+    def get(self, request, job_id):
+        try:
+            job = get_object_or_404(Job, id=job_id)
+            slots = InterviewSlot.objects.filter(
+                job=job, 
+                is_active=True,
+                date__gte=timezone.now().date()
+            ).order_by('date', 'start_time')
+            
+            available_slots = []
+            for slot in slots:
+                generated = slot.generate_time_slots()
+                available = [s for s in generated if s['available']]
+                
+                if available:
+                    available_slots.append({
+                        'slot_id': str(slot.id),
+                        'date': slot.date.isoformat(),
+                        'date_display': slot.date.strftime('%A, %B %d, %Y'),
+                        'time_slots': available
+                    })
+            
+            return JsonResponse({
+                'status': 'success',
+                'available_slots': available_slots
+            })
+            
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)    

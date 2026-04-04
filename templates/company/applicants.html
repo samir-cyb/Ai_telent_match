@@ -10,7 +10,7 @@ Pool{%endblock%} {% block content %}
     <p>Review and manage candidates for this position</p>
   </div>
 
-  <!-- Filters -->
+  <!-- Filters Bar -->
   <div class="filters-bar glass-card">
     <div class="filter-group">
       <label>Status:</label>
@@ -32,32 +32,154 @@ Pool{%endblock%} {% block content %}
       <button class="btn-primary" onclick="autoShortlist()">
         <i class="fas fa-magic"></i> Auto-Shortlist Top 10
       </button>
+      <button class="btn-primary" onclick="openSlotModal()">
+        <i class="fas fa-calendar-plus"></i> Set Interview Slots
+      </button>
       <button class="btn-primary" onclick="exportCSV()">
         <i class="fas fa-download"></i> Export
       </button>
     </div>
   </div>
 
-  <!-- Stats Summary -->
-  <div class="stats-summary glass-card">
-    <div class="stat-item">
-      <span class="stat-value" id="total-count">0</span>
-      <span class="stat-label">Total</span>
+  <!-- Two Column Layout -->
+  <div class="applicants-grid">
+    <!-- LEFT COLUMN: Applicants List -->
+    <div class="applicants-list-section">
+      <div id="applicants-list" class="applicants-list">
+        <div class="loading-spinner">
+          <i class="fas fa-spinner fa-spin"></i> Loading applicants...
+        </div>
+      </div>
     </div>
-    <div class="stat-item">
-      <span class="stat-value" id="avg-score">0%</span>
-      <span class="stat-label">Avg Score</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-value" id="top-score">0%</span>
-      <span class="stat-label">Top Score</span>
+
+    <!-- RIGHT COLUMN: Sidebar -->
+    <div class="sidebar-section">
+      <!-- Stats Summary Card -->
+      <div class="stats-summary-card">
+        <h3><i class="fas fa-chart-line"></i> Match Scores</h3>
+        <div class="stats-row-inline">
+          <div class="stat-item">
+            <span class="stat-value" id="total-count">0</span>
+            <span class="stat-label">Total</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="avg-score">0%</span>
+            <span class="stat-label">Avg Score</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="top-score">0%</span>
+            <span class="stat-label">Top Score</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interview Slot Availability Card -->
+      <div class="interview-slots-card">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-calendar-alt"></i> Interview Slot Availability
+          </h3>
+          <i class="fas fa-clock"></i>
+        </div>
+        <div id="slot-calendar" class="slot-calendar-content">
+          <div class="loading-small">Loading slots...</div>
+        </div>
+      </div>
     </div>
   </div>
+</div>
 
-  <!-- Applicants List -->
-  <div id="applicants-list" class="applicants-list">
-    <div class="loading-spinner">
-      <i class="fas fa-spinner fa-spin"></i> Loading applicants...
+<!-- Slot Setup Modal -->
+<div id="slot-setup-modal" class="modal" style="display: none">
+  <div class="modal-content glass-card">
+    <h3><i class="fas fa-calendar-plus"></i> Set Up Interview Slots</h3>
+    <p>Configure available time slots for interviews</p>
+
+    <div class="form-group">
+      <label>Interview Date</label>
+      <input type="date" id="slot-date" required />
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Start Time</label>
+        <input type="time" id="slot-start" value="09:00" required />
+      </div>
+      <div class="form-group">
+        <label>End Time</label>
+        <input type="time" id="slot-end" value="17:00" required />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Slot Duration</label>
+      <select id="slot-duration">
+        <option value="15">15 minutes</option>
+        <option value="30" selected>30 minutes</option>
+        <option value="45">45 minutes</option>
+        <option value="60">1 hour</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Break Start (Optional)</label>
+        <input type="time" id="break-start" value="13:00" />
+      </div>
+      <div class="form-group">
+        <label>Break End (Optional)</label>
+        <input type="time" id="break-end" value="14:00" />
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeSlotModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveInterviewSlots()">
+        <i class="fas fa-save"></i> Create Slots
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule Interview Modal -->
+<div id="schedule-modal" class="modal" style="display: none">
+  <div class="modal-content glass-card">
+    <h3><i class="fas fa-video"></i> Schedule Interview</h3>
+    <p id="schedule-applicant-name">Applicant: Name</p>
+
+    <div class="form-group">
+      <label>Select Available Slot</label>
+      <select id="available-slots-dropdown" onchange="onSlotSelect()">
+        <option value="">-- Choose a time slot --</option>
+      </select>
+    </div>
+
+    <div id="slot-details" class="slot-preview" style="display: none">
+      <p><i class="fas fa-calendar"></i> <span id="preview-date"></span></p>
+      <p><i class="fas fa-clock"></i> <span id="preview-time"></span></p>
+    </div>
+
+    <div class="form-group">
+      <label>Meeting Link (Zoom/Google Meet)</label>
+      <input type="url" id="meeting-link" placeholder="https://zoom.us/j/..." />
+    </div>
+
+    <div class="form-group">
+      <label>Notes for Applicant</label>
+      <textarea
+        id="interview-notes"
+        rows="3"
+        placeholder="Any special instructions..."
+      ></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeScheduleModal()">
+        Cancel
+      </button>
+      <button class="btn-primary" onclick="confirmScheduleInterview()">
+        <i class="fas fa-check"></i> Schedule & Notify
+      </button>
     </div>
   </div>
 </div>
@@ -73,6 +195,8 @@ Pool{%endblock%} {% block content %}
   }
 
   let allApplicants = [];
+  let selectedApplicationId = null;
+  let availableSlotsData = [];
 
   // Load applicants
   async function loadApplicants() {
@@ -124,7 +248,6 @@ Pool{%endblock%} {% block content %}
       return statusMatch && scoreMatch;
     });
 
-    // Sort by match score descending
     filtered.sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
 
     if (filtered.length === 0) {
@@ -136,42 +259,22 @@ Pool{%endblock%} {% block content %}
     container.innerHTML = filtered
       .map(
         (app, index) => `
-        <div class="applicant-card glass-card" data-applicant-id="${app.id}">
-            <div class="applicant-rank">#${index + 1}</div>
-            <div class="applicant-info">
-                <h4>${app.student_name}</h4>
-                <div class="applicant-meta">
-                    <span class="match-score-badge" style="background: ${getScoreColor(app.match_score)}">
-                        ${Math.round(app.match_score || 0)}% Match
-                    </span>
-                    <span class="status-badge ${app.status}">${app.status}</span>
-                    <span class="date">Applied ${formatDate(app.applied_at)}</span>
-                </div>
-            </div>
-            <div class="applicant-actions">
-                ${getActionButtons(app)}
-            </div>
-            <div class="applicant-details" id="details-${app.id}" style="display: none;">
-                <div class="details-grid">
-                    <div class="detail-item">
-                        <label>Trust Score</label>
-                        <span>--</span>
-                    </div>
-                    <div class="detail-item">
-                        <label>Skills Match</label>
-                        <span>--</span>
-                    </div>
-                    <div class="detail-item">
-                        <label>CGPA</label>
-                        <span>--</span>
-                    </div>
-                    <div class="detail-item">
-                        <label>Projects</label>
-                        <span>--</span>
-                    </div>
-                </div>
-            </div>
+      <div class="applicant-card glass-card" data-applicant-id="${app.id}">
+        <div class="applicant-rank">#${index + 1}</div>
+        <div class="applicant-info">
+          <h4>${app.student_name}</h4>
+          <div class="applicant-meta">
+            <span class="match-score-badge" style="background: ${getScoreColor(app.match_score)}">
+              ${Math.round(app.match_score || 0)}% Match
+            </span>
+            <span class="status-badge ${app.status}">${app.status}</span>
+            <span class="date">Applied ${formatDate(app.applied_at)}</span>
+          </div>
         </div>
+        <div class="applicant-actions">
+          ${getActionButtons(app)}
+        </div>
+      </div>
     `,
       )
       .join("");
@@ -188,6 +291,7 @@ Pool{%endblock%} {% block content %}
     const buttons = [];
 
     if (app.status === "applied") {
+      // Applied status: Show Shortlist and Reject buttons
       buttons.push(`<button class="btn-primary btn-sm" onclick="updateStatus('${app.id}', 'shortlisted')">
             <i class="fas fa-star"></i> Shortlist
         </button>`);
@@ -195,24 +299,42 @@ Pool{%endblock%} {% block content %}
             <i class="fas fa-times"></i> Reject
         </button>`);
     } else if (app.status === "shortlisted") {
-      buttons.push(`<button class="btn-primary btn-sm" onclick="scheduleInterview('${app.id}')">
-            <i class="fas fa-calendar"></i> Interview
+      // Shortlisted status: Show Interview and Hire buttons
+      buttons.push(`<button class="btn-primary btn-sm" onclick="openScheduleModal('${app.id}', '${app.student_name}')">
+            <i class="fas fa-calendar"></i> Schedule Interview
         </button>`);
-      buttons.push(`<button class="btn-success btn-sm" onclick="hireCandidate('${app.id}')">
-            <i class="fas fa-check"></i> Hire
-        </button>`);
-    } else if (app.status === "interview") {
       buttons.push(`<button class="btn-success btn-sm" onclick="hireCandidate('${app.id}')">
             <i class="fas fa-check"></i> Hire
         </button>`);
       buttons.push(`<button class="btn-outline btn-sm" onclick="updateStatus('${app.id}', 'rejected')">
             <i class="fas fa-times"></i> Reject
         </button>`);
+    } else if (app.status === "interview") {
+      // Interview status: Show Hire and Reject buttons
+      buttons.push(`<button class="btn-success btn-sm" onclick="hireCandidate('${app.id}')">
+            <i class="fas fa-check"></i> Hire
+        </button>`);
+      buttons.push(`<button class="btn-outline btn-sm" onclick="updateStatus('${app.id}', 'rejected')">
+            <i class="fas fa-times"></i> Reject
+        </button>`);
+    } else if (app.status === "hired") {
+      // Hired status: Show hired badge instead of buttons
+      buttons.push(
+        `<span class="status-badge hired"><i class="fas fa-check-circle"></i> Hired</span>`,
+      );
+    } else if (app.status === "rejected") {
+      // Rejected status: Show rejected badge
+      buttons.push(
+        `<span class="status-badge rejected"><i class="fas fa-times-circle"></i> Rejected</span>`,
+      );
     }
 
-    buttons.push(`<button class="btn-secondary btn-sm" onclick="viewDetails('${app.id}')">
-        <i class="fas fa-eye"></i> Details
-    </button>`);
+    // Add Details button for all statuses (except maybe hired/rejected)
+    if (app.status !== "hired" && app.status !== "rejected") {
+      buttons.push(`<button class="btn-secondary btn-sm" onclick="viewDetails('${app.id}')">
+            <i class="fas fa-eye"></i> Details
+        </button>`);
+    }
 
     return buttons.join("");
   }
@@ -221,11 +343,14 @@ Pool{%endblock%} {% block content %}
     const date = new Date(timestamp);
     const now = new Date();
     const diff = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-
     if (diff === 0) return "Today";
     if (diff === 1) return "Yesterday";
     if (diff < 7) return `${diff} days ago`;
     return date.toLocaleDateString();
+  }
+
+  function viewDetails(applicationId) {
+    alert("Details view coming soon!");
   }
 
   async function updateStatus(applicationId, status) {
@@ -233,14 +358,9 @@ Pool{%endblock%} {% block content %}
       const response = await fetch(`${API_BASE}/application/update/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          application_id: applicationId,
-          status: status,
-        }),
+        body: JSON.stringify({ application_id: applicationId, status: status }),
       });
-
       const data = await response.json();
-
       if (data.status === "success") {
         showNotification(`Candidate ${status} successfully!`, "success");
         loadApplicants();
@@ -255,13 +375,9 @@ Pool{%endblock%} {% block content %}
       const response = await fetch(`${API_BASE}/application/hire/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          application_id: applicationId,
-        }),
+        body: JSON.stringify({ application_id: applicationId }),
       });
-
       const data = await response.json();
-
       if (data.status === "success") {
         showNotification("Candidate hired! AI weights updated.", "success");
         loadApplicants();
@@ -271,31 +387,14 @@ Pool{%endblock%} {% block content %}
     }
   }
 
-  function scheduleInterview(applicationId) {
-    const times = prompt(
-      "Enter proposed interview times (comma separated):",
-      "2026-04-05 10:00, 2026-04-05 14:00",
-    );
-    if (times) {
-      // In production, send to API
-      showNotification("Interview scheduled!", "success");
-      updateStatus(applicationId, "interview");
-    }
-  }
-
   async function autoShortlist() {
     try {
       const response = await fetch(`${API_BASE}/job/shortlist/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          job_id: jobId,
-          top_n: 10,
-        }),
+        body: JSON.stringify({ job_id: jobId, top_n: 10 }),
       });
-
       const data = await response.json();
-
       if (data.status === "success") {
         showNotification(
           `Auto-shortlisted ${data.shortlisted_count} candidates!`,
@@ -308,18 +407,11 @@ Pool{%endblock%} {% block content %}
     }
   }
 
-  function viewDetails(applicationId) {
-    const details = document.getElementById(`details-${applicationId}`);
-    details.style.display = details.style.display === "none" ? "block" : "none";
-  }
-
   function exportCSV() {
-    // Simple CSV export
     let csv = "Name,Match Score,Status,Applied Date\n";
     allApplicants.forEach((app) => {
       csv += `${app.student_name},${app.match_score},${app.status},${app.applied_at}\n`;
     });
-
     const blob = new Blob([csv], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -328,7 +420,250 @@ Pool{%endblock%} {% block content %}
     a.click();
   }
 
-  // Filter handlers
+  function showNotification(message, type) {
+    const notif = document.createElement("div");
+    notif.className = `notification ${type}`;
+    notif.innerHTML = `<i class="fas ${type === "success" ? "fa-check-circle" : "fa-exclamation-circle"}"></i> ${message}`;
+    notif.style.cssText = `
+      position: fixed; top: 100px; right: 20px; padding: 1rem 2rem;
+      border-radius: 0.5rem; background: ${type === "success" ? "rgba(72, 187, 255, 0.9)" : "rgba(255, 88, 88, 0.9)"};
+      color: white; z-index: 10000; animation: slideIn 0.3s ease;
+    `;
+    document.body.appendChild(notif);
+    setTimeout(() => notif.remove(), 3000);
+  }
+
+  // Slot Functions
+  function openSlotModal() {
+    document.getElementById("slot-setup-modal").style.display = "flex";
+    document.getElementById("slot-date").min = new Date()
+      .toISOString()
+      .split("T")[0];
+  }
+
+  function closeSlotModal() {
+    document.getElementById("slot-setup-modal").style.display = "none";
+  }
+
+  async function saveInterviewSlots() {
+    const data = {
+      date: document.getElementById("slot-date").value,
+      start_time: document.getElementById("slot-start").value,
+      end_time: document.getElementById("slot-end").value,
+      slot_duration_minutes: parseInt(
+        document.getElementById("slot-duration").value,
+      ),
+      break_start: document.getElementById("break-start").value || null,
+      break_end: document.getElementById("break-end").value || null,
+    };
+
+    if (!data.date || !data.start_time || !data.end_time) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/job/${jobId}/interview-slots/`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        },
+      );
+      const result = await response.json();
+      if (result.status === "success") {
+        alert(`✅ Created ${result.available_slots.length} interview slots`);
+        closeSlotModal();
+        loadSlotAvailability();
+      } else {
+        alert("Error: " + result.message);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Failed to create slots");
+    }
+  }
+
+  async function loadSlotAvailability() {
+    try {
+      const response = await fetch(
+        `${API_BASE}/job/${jobId}/slot-availability/`,
+      );
+      const data = await response.json();
+      if (data.status === "success") {
+        renderSlotCalendar(data.slots);
+      } else {
+        document.getElementById("slot-calendar").innerHTML =
+          '<p class="no-data">No slots configured</p>';
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      document.getElementById("slot-calendar").innerHTML =
+        '<p class="no-data">Error loading slots</p>';
+    }
+  }
+
+  function renderSlotCalendar(slots) {
+    const container = document.getElementById("slot-calendar");
+    if (!slots || slots.length === 0) {
+      container.innerHTML =
+        '<div class="no-slots"><p>No interview slots set up yet.</p><button class="btn-outline btn-sm" onclick="openSlotModal()"><i class="fas fa-plus"></i> Create Slots</button></div>';
+      return;
+    }
+
+    container.innerHTML = slots
+      .map(
+        (slot) => `
+      <div class="slot-day">
+        <div class="slot-day-header">
+          <i class="fas fa-calendar-day"></i>
+          <strong>${slot.date_display}</strong>
+          <span class="slot-time-range">${slot.time_range}</span>
+        </div>
+        <div class="slot-stats">
+          <span class="available"><i class="fas fa-check-circle"></i> ${slot.available_count} available</span>
+          <span class="booked"><i class="fas fa-clock"></i> ${slot.booked_count} booked</span>
+        </div>
+        <div class="slot-times">
+          ${slot.all_slots
+            .map((timeSlot) => {
+              const booked = slot.booked_details?.find(
+                (b) => b.time === timeSlot.start,
+              );
+              if (booked) {
+                return `<div class="slot-time booked" title="Booked by ${booked.student_name}"><i class="fas fa-user-check"></i> ${timeSlot.start}</div>`;
+              } else {
+                return `<div class="slot-time available"><i class="fas fa-clock"></i> ${timeSlot.start}</div>`;
+              }
+            })
+            .join("")}
+        </div>
+      </div>
+    `,
+      )
+      .join("");
+  }
+
+  async function openScheduleModal(applicationId, applicantName) {
+    selectedApplicationId = applicationId;
+    document.getElementById("schedule-applicant-name").textContent =
+      `Applicant: ${applicantName}`;
+    document.getElementById("schedule-modal").style.display = "flex";
+    await loadAvailableSlots();
+  }
+
+  function closeScheduleModal() {
+    document.getElementById("schedule-modal").style.display = "none";
+    selectedApplicationId = null;
+  }
+
+  async function loadAvailableSlots() {
+    try {
+      const response = await fetch(`${API_BASE}/job/${jobId}/available-slots/`);
+      const data = await response.json();
+      availableSlotsData = data.available_slots || [];
+      const dropdown = document.getElementById("available-slots-dropdown");
+      dropdown.innerHTML = '<option value="">-- Choose a time slot --</option>';
+      availableSlotsData.forEach((day) => {
+        day.time_slots.forEach((slot) => {
+          const option = document.createElement("option");
+          option.value = JSON.stringify({
+            slot_id: day.slot_id,
+            date: day.date,
+            start: slot.start,
+            end: slot.end,
+          });
+          option.textContent = `${day.date_display} | ${slot.start} - ${slot.end}`;
+          dropdown.appendChild(option);
+        });
+      });
+    } catch (error) {
+      console.error("Error loading slots:", error);
+    }
+  }
+
+  function onSlotSelect() {
+    const dropdown = document.getElementById("available-slots-dropdown");
+    const details = document.getElementById("slot-details");
+    if (!dropdown.value) {
+      details.style.display = "none";
+      return;
+    }
+    const slot = JSON.parse(dropdown.value);
+    document.getElementById("preview-date").textContent = new Date(
+      slot.date,
+    ).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    document.getElementById("preview-time").textContent =
+      `${slot.start} - ${slot.end}`;
+    details.style.display = "block";
+  }
+
+  async function confirmScheduleInterview() {
+    const dropdown = document.getElementById("available-slots-dropdown");
+    if (!dropdown.value || !selectedApplicationId) {
+      alert("Please select a time slot");
+      return;
+    }
+    const slot = JSON.parse(dropdown.value);
+    const data = {
+      slot_id: slot.slot_id,
+      date: slot.date,
+      start_time: slot.start,
+      end_time: slot.end,
+      meeting_link: document.getElementById("meeting-link").value,
+      notes: document.getElementById("interview-notes").value,
+      meeting_type: "online",
+    };
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/application/${selectedApplicationId}/schedule-interview/`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        },
+      );
+      const result = await response.json();
+      if (result.status === "success") {
+        // Format the date and time nicely
+        const interviewDate = new Date(slot.date);
+        const formattedDate = interviewDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const formattedTime = slot.start;
+
+        // Show success message with interview details
+        alert(
+          `✅ Interview Scheduled!\n\n📅 Date: ${formattedDate}\n⏰ Time: ${formattedTime}\n🔗 Link: ${data.meeting_link || "Will be shared"}\n\nStudent has been notified!`,
+        );
+
+        closeScheduleModal();
+        loadApplicants();
+        loadSlotAvailability();
+
+        // Clear the form
+        document.getElementById("meeting-link").value = "";
+        document.getElementById("interview-notes").value = "";
+      } else {
+        alert("Error: " + result.message);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Failed to schedule interview");
+    }
+  }
+
+  // Event Listeners
   document
     .getElementById("status-filter")
     .addEventListener("change", renderApplicants);
@@ -337,32 +672,16 @@ Pool{%endblock%} {% block content %}
     renderApplicants();
   });
 
-  function showNotification(message, type) {
-    const notif = document.createElement("div");
-    notif.className = `notification ${type}`;
-    notif.innerHTML = `<i class="fas ${type === "success" ? "fa-check-circle" : "fa-exclamation-circle"}"></i> ${message}`;
-    notif.style.cssText = `
-        position: fixed;
-        top: 100px;
-        right: 20px;
-        padding: 1rem 2rem;
-        border-radius: 0.5rem;
-        background: ${type === "success" ? "rgba(72, 187, 255, 0.9)" : "rgba(255, 88, 88, 0.9)"};
-        color: white;
-        z-index: 10000;
-        animation: slideIn 0.3s ease;
-    `;
-    document.body.appendChild(notif);
-    setTimeout(() => notif.remove(), 3000);
-  }
-
   // Load on page load
   loadApplicants();
+  loadSlotAvailability();
 </script>
 
 <style>
   .applicants-container {
-    padding: 2rem 0;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
   }
 
   .page-header {
@@ -398,7 +717,7 @@ Pool{%endblock%} {% block content %}
     justify-content: space-between;
     align-items: center;
     padding: 1.5rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
     flex-wrap: wrap;
     gap: 1rem;
   }
@@ -426,33 +745,192 @@ Pool{%endblock%} {% block content %}
   .filter-actions {
     display: flex;
     gap: 0.8rem;
+    flex-wrap: wrap;
   }
 
-  .stats-summary {
+  /* Two Column Layout */
+  .applicants-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 380px;
     gap: 2rem;
+  }
+
+  .applicants-list-section {
+    min-width: 0;
+  }
+
+  .sidebar-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  /* Stats Summary Card */
+  .stats-summary-card {
+    background: rgba(15, 30, 55, 0.7);
+    backdrop-filter: blur(10px);
+    border-radius: 1rem;
     padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    text-align: center;
+    border: 1px solid rgba(72, 187, 255, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  .stats-summary-card h3 {
+    color: #48bbff;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+  }
+
+  .stats-row-inline {
+    display: flex;
+    justify-content: space-around;
+    gap: 1rem;
   }
 
   .stat-item {
-    display: flex;
-    flex-direction: column;
+    text-align: center;
+    flex: 1;
+    padding: 0.75rem;
+    background: rgba(72, 187, 255, 0.1);
+    border-radius: 0.75rem;
   }
 
   .stat-value {
-    font-size: 2rem;
-    font-weight: 700;
+    font-size: 1.8rem;
+    font-weight: bold;
     color: #48bbff;
+    display: block;
   }
 
   .stat-label {
-    color: #94a3b8;
-    font-size: 0.9rem;
+    color: #64748b;
+    font-size: 0.85rem;
   }
 
+  /* Interview Slots Card */
+  .interview-slots-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .interview-slots-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid rgba(72, 187, 255, 0.2);
+  }
+
+  .interview-slots-card .card-header h3 {
+    color: #48bbff;
+    margin: 0;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .interview-slots-card .card-header i:last-child {
+    color: #48bbff;
+    font-size: 1.2rem;
+  }
+
+  .slot-calendar-content {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .slot-day {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .slot-day:last-child {
+    margin-bottom: 0;
+  }
+
+  .slot-day-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: #333;
+  }
+
+  .slot-day-header i {
+    color: #48bbff;
+  }
+
+  .slot-time-range {
+    color: #64748b;
+    font-size: 0.8rem;
+    margin-left: auto;
+  }
+
+  .slot-stats {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .slot-stats .available {
+    color: #00b86b;
+  }
+
+  .slot-stats .booked {
+    color: #ff5858;
+  }
+
+  .slot-times {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .slot-time {
+    padding: 0.3rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .slot-time.available {
+    background: rgba(0, 184, 107, 0.2);
+    border: 1px solid #00b86b;
+    color: #00b86b;
+  }
+
+  .slot-time.booked {
+    background: rgba(255, 88, 88, 0.2);
+    border: 1px solid #ff5858;
+    color: #ff5858;
+  }
+
+  .no-slots {
+    text-align: center;
+    padding: 2rem;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 0.75rem;
+  }
+
+  .no-slots p {
+    color: #64748b;
+    margin-bottom: 1rem;
+  }
+
+  /* Applicants List */
   .applicants-list {
     display: flex;
     flex-direction: column;
@@ -465,8 +943,6 @@ Pool{%endblock%} {% block content %}
     gap: 1.5rem;
     padding: 1.5rem;
     align-items: center;
-    position: relative;
-    overflow: hidden;
   }
 
   .applicant-rank {
@@ -477,7 +953,7 @@ Pool{%endblock%} {% block content %}
   }
 
   .applicant-info h4 {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     margin-bottom: 0.5rem;
     color: #f0f9ff;
   }
@@ -536,58 +1012,167 @@ Pool{%endblock%} {% block content %}
     flex-wrap: wrap;
   }
 
+  .btn-primary,
+  .btn-secondary,
+  .btn-success,
+  .btn-outline {
+    padding: 0.4rem 0.9rem;
+    border-radius: 2rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.3s;
+    border: none;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #48bbff, #2b6eff);
+    color: white;
+  }
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+  }
   .btn-success {
     background: linear-gradient(135deg, #00b86b, #008c4a);
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 2rem;
     color: white;
-    cursor: pointer;
-    font-weight: 600;
+  }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid #48bbff;
+    color: #48bbff;
   }
 
-  .applicant-details {
-    grid-column: 1 / -1;
-    padding-top: 1rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    margin-top: 1rem;
+  .btn-primary:hover,
+  .btn-success:hover,
+  .btn-outline:hover {
+    transform: translateY(-2px);
   }
 
-  .details-grid {
+  .btn-sm {
+    padding: 0.3rem 0.8rem;
+    font-size: 0.8rem;
+  }
+
+  .no-data,
+  .loading-spinner,
+  .loading-small {
+    text-align: center;
+    color: #64748b;
+    padding: 2rem;
+  }
+
+  .loading-small {
+    padding: 1rem;
+  }
+
+  /* Modal Styles */
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(5px);
+  }
+
+  .modal-content {
+    width: 90%;
+    max-width: 500px;
+    padding: 2rem;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-content h3 {
+    color: #48bbff;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    display: block;
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    border-radius: 0.5rem;
+    color: #f0f9ff;
+    font-size: 1rem;
+  }
+
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: #48bbff;
+  }
+
+  .form-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: 1fr 1fr;
     gap: 1rem;
   }
 
-  .detail-item {
+  .modal-actions {
     display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  .detail-item label {
-    color: #64748b;
-    font-size: 0.85rem;
+  .slot-preview {
+    background: rgba(72, 187, 255, 0.1);
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin: 1rem 0;
   }
 
-  .detail-item span {
-    color: #f0f9ff;
-    font-weight: 600;
+  .slot-preview p {
+    margin: 0.5rem 0;
+    color: #cbd5e1;
   }
 
-  .no-data {
-    text-align: center;
-    color: #64748b;
-    padding: 3rem;
-  }
-
-  .loading-spinner {
-    text-align: center;
+  .slot-preview i {
     color: #48bbff;
-    padding: 3rem;
+    width: 20px;
   }
 
   @media (max-width: 968px) {
+    .applicants-grid {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    .sidebar-section {
+      order: 2;
+    }
+    .applicants-list-section {
+      order: 1;
+    }
     .applicant-card {
       grid-template-columns: 1fr;
       text-align: center;
@@ -597,10 +1182,6 @@ Pool{%endblock%} {% block content %}
       justify-content: center;
     }
 
-    .details-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
     .filters-bar {
       flex-direction: column;
       align-items: stretch;
@@ -608,6 +1189,20 @@ Pool{%endblock%} {% block content %}
 
     .filter-actions {
       justify-content: center;
+    }
+    .stats-row-inline {
+      flex-direction: column;
+    }
+  }
+
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
     }
   }
 </style>

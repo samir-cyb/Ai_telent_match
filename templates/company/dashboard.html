@@ -251,6 +251,10 @@ Match{%endblock %} {% block content %}
                 <button class="btn-primary btn-sm" onclick="autoShortlist('${job.job_id}')">
                     <i class="fas fa-magic"></i> Auto-Shortlist
                 </button>
+                <!-- NEW DELETE BUTTON -->
+                <button class="btn-danger btn-sm" onclick="deleteJob('${job.job_id}', '${job.title.replace(/'/g, "\\'")}')">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
             </div>
         </div>
     `,
@@ -352,6 +356,59 @@ Match{%endblock %} {% block content %}
 
   // Load on page load
   loadDashboard();
+  async function deleteJob(jobId, jobTitle) {
+    // Confirmation dialog
+    const confirmed = confirm(
+      `⚠️ WARNING: Delete Job\n\n` +
+        `Are you sure you want to delete "${jobTitle}"?\n\n` +
+        `This will permanently delete:\n` +
+        `• The job posting\n` +
+        `• All ${document.querySelector(`[data-job-id="${jobId}"] .job-stats span`).textContent.split(" ")[0]} applicant(s)\n\n` +
+        `This action cannot be undone!`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/job/${jobId}/delete/`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken"), // If CSRF is enabled
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        alert(
+          `✅ ${data.message}\n${data.deleted_applications} applicant(s) removed.`,
+        );
+        loadDashboard(); // Refresh the list
+      } else {
+        alert(`❌ Error: ${data.message}`);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("❌ Failed to delete job. Please try again.");
+    }
+  }
+
+  // Helper function to get CSRF token (if needed)
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === name + "=") {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
 </script>
 
 <style>
@@ -605,6 +662,37 @@ Match{%endblock %} {% block content %}
       gap: 1rem;
       text-align: center;
     }
+  }
+  .btn-danger {
+    background: linear-gradient(135deg, #ff5858 0%, #c92d2d 100%);
+    color: white;
+    border: none;
+    padding: 0.4rem 0.9rem;
+    border-radius: 2rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(255, 88, 88, 0.3);
+  }
+
+  .btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 88, 88, 0.4);
+  }
+
+  .btn-danger i {
+    font-size: 0.85rem;
+  }
+
+  /* Update job-actions to fit 3 buttons */
+  .job-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 </style>
 {% endblock %}

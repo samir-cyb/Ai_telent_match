@@ -35,7 +35,7 @@ urlpatterns = [
     path('applications/', views.ApplicationsListView.as_view(), name='applications_list'),
     path('application/update/', views.UpdateApplicationView.as_view(), name='update_application'),
     path('company/<uuid:company_id>/weights/', views.CompanyWeightsView.as_view(), name='company_weights'),
-    
+    path('job/<uuid:job_id>/delete/', views.DeleteJobView.as_view(), name='delete_job'),
     # Admin endpoints
     path('admin/analytics/', views.AdminAnalyticsView.as_view(), name='admin_analytics'),
     path('admin/fraud-flags/', views.FraudFlagsListView.as_view(), name='fraud_flags_list'),
@@ -49,4 +49,14 @@ urlpatterns = [
     # Notifications & Scheduling
     path('notifications/<uuid:user_id>/<str:user_type>/', views.NotificationsView.as_view(), name='notifications'),
     path('interview/schedule/', views.ScheduleInterviewView.as_view(), name='schedule_interview'),
+    
+    # Interview Slot Management
+    path('job/<uuid:job_id>/interview-slots/', views.InterviewSlotView.as_view(), name='interview_slots'),
+    
+    # Interview Scheduling
+    path('application/<uuid:application_id>/schedule-interview/', views.ScheduleInterviewView.as_view(), name='schedule_interview'),
+
+    # Available slots for applicant
+    path('job/<uuid:job_id>/available-slots/', views.AvailableSlotsView.as_view(), name='available_slots'),
+    path('job/<uuid:job_id>/slot-availability/', views.InterviewSlotAvailabilityView.as_view(), name='slot_availability'),
 ]

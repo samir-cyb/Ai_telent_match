@@ -1,7 +1,8 @@
 import uuid
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
-
+from datetime import datetime, timedelta
+from django.utils import timezone
 class Skill(models.Model):
     CATEGORY_CHOICES = [
         ('Frontend', 'Frontend'),
@@ -308,3 +309,139 @@ class Admin(models.Model):
     
     def __str__(self):
         return f"{self.email} ({'Super' if self.is_super_admin else 'Admin'})"
+class InterviewSlot(models.Model):
+    """Pre-defined interview slots set by company"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='interview_slots')
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='interview_slots')
+    
+    # Slot configuration
+    date = models.DateField()
+    start_time = models.TimeField()  # e.g., 09:00
+    end_time = models.TimeField()    # e.g., 17:00
+    slot_duration_minutes = models.IntegerField(default=30)  # 30, 45, 60 min slots
+    
+    # Break configuration (optional)
+    break_start = models.TimeField(null=True, blank=True)  # e.g., 13:00 lunch
+    break_end = models.TimeField(null=True, blank=True)    # e.g., 14:00
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # THIS METHOD MUST BE INDENTED INSIDE THE CLASS (4 spaces)
+    def generate_time_slots(self):
+        """Generate individual time slots based on configuration"""
+        from datetime import datetime, timedelta  # Local import
+        
+        slots = []
+        
+        # Ensure self.date is a date object
+        slot_date = self.date
+        if isinstance(slot_date, str):
+            slot_date = datetime.strptime(slot_date, '%Y-%m-%d').date()
+        
+        # Convert time fields if they're strings
+        start = self.start_time
+        if isinstance(start, str):
+            start = datetime.strptime(start, '%H:%M').time()
+        
+        end = self.end_time
+        if isinstance(end, str):
+            end = datetime.strptime(end, '%H:%M').time()
+        
+        current_time = datetime.combine(slot_date, start)
+        end_datetime = datetime.combine(slot_date, end)
+        
+        # Handle break times similarly...
+        break_start = None
+        if self.break_start:
+            break_start_time = self.break_start
+            if isinstance(break_start_time, str):
+                break_start_time = datetime.strptime(break_start_time, '%H:%M').time()
+            break_start = datetime.combine(slot_date, break_start_time)
+        
+        break_end = None
+        if self.break_end:
+            break_end_time = self.break_end
+            if isinstance(break_end_time, str):
+                break_end_time = datetime.strptime(break_end_time, '%H:%M').time()
+            break_end = datetime.combine(slot_date, break_end_time)
+        
+        duration = timedelta(minutes=self.slot_duration_minutes)
+        
+        while current_time + duration <= end_datetime:
+            slot_end = current_time + duration
+            
+            # Skip if during break time
+            if break_start and break_end:
+                if not (current_time >= break_end or slot_end <= break_start):
+                    current_time = break_end
+                    continue
+            
+            # Check if slot is already booked
+            is_booked = ScheduledInterview.objects.filter(
+                slot=self,
+                start_time=current_time.time()
+            ).exists()
+            
+            slots.append({
+                'start': current_time.strftime('%H:%M'),
+                'end': slot_end.strftime('%H:%M'),
+                'available': not is_booked
+            })
+            
+            current_time = slot_end
+        
+        # RETURN MUST BE OUTSIDE THE WHILE LOOP (4 spaces indentation)
+        return slots
+    
+    def __str__(self):
+        return f"{self.job.title} - {self.date} ({self.start_time}-{self.end_time})"
+
+class ScheduledInterview(models.Model):
+    """Actual scheduled interviews"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending Confirmation'),
+        ('confirmed', 'Confirmed'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('no_show', 'No Show')
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    application = models.OneToOneField(Application, on_delete=models.CASCADE, related_name='scheduled_interview')
+    slot = models.ForeignKey(InterviewSlot, on_delete=models.CASCADE, related_name='scheduled_interviews', null=True, blank=True)
+    
+    # Interview details
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    meeting_link = models.URLField(blank=True)
+    meeting_type = models.CharField(max_length=20, default='online')  # online, in_person, phone
+    
+    # Status tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    company_notes = models.TextField(blank=True)
+    student_notes = models.TextField(blank=True)
+    
+    # Notifications
+    company_notified = models.BooleanField(default=False)
+    student_notified = models.BooleanField(default=False)
+    reminder_sent = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Interview: {self.application.student.name} for {self.application.job.title}"
+
+
+class InterviewNotification(models.Model):
+    """Track interview notifications"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    interview = models.ForeignKey(ScheduledInterview, on_delete=models.CASCADE, related_name='notifications')
+    recipient_type = models.CharField(max_length=20)  # student, company
+    notification_type = models.CharField(max_length=50)  # scheduled, reminder, cancelled, updated
+    sent_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
