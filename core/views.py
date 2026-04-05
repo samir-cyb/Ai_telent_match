@@ -17,6 +17,7 @@ from .utils.ai_engine import AIMatchingEngine
 from .utils.github_scraper import GitHubValidator
 from .utils.fraud_detector import FraudDetectionEngine
 from datetime import datetime, date, time
+from django.db import transaction
 # ==================== PAGE RENDERING VIEWS ====================
 
 def landing_page(request):
@@ -82,53 +83,88 @@ def admin_fraud_review(request):
 @method_decorator(csrf_exempt, name='dispatch')
 class StudentRegisterView(View):
     
-    def post(self, request):
+    def post(self, request, application_id):
         try:
             data = json.loads(request.body)
             
-            # Check if email already exists
-            if Student.objects.filter(email=data['email']).exists():
-                return JsonResponse({'status': 'error', 'message': 'Email already registered'}, status=400)
+            # ✅ VALIDATION: Check required fields exist
+            required_fields = ['date', 'start_time', 'end_time']
+            for field in required_fields:
+                if field not in data or not data[field]:
+                    return JsonResponse({
+                        'status': 'error', 
+                        'message': f'Missing required field: {field}'
+                    }, status=400)
             
-            student = Student.objects.create(
-                email=data['email'],
-                university_id=data.get('university_id', ''),
-                name=data['name'],
-                department=data.get('department', ''),
-                preferences={
-                    'job_types': data.get('job_types', []),
-                    'salary_expectation': data.get('salary_expectation', ''),
-                    'company_size': data.get('company_size', []),
-                    'willing_to_relocate': data.get('willing_to_relocate', False)
-                }
-            )
-            student.set_password(data['password'])
-            student.save()
+            application = get_object_or_404(Application, id=application_id)
+            company_id = request.session.get('company_id')
             
-            # Verify GitHub if provided
-            if data.get('github_username'):
-                validator = GitHubValidator()
-                result = validator.validate_student_github(data['github_username'])
-                if result['valid']:
-                    student.github_verified = True
-                    student.github_score = result['score']
-                    student.save()
+            # Security check
+            if str(application.job.company.id) != company_id:
+                return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
             
-            # Calculate initial trust score
-            student.calculate_trust_score()
+            # Verify applicant is shortlisted
+            if application.status != 'shortlisted':
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Applicant must be shortlisted before scheduling interview'
+                }, status=400)
             
-            # Run fraud detection
-            fraud_engine = FraudDetectionEngine()
-            flags = fraud_engine.analyze_student(student)
+            # Check if interview already scheduled
+            if hasattr(application, 'scheduled_interview'):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Interview already scheduled for this applicant'
+                }, status=400)
+            
+            # ✅ PARSE STRINGS TO DATE/TIME OBJECTS (Alternative Fix)
+            from datetime import datetime
+            date_obj = datetime.strptime(data['date'], '%Y-%m-%d').date()
+            start_time_obj = datetime.strptime(data['start_time'], '%H:%M').time()
+            end_time_obj = datetime.strptime(data['end_time'], '%H:%M').time()
+            
+            # ✅ TRANSACTION SAFETY: Wrap creation in atomic transaction
+            with transaction.atomic():
+                # Create interview with proper objects (not strings)
+                interview = ScheduledInterview.objects.create(
+                    application=application,
+                    slot_id=data.get('slot_id'),
+                    date=date_obj,              # Now a date object
+                    start_time=start_time_obj,   # Now a time object
+                    end_time=end_time_obj,       # Now a time object
+                    meeting_link=data.get('meeting_link', ''),
+                    meeting_type=data.get('meeting_type', 'online'),
+                    company_notes=data.get('notes', '')
+                )
+                
+                # Update application status
+                application.status = 'interview'
+                application.save()
+                
+                # Send notifications (wrapped in try-except so it doesn't break the transaction)
+                try:
+                    self._send_notifications(interview)
+                except Exception as notif_error:
+                    # Log error but don't rollback the interview creation
+                    print(f"Notification error (non-critical): {notif_error}")
             
             return JsonResponse({
                 'status': 'success',
-                'student_id': str(student.id),
-                'trust_score': float(student.trust_score),
-                'message': 'Registration successful'
+                'interview_id': str(interview.id),
+                'message': 'Interview scheduled successfully',
+                'details': {
+                    'date': data['date'],
+                    'time': f"{data['start_time']} - {data['end_time']}",
+                    'meeting_link': data.get('meeting_link', 'Will be shared soon')
+                }
             })
+            
         except Exception as e:
+            import traceback
+            print(traceback.format_exc())
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+        
+        
 @method_decorator(csrf_exempt, name='dispatch')
 class StudentLoginView(View):
     
@@ -1234,66 +1270,7 @@ class NotificationsView(View):
         ).update(read=True)
         
         return JsonResponse({'status': 'success'})
-@method_decorator(csrf_exempt, name='dispatch')
-class ScheduleInterviewView(View):
     
-    def post(self, request):
-        data = json.loads(request.body)
-        application = get_object_or_404(Application, id=data['application_id'])
-        
-        # Format the interview datetime
-        interview_datetime = f"{data['date']} {data['start_time']}"
-        
-        schedule = InterviewSchedule.objects.create(
-            application=application,
-            proposed_times=[interview_datetime],
-            meeting_link=data.get('meeting_link', ''),
-            status='scheduled'
-        )
-        
-        # Update application status
-        application.status = 'interview'
-        application.save()
-        
-        # Format date for display
-        from datetime import datetime
-        interview_date = datetime.strptime(data['date'], '%Y-%m-%d')
-        formatted_date = interview_date.strftime('%A, %B %d, %Y')
-        
-        # Create notification for student with interview details
-        Notification.objects.create(
-            user_id=application.student.id,
-            user_type='student',
-            type='interview_scheduled',
-            title=f'🎤 Interview Scheduled: {application.job.title}',
-            message=f"""Your interview for {application.job.title} at {application.job.company.name} has been scheduled!
-
-            📅 Date: {formatted_date}
-            ⏰ Time: {data['start_time']} - {data['end_time']}
-            🔗 Meeting Link: {data.get('meeting_link', 'To be shared separately')}
-
-            Notes: {data.get('notes', 'No additional notes')}
-
-            Please join on time. Good luck!""",
-            data={
-                'schedule_id': str(schedule.id),
-                'meeting_link': data.get('meeting_link', ''),
-                'interview_date': data['date'],
-                'interview_time': data['start_time'],
-                'job_title': application.job.title,
-                'company_name': application.job.company.name
-            }
-        )
-        
-        return JsonResponse({
-            'status': 'success',
-            'schedule_id': str(schedule.id),
-            'details': {
-                'date': formatted_date,
-                'time': f"{data['start_time']} - {data['end_time']}",
-                'meeting_link': data.get('meeting_link', '')
-            }
-        })
 class InterviewSlotAvailabilityView(View):
     """Get detailed slot availability for company"""
     
@@ -2133,6 +2110,16 @@ class ScheduleInterviewView(View):
     def post(self, request, application_id):
         try:
             data = json.loads(request.body)
+            
+            # ✅ VALIDATION: Check required fields exist
+            required_fields = ['date', 'start_time', 'end_time']
+            for field in required_fields:
+                if field not in data or not data[field]:
+                    return JsonResponse({
+                        'status': 'error', 
+                        'message': f'Missing required field: {field}'
+                    }, status=400)
+            
             application = get_object_or_404(Application, id=application_id)
             company_id = request.session.get('company_id')
             
@@ -2154,85 +2141,147 @@ class ScheduleInterviewView(View):
                     'message': 'Interview already scheduled for this applicant'
                 }, status=400)
             
-            # Create interview
-            interview = ScheduledInterview.objects.create(
-                application=application,
-                slot_id=data.get('slot_id'),
-                date=data['date'],
-                start_time=data['start_time'],
-                end_time=data['end_time'],
-                meeting_link=data.get('meeting_link', ''),
-                meeting_type=data.get('meeting_type', 'online'),
-                company_notes=data.get('notes', '')
-            )
+            # ✅ PARSE STRINGS TO DATE/TIME OBJECTS
+            from datetime import datetime
+            try:
+                date_obj = datetime.strptime(data['date'], '%Y-%m-%d').date()
+                start_time_obj = datetime.strptime(data['start_time'], '%H:%M').time()
+                end_time_obj = datetime.strptime(data['end_time'], '%H:%M').time()
+            except ValueError as ve:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'Invalid date/time format: {str(ve)}'
+                }, status=400)
             
-            # Update application status
-            application.status = 'interview'
-            application.save()
-            
-            # Send notifications
-            self._send_notifications(interview)
+            # ✅ TRANSACTION SAFETY: Wrap creation in atomic transaction
+            with transaction.atomic():
+                # Create interview with proper objects (not strings)
+                interview = ScheduledInterview.objects.create(
+                    application=application,
+                    slot_id=data.get('slot_id'),
+                    date=date_obj,              # Date object
+                    start_time=start_time_obj,   # Time object
+                    end_time=end_time_obj,       # Time object
+                    meeting_link=data.get('meeting_link', ''),
+                    meeting_type=data.get('meeting_type', 'online'),
+                    company_notes=data.get('notes', '')
+                )
+                
+                # Update application status
+                application.status = 'interview'
+                application.save()
+                
+                # Send notifications (wrapped in try-except so it doesn't break the transaction)
+                try:
+                    self._send_notifications(interview)
+                except Exception as notif_error:
+                    # Log error but don't rollback the interview creation
+                    print(f"Notification error (non-critical): {notif_error}")
+                    import traceback
+                    print(traceback.format_exc())
             
             return JsonResponse({
                 'status': 'success',
                 'interview_id': str(interview.id),
                 'message': 'Interview scheduled successfully',
                 'details': {
-                    'date': interview.date.isoformat(),
-                    'time': f"{interview.start_time.strftime('%H:%M')} - {interview.end_time.strftime('%H:%M')}",
-                    'meeting_link': interview.meeting_link
+                    'date': data['date'],
+                    'time': f"{data['start_time']} - {data['end_time']}",
+                    'meeting_link': data.get('meeting_link', 'Will be shared soon')
                 }
             })
             
         except Exception as e:
+            import traceback
+            print(traceback.format_exc())
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     
     def _send_notifications(self, interview):
         """Send notifications to both student and company"""
-        app = interview.application
-        
-        # Notify Student
-        Notification.objects.create(
-            user_id=app.student.id,
-            user_type='student',
-            type='interview_scheduled',
-            title=f'🎤 Interview Scheduled: {app.job.title}',
-            message=(
-                f'Your interview for {app.job.title} at {app.job.company.name} '
-                f'is scheduled for {interview.date} at '
-                f'{interview.start_time.strftime("%I:%M %p")} - {interview.end_time.strftime("%I:%M %p")}.\n\n'
-                f'Meeting Link: {interview.meeting_link or "Will be shared soon"}'
-            ),
-            data={
-                'interview_id': str(interview.id),
-                'job_id': str(app.job.id),
-                'date': interview.date.isoformat(),
-                'start_time': interview.start_time.strftime('%H:%M'),
-                'end_time': interview.end_time.strftime('%H:%M'),
-                'meeting_link': interview.meeting_link
-            }
-        )
-        
-        # Notify Company
-        Notification.objects.create(
-            user_id=app.job.company.id,
-            user_type='company',
-            type='interview_scheduled',
-            title=f'Interview Scheduled with {app.student.name}',
-            message=(
-                f'Interview scheduled for {app.student.name} '
-                f'on {interview.date} at {interview.start_time.strftime("%I:%M %p")}'
-            ),
-            data={
-                'interview_id': str(interview.id),
-                'application_id': str(app.id),
-                'student_id': str(app.student.id)
-            }
-        )
-        
-        interview.student_notified = True
-        interview.company_notified = True
-        interview.save()
+        try:
+            app = interview.application
+            
+            # ✅ SAFE PARSING: Handle both string and date/time objects
+            from datetime import datetime, date, time as dt_time
+            
+            # Handle date
+            if isinstance(interview.date, str):
+                date_obj = datetime.strptime(interview.date, '%Y-%m-%d').date()
+            elif isinstance(interview.date, date):
+                date_obj = interview.date
+            else:
+                date_obj = interview.date
+            
+            # Handle start_time
+            if isinstance(interview.start_time, str):
+                start_time_obj = datetime.strptime(interview.start_time, '%H:%M').time()
+                start_display = datetime.strptime(interview.start_time, '%H:%M').strftime('%I:%M %p')
+            elif isinstance(interview.start_time, dt_time):
+                start_time_obj = interview.start_time
+                start_display = interview.start_time.strftime('%I:%M %p')
+            else:
+                start_time_obj = interview.start_time
+                start_display = str(interview.start_time)
+            
+            # Handle end_time
+            if isinstance(interview.end_time, str):
+                end_display = datetime.strptime(interview.end_time, '%H:%M').strftime('%I:%M %p')
+            elif isinstance(interview.end_time, dt_time):
+                end_display = interview.end_time.strftime('%I:%M %p')
+            else:
+                end_display = str(interview.end_time)
+            
+            formatted_date = date_obj.strftime('%A, %B %d, %Y')
+            
+            # Notify Student
+            Notification.objects.create(
+                user_id=app.student.id,
+                user_type='student',
+                type='interview_scheduled',
+                title=f'🎤 Interview Scheduled: {app.job.title}',
+                message=f"""Your interview for {app.job.title} at {app.job.company.name} has been scheduled!
+
+📅 Date: {formatted_date}
+⏰ Time: {start_display} - {end_display}
+🔗 Meeting Link: {interview.meeting_link or 'Will be shared separately'}
+
+Please join on time. Good luck!""",
+                data={
+                    'interview_id': str(interview.id),
+                    'job_id': str(app.job.id),
+                    'job_title': app.job.title,
+                    'company_name': app.job.company.name,
+                    'interview_date': date_obj.isoformat() if hasattr(date_obj, 'isoformat') else str(date_obj),
+                    'interview_time': start_time_obj.strftime('%H:%M') if hasattr(start_time_obj, 'strftime') else str(start_time_obj),
+                    'meeting_link': interview.meeting_link or ''
+                }
+            )
+            
+            # Notify Company
+            Notification.objects.create(
+                user_id=app.job.company.id,
+                user_type='company',
+                type='interview_scheduled',
+                title=f'Interview Scheduled with {app.student.name}',
+                message=f'Interview scheduled for {app.student.name} on {formatted_date} at {start_display} for {app.job.title}',
+                data={
+                    'interview_id': str(interview.id),
+                    'application_id': str(app.id),
+                    'student_id': str(app.student.id),
+                    'student_name': app.student.name
+                }
+            )
+            
+            # Mark as notified
+            interview.student_notified = True
+            interview.company_notified = True
+            interview.save()
+            
+        except Exception as e:
+            print(f"Error sending notifications: {e}")
+            import traceback
+            print(traceback.format_exc())
+
 
 
 @method_decorator(csrf_exempt, name='dispatch')

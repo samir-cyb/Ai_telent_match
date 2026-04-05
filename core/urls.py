@@ -48,7 +48,7 @@ urlpatterns = [
     
     # Notifications & Scheduling
     path('notifications/<uuid:user_id>/<str:user_type>/', views.NotificationsView.as_view(), name='notifications'),
-    path('interview/schedule/', views.ScheduleInterviewView.as_view(), name='schedule_interview'),
+    #path('interview/schedule/', views.ScheduleInterviewView.as_view(), name='schedule_interview'),
     
     # Interview Slot Management
     path('job/<uuid:job_id>/interview-slots/', views.InterviewSlotView.as_view(), name='interview_slots'),
