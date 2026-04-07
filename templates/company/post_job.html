@@ -205,7 +205,7 @@ Match{%endblock %} {% block content %}
 
     <!-- Preview Card -->
     <div class="preview-card glass-card">
-      <h3><i class="fas fa-eye"></i> Preview</h3>
+      <h3><i class="fas fa-eye"></i> Live Preview</h3>
       <div class="preview-content" id="preview">
         <p class="preview-placeholder">
           Fill out the form to see a preview of your job posting
@@ -463,6 +463,112 @@ Match{%endblock %} {% block content %}
       // Silently fail - sliders will use default HTML values
     }
   }
+
+  // ============ LIVE PREVIEW FUNCTION ============
+  function updateLivePreview() {
+    const title = document.getElementById("title").value || "Job Title";
+    const type = document.getElementById("job_type").value;
+    const location = document.getElementById("location").value || "Location";
+    const description =
+      document.getElementById("description").value ||
+      "Job description will appear here...";
+    const skillsInput = document.getElementById("skills").value;
+    const skills = skillsInput
+      ? skillsInput
+          .split(",")
+          .filter((s) => s.trim())
+          .map((s) => s.trim())
+      : [];
+    const salary = document.getElementById("salary").value || "Not specified";
+    const minCgpa = document.getElementById("min_cgpa").value;
+    const deadline = document.getElementById("deadline").value;
+
+    let metaHtml = "";
+
+    if (type) {
+      metaHtml += `<span class="badge">${type}</span>`;
+    }
+    if (location && location !== "Location") {
+      metaHtml += `<span><i class="fas fa-map-marker-alt"></i> ${location}</span>`;
+    }
+    if (minCgpa) {
+      metaHtml += `<span><i class="fas fa-graduation-cap"></i> Min CGPA: ${minCgpa}</span>`;
+    }
+    if (deadline) {
+      const formattedDate = new Date(deadline).toLocaleDateString();
+      metaHtml += `<span><i class="fas fa-calendar-alt"></i> Deadline: ${formattedDate}</span>`;
+    }
+
+    if (!metaHtml) {
+      metaHtml = '<span class="badge">No details yet</span>';
+    }
+
+    let previewHtml = `
+            <div class="preview-job">
+                <h4>${escapeHtml(title)}</h4>
+                <div class="preview-meta">
+                    ${metaHtml}
+                </div>
+        `;
+
+    if (description && description !== "Job description will appear here...") {
+      previewHtml += `<p class="preview-desc">${escapeHtml(description.substring(0, 200))}${description.length > 200 ? "..." : ""}</p>`;
+    } else {
+      previewHtml += `<p class="preview-desc" style="color: #64748b;"><i class="fas fa-edit"></i> Add a job description...</p>`;
+    }
+
+    if (skills.length > 0) {
+      previewHtml += `
+                <div class="preview-skills">
+                    ${skills.map((s) => `<span class="skill-tag">${escapeHtml(s)}</span>`).join("")}
+                </div>
+            `;
+    } else {
+      previewHtml += `
+                <div class="preview-skills">
+                    <span class="skill-tag" style="background: rgba(255,88,88,0.15); color:#ff5858;">No skills added yet</span>
+                </div>
+            `;
+    }
+
+    previewHtml += `
+                <div class="preview-salary">
+                    <i class="fas fa-dollar-sign"></i> ${escapeHtml(salary)}
+                </div>
+            </div>
+        `;
+
+    document.getElementById("preview").innerHTML = previewHtml;
+  }
+
+  // Helper function to escape HTML
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Add event listeners for live preview
+  const previewInputs = [
+    "title",
+    "job_type",
+    "location",
+    "description",
+    "skills",
+    "salary",
+    "min_cgpa",
+    "deadline",
+  ];
+  previewInputs.forEach((id) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.addEventListener("input", updateLivePreview);
+      element.addEventListener("change", updateLivePreview);
+    }
+  });
+
+  // Initial preview
+  updateLivePreview();
 
   // Call it immediately
   loadCompanyDefaults();
@@ -872,6 +978,68 @@ Match{%endblock %} {% block content %}
     .weights-grid {
       grid-template-columns: 1fr;
     }
+  }
+  /* Live Preview Styles - Add this at the end of your style section */
+  .preview-content {
+    min-height: 300px;
+  }
+
+  .preview-job {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    border: 1px solid rgba(72, 187, 255, 0.2);
+  }
+
+  .preview-job h4 {
+    font-size: 1.2rem;
+    margin-bottom: 0.8rem;
+    color: #f0f9ff;
+  }
+
+  .preview-meta {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #94a3b8;
+    flex-wrap: wrap;
+  }
+
+  .preview-meta .badge {
+    background: rgba(72, 187, 255, 0.2);
+    color: #48bbff;
+    padding: 0.2rem 0.6rem;
+    border-radius: 1rem;
+    font-size: 0.8rem;
+  }
+
+  .preview-desc {
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+  }
+
+  .preview-skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .preview-skills .skill-tag {
+    background: rgba(72, 187, 255, 0.15);
+    color: #48bbff;
+    padding: 0.3rem 0.6rem;
+    border-radius: 1rem;
+    font-size: 0.8rem;
+  }
+
+  .preview-salary {
+    color: #00b86b;
+    font-weight: 600;
+    font-size: 0.95rem;
   }
 </style>
 {% endblock %}
