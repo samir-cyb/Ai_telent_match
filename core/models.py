@@ -436,6 +436,11 @@ class ScheduledInterview(models.Model):
     def __str__(self):
         return f"Interview: {self.application.student.name} for {self.application.job.title}"
 
+@property
+def vetting_status(self):
+    if hasattr(self, 'vetting_session'):
+        return self.vetting_session.status
+    return 'not_required'
 
 class InterviewNotification(models.Model):
     """Track interview notifications"""

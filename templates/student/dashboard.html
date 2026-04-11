@@ -15,6 +15,26 @@ Match{%endblock %} {% block content %}
     </div>
   </div>
 
+  <!-- Vetting Assessment Alert (Hidden by default) -->
+<div id="vetting-alert-container" style="display: none; margin-bottom: 2rem;">
+    <div class="glass-card" style="border: 2px solid #48bbff; background: rgba(72, 187, 255, 0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1.5rem;">
+            <div>
+                <h3 style="color: #48bbff; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-code"></i> Technical Assessment Pending
+                </h3>
+                <p style="color: #cbd5e1; margin: 0;" id="vetting-job-title">You have a coding assessment waiting</p>
+                <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;">
+                    <i class="fas fa-clock"></i> Complete within 7 days • Duration: 45 minutes
+                </p>
+            </div>
+            <a id="vetting-start-btn" href="#" class="btn-primary btn-glow" style="text-decoration: none;">
+                <i class="fas fa-play"></i> Start Assessment
+            </a>
+        </div>
+    </div>
+</div>
+
   <!-- Quick Actions -->
   <div class="quick-actions">
     <a href="/student/jobs/" class="glass-card action-card">
@@ -165,7 +185,8 @@ Match{%endblock %} {% block content %}
 </div>
 
 <script>
-  const API_BASE = "http://127.0.0.1:8000/api";
+  // Remove this line entirely, OR use:
+window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
   let studentId = localStorage.getItem("student_id");
   let radarChart;
 
@@ -580,6 +601,73 @@ Match{%endblock %} {% block content %}
 
   // Load data on page load
   loadDashboard();
+  checkVettingNotifications(); // FIXED: Call the correct function
+  
+
+  // Check for pending vetting assessments
+async function checkVettingAssessments() {
+    try {
+        const response = await fetch(`${API_BASE}/student/${studentId}/applications/`);
+        const data = await response.json();
+        
+        if (data.status === 'success' && data.applied_job_ids) {
+            // Check each application for vetting sessions
+            for (const jobId of data.applied_job_ids) {
+                try {
+                    const appResponse = await fetch(`${API_BASE}/applications/?job_id=${jobId}`);
+                    const appData = await appResponse.json();
+                    
+                    if (appData.status === 'success' && appData.applications) {
+                        const myApp = appData.applications.find(a => a.student_id === studentId);
+                        if (myApp && myApp.status === 'shortlisted') {
+                            // Check if there's a vetting session
+                            const vetResponse = await fetch(`${API_BASE}/vetting/job/${jobId}/vetting-dashboard/`);
+                            const vetData = await vetResponse.json();
+                            
+                            if (vetData.status === 'success') {
+                                // Show notification if assessment exists and not completed
+                                document.getElementById('vetting-alert-container').style.display = 'block';
+                                document.getElementById('vetting-job-title').textContent = 
+                                    `Complete your technical assessment for ${vetData.job_title}`;
+                                // You'll need to store the token somewhere accessible or modify API to return it
+                                document.getElementById('vetting-start-btn').href = `/vetting/pending/`; // Generic link, customize as needed
+                                break; // Show only first pending assessment
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log('No vetting for job', jobId);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error checking vetting:', error);
+    }
+}
+
+// Alternative simpler version - checks notifications for vetting invitations
+async function checkVettingNotifications() {
+    try {
+        const response = await fetch(`${API_BASE}/notifications/${studentId}/student/`);
+        const data = await response.json();
+        
+        if (data.status === 'success' && data.notifications) {
+            const vettingNotif = data.notifications.find(n => 
+                n.type === 'vetting_invitation' && !n.read
+            );
+            
+            if (vettingNotif && vettingNotif.data && vettingNotif.data.test_url) {
+                document.getElementById('vetting-alert-container').style.display = 'block';
+                document.getElementById('vetting-job-title').textContent = vettingNotif.title;
+                document.getElementById('vetting-start-btn').href = vettingNotif.data.test_url;
+            }
+        }
+    } catch (error) {
+        console.error('Error checking notifications:', error);
+    }
+}
+
+  
 
   // Refresh every 30 seconds
   setInterval(loadDashboard, 30000);
@@ -833,6 +921,21 @@ Match{%endblock %} {% block content %}
     flex-wrap: wrap;
     gap: 1rem;
   }
+
+  #vetting-alert-container {
+    animation: slideIn 0.5s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 
   .threshold-control {
     display: flex;
