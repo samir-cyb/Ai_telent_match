@@ -195,7 +195,7 @@ Match{%endblock %} {% block content %}
     document.getElementById("shortlisted").textContent = shortlisted;
     document.getElementById("hired").textContent = hired;
 
-    // Update jobs list
+    // Update jobs list with vetting integration
     updateJobsList(jobs);
 
     // Update weights
@@ -243,6 +243,9 @@ Match{%endblock %} {% block content %}
                     <span>Interviews: ${job.interviews}</span>
                     <span>Hired: ${job.hired}</span>
                 </div>
+                <div class="job-vetting-status mt-2" id="vetting-status-${job.job_id}">
+                    <span class="text-sm text-gray-400"><i class="fas fa-spinner fa-spin"></i> Checking assessment...</span>
+                </div>
             </div>
             <div class="job-actions">
                 <button class="btn-primary btn-sm" onclick="viewApplicants('${job.job_id}')">
@@ -251,7 +254,9 @@ Match{%endblock %} {% block content %}
                 <button class="btn-primary btn-sm" onclick="autoShortlist('${job.job_id}')">
                     <i class="fas fa-magic"></i> Auto-Shortlist
                 </button>
-                <!-- NEW DELETE BUTTON -->
+                <button class="btn-secondary btn-sm" onclick="toggleAssessment('${job.job_id}', '${job.title.replace(/'/g, "\\'")}')">
+                    <i class="fas fa-code"></i> <span id="assessment-btn-${job.job_id}">Create Assessment</span>
+                </button>
                 <button class="btn-danger btn-sm" onclick="deleteJob('${job.job_id}', '${job.title.replace(/'/g, "\\'")}')">
                     <i class="fas fa-trash"></i> Delete
                 </button>
@@ -260,6 +265,123 @@ Match{%endblock %} {% block content %}
     `,
       )
       .join("");
+
+    // Check vetting status for each job
+    jobs.forEach(job => checkVettingStatus(job.job_id));
+  }
+
+  async function checkVettingStatus(jobId) {
+    try {
+      // Check if challenge exists by trying to get dashboard data
+      const response = await fetch(`/vetting/api/job/${jobId}/vetting-dashboard/`);
+      const data = await response.json();
+      
+      const statusDiv = document.getElementById(`vetting-status-${jobId}`);
+      const btnSpan = document.getElementById(`assessment-btn-${jobId}`);
+      
+      if (data.status === 'success' && data.candidates.length > 0) {
+        // Has candidates who took assessment
+        const assessed = data.total_assessed || 0;
+        const passed = data.pass_count || 0;
+        statusDiv.innerHTML = `
+          <span class="text-sm text-green-400">
+            <i class="fas fa-check-circle"></i> Assessment Active | 
+            <span class="text-blue-400">${assessed} assessed</span> | 
+            <span class="text-green-400">${passed} passed</span>
+          </span>
+        `;
+        if (btnSpan) btnSpan.textContent = "View Results";
+      } else if (data.status === 'success') {
+        // Has assessment but no candidates yet
+        statusDiv.innerHTML = `
+          <span class="text-sm text-blue-400">
+            <i class="fas fa-code"></i> Assessment Created (Waiting for candidates)
+          </span>
+        `;
+        if (btnSpan) btnSpan.textContent = "View Results";
+      } else {
+        // No assessment created yet
+        statusDiv.innerHTML = `
+          <span class="text-sm text-gray-500">
+            <i class="fas fa-times-circle"></i> No technical assessment
+          </span>
+        `;
+      }
+    } catch (error) {
+      // No assessment exists
+      const statusDiv = document.getElementById(`vetting-status-${jobId}`);
+      if (statusDiv) {
+        statusDiv.innerHTML = `
+          <span class="text-sm text-gray-500">
+            <i class="fas fa-times-circle"></i> No technical assessment
+          </span>
+        `;
+      }
+    }
+  }
+
+  async function toggleAssessment(jobId, jobTitle) {
+    // Check if assessment exists first
+    try {
+      const response = await fetch(`${API_BASE}/vetting/job/${jobId}/vetting-dashboard/`);
+      const data = await response.json();
+      
+      if (data.status === 'success') {
+        // Assessment exists, redirect to results
+        window.location.href = `/vetting/job/${jobId}/vetting-dashboard/`;
+        return;
+      }
+    } catch (e) {
+      // No assessment, create one
+      createAssessment(event.target, jobId, jobTitle);
+    }
+  }
+
+  async function createAssessment(btn, jobId, jobTitle)  {
+    const difficulty = prompt(
+      `Create Technical Assessment for: ${jobTitle}\n\nSelect difficulty level:`,
+      "medium"
+    );
+    
+    if (!difficulty || !['easy', 'medium', 'hard'].includes(difficulty)) {
+      if (difficulty) alert("Invalid difficulty. Choose: easy, medium, or hard");
+      return;
+    }
+    
+    //const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+    btn.disabled = true;
+
+    try {
+      const response = await fetch(`/vetting/api/challenge/create/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          job_id: jobId, 
+          difficulty: difficulty 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        alert(`✅ Assessment Created Successfully!\n\nTitle: ${data.data.title}\nTest Cases: ${data.data.test_cases_count}\n\nCandidates will now receive coding challenges when you send them assessments.`);
+        
+        // Update UI
+        checkVettingStatus(jobId);
+        const btnSpan = document.getElementById(`assessment-btn-${jobId}`);
+        if (btnSpan) btnSpan.textContent = "View Results";
+      } else {
+        alert("❌ Error: " + (data.message || "Failed to create assessment"));
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("❌ Network error. Is Judge0 running?");
+    } finally {
+      btn.innerHTML = originalHTML;
+      btn.disabled = false;
+    }
   }
 
   function updateEvolution(evolution) {
@@ -346,24 +468,22 @@ Match{%endblock %} {% block content %}
       const data = await response.json();
 
       if (data.status === "success") {
-        alert(`Shortlisted ${data.shortlisted_count} candidates!`);
+        alert(`✅ Shortlisted ${data.shortlisted_count} candidates!`);
         loadDashboard();
       }
     } catch (error) {
       console.error("Error:", error);
+      alert("❌ Error auto-shortlisting");
     }
   }
 
-  // Load on page load
-  loadDashboard();
   async function deleteJob(jobId, jobTitle) {
-    // Confirmation dialog
     const confirmed = confirm(
       `⚠️ WARNING: Delete Job\n\n` +
         `Are you sure you want to delete "${jobTitle}"?\n\n` +
         `This will permanently delete:\n` +
         `• The job posting\n` +
-        `• All ${document.querySelector(`[data-job-id="${jobId}"] .job-stats span`).textContent.split(" ")[0]} applicant(s)\n\n` +
+        `• All associated applications\n\n` +
         `This action cannot be undone!`,
     );
 
@@ -374,17 +494,14 @@ Match{%endblock %} {% block content %}
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRFToken": getCookie("csrftoken"), // If CSRF is enabled
         },
       });
 
       const data = await response.json();
 
       if (data.status === "success") {
-        alert(
-          `✅ ${data.message}\n${data.deleted_applications} applicant(s) removed.`,
-        );
-        loadDashboard(); // Refresh the list
+        alert(`✅ ${data.message}\n${data.deleted_applications} applicant(s) removed.`);
+        loadDashboard();
       } else {
         alert(`❌ Error: ${data.message}`);
       }
@@ -394,21 +511,8 @@ Match{%endblock %} {% block content %}
     }
   }
 
-  // Helper function to get CSRF token (if needed)
-  function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== "") {
-      const cookies = document.cookie.split(";");
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === name + "=") {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
-      }
-    }
-    return cookieValue;
-  }
+  // Load on page load
+  loadDashboard();
 </script>
 
 <style>
@@ -546,6 +650,8 @@ Match{%endblock %} {% block content %}
   .job-actions {
     display: flex;
     gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .weights-desc {
@@ -642,6 +748,10 @@ Match{%endblock %} {% block content %}
     padding: 2rem;
   }
 
+  .mt-2 {
+    margin-top: 0.5rem;
+  }
+
   @media (max-width: 968px) {
     .dashboard-grid {
       grid-template-columns: 1fr;
@@ -662,7 +772,13 @@ Match{%endblock %} {% block content %}
       gap: 1rem;
       text-align: center;
     }
+
+    .job-actions {
+      justify-content: center;
+      width: 100%;
+    }
   }
+
   .btn-danger {
     background: linear-gradient(135deg, #ff5858 0%, #c92d2d 100%);
     color: white;
@@ -683,16 +799,25 @@ Match{%endblock %} {% block content %}
     box-shadow: 0 6px 20px rgba(255, 88, 88, 0.4);
   }
 
-  .btn-danger i {
-    font-size: 0.85rem;
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    padding: 0.4rem 0.9rem;
+    border-radius: 2rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
   }
 
-  /* Update job-actions to fit 3 buttons */
-  .job-actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+  .btn-secondary:hover {
+    background: rgba(72, 187, 255, 0.2);
+    color: #48bbff;
+    border-color: #48bbff;
+    transform: translateY(-2px);
   }
 </style>
 {% endblock %}

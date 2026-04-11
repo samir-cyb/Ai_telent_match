@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+{% block title %}Vetting Results | Company{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-6">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-blue-400">Technical Assessment Results</h1>
+        <a href="/company/dashboard/" class="text-gray-400 hover:text-blue-400">
+            <i class="fas fa-arrow-left mr-2"></i> Back to Dashboard
+        </a>
+    </div>
+    
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="glass-card p-4 text-center">
+            <div class="text-2xl font-bold" id="stat-total">0</div>
+            <div class="text-gray-400">Total Candidates</div>
+        </div>
+        <div class="glass-card p-4 text-center">
+            <div class="text-2xl font-bold text-green-400" id="stat-passed">0</div>
+            <div class="text-gray-400">Passed (70%+)</div>
+        </div>
+        <div class="glass-card p-4 text-center">
+            <div class="text-2xl font-bold text-yellow-400" id="stat-avg">0%</div>
+            <div class="text-gray-400">Average Score</div>
+        </div>
+        <div class="glass-card p-4 text-center">
+            <div class="text-2xl font-bold text-red-400" id="stat-failed">0</div>
+            <div class="text-gray-400">Failed</div>
+        </div>
+    </div>
+
+    <!-- Challenge Details Card -->
+    <div id="challenge-section" class="glass-card mb-6 overflow-hidden">
+        <!-- Challenge Header -->
+        <div class="bg-gray-800/50 p-4 border-b border-gray-700 flex justify-between items-center cursor-pointer hover:bg-gray-800 transition-colors" onclick="toggleChallenge()">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-code text-blue-400 text-xl"></i>
+                <div>
+                    <h2 class="text-lg font-bold text-white">Assessment Question</h2>
+                    <p class="text-sm text-gray-400" id="challenge-title">Loading...</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="challenge-difficulty" class="px-3 py-1 rounded-full text-xs bg-blue-900 text-blue-300 hidden">Medium</span>
+                <span id="challenge-language" class="px-3 py-1 rounded-full text-xs bg-purple-900 text-purple-300 hidden">Python</span>
+                <span id="challenge-timer" class="px-3 py-1 rounded-full text-xs bg-gray-700 text-gray-300 hidden">
+                    <i class="fas fa-clock mr-1"></i> 45 min
+                </span>
+                <i id="challenge-toggle-icon" class="fas fa-chevron-down text-gray-400 transition-transform duration-300"></i>
+            </div>
+        </div>
+        
+        <!-- Challenge Content -->
+        <div id="challenge-content" class="hidden">
+            <div class="p-6 space-y-6">
+                <!-- Description -->
+                <div>
+                    <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                        <i class="fas fa-align-left text-blue-400"></i> Problem Description
+                    </h3>
+                    <div id="challenge-description" class="bg-gray-900/50 rounded-lg p-4 text-gray-300 text-sm leading-relaxed whitespace-pre-line border border-gray-700">
+                        Loading...
+                    </div>
+                </div>
+
+                <!-- Starter Code -->
+                <div>
+                    <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                        <i class="fas fa-terminal text-green-400"></i> Starter Code
+                    </h3>
+                    <pre id="challenge-starter-code" class="bg-gray-900 rounded-lg p-4 text-sm font-mono text-green-400 overflow-x-auto border border-gray-700">Loading...</pre>
+                </div>
+
+                <!-- Test Cases -->
+                <div>
+                    <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                        <i class="fas fa-vial text-yellow-400"></i> Test Cases
+                    </h3>
+                    <div id="challenge-test-cases" class="space-y-3">
+                        <!-- Test cases will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3 pt-4 border-t border-gray-700">
+                    <button onclick="previewAssessment()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm flex items-center gap-2 transition-colors">
+                        <i class="fas fa-eye"></i> Preview as Student
+                    </button>
+                    <button onclick="regenerateChallenge()" class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded text-sm flex items-center gap-2 transition-colors">
+                        <i class="fas fa-sync"></i> Regenerate
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- No Challenge State -->
+    <div id="no-challenge" class="glass-card mb-6 p-8 text-center hidden">
+        <i class="fas fa-clipboard-list text-4xl text-gray-600 mb-4"></i>
+        <p class="text-gray-400 mb-4">No assessment created yet for this job.</p>
+        <button onclick="createNewChallenge()" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold transition-colors">
+            <i class="fas fa-plus mr-2"></i> Create Assessment
+        </button>
+    </div>
+
+    <!-- Candidates Table -->
+    <div class="glass-card overflow-hidden">
+        <div class="p-4 border-b border-gray-700 bg-gray-800/30">
+            <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                <i class="fas fa-users text-blue-400"></i> Candidates
+            </h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-gray-800/50">
+                    <tr>
+                        <th class="p-4 font-semibold text-gray-300">Rank</th>
+                        <th class="p-4 font-semibold text-gray-300">Candidate</th>
+                        <th class="p-4 font-semibold text-gray-300">Total Score</th>
+                        <th class="p-4 font-semibold text-gray-300">Test Score (50%)</th>
+                        <th class="p-4 font-semibold text-gray-300">Code Quality (30%)</th>
+                        <th class="p-4 font-semibold text-gray-300">AI Score (20%)</th>
+                        <th class="p-4 font-semibold text-gray-300">Status</th>
+                        <th class="p-4 font-semibold text-gray-300">Flags</th>
+                        <th class="p-4 font-semibold text-gray-300">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="candidates-table">
+                    <tr>
+                        <td colspan="9" class="p-8 text-center text-gray-500">
+                            <i class="fas fa-spinner fa-spin mr-2"></i> Loading...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const jobId = new URLSearchParams(window.location.search).get('job_id');
+const API_BASE = "http://127.0.0.1:8000/api";
+
+async function loadData() {
+    try {
+        const response = await fetch(`/vetting/api/job/${jobId}/vetting-dashboard/`);
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            updateStats(data);
+            renderChallenge(data.challenge);
+            renderTable(data.candidates);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('candidates-table').innerHTML = 
+            '<tr><td colspan="9" class="p-8 text-center text-red-500">Error loading data</td></tr>';
+    }
+}
+
+function updateStats(data) {
+    const candidates = data.candidates || [];
+    document.getElementById('stat-total').textContent = candidates.length;
+    document.getElementById('stat-passed').textContent = data.pass_count || 0;
+    document.getElementById('stat-failed').textContent = candidates.length - (data.pass_count || 0);
+    
+    const avg = candidates.length > 0 
+        ? candidates.reduce((sum, c) => sum + (c.final_score || 0), 0) / candidates.length 
+        : 0;
+    document.getElementById('stat-avg').textContent = Math.round(avg) + '%';
+}
+
+function renderChallenge(challenge) {
+    const challengeSection = document.getElementById('challenge-section');
+    const noChallengeSection = document.getElementById('no-challenge');
+    
+    if (!challenge) {
+        challengeSection.classList.add('hidden');
+        noChallengeSection.classList.remove('hidden');
+        return;
+    }
+    
+    // Show badges
+    document.getElementById('challenge-difficulty').textContent = challenge.difficulty;
+    document.getElementById('challenge-difficulty').classList.remove('hidden');
+    document.getElementById('challenge-language').textContent = challenge.language;
+    document.getElementById('challenge-language').classList.remove('hidden');
+    document.getElementById('challenge-timer').innerHTML = `<i class="fas fa-clock mr-1"></i> ${challenge.time_limit} min`;
+    document.getElementById('challenge-timer').classList.remove('hidden');
+    
+    // Set content
+    document.getElementById('challenge-title').textContent = challenge.title;
+    document.getElementById('challenge-description').textContent = challenge.description;
+    document.getElementById('challenge-starter-code').textContent = challenge.starter_code;
+    
+    // Render test cases
+    const testCasesContainer = document.getElementById('challenge-test-cases');
+    if (challenge.test_cases && challenge.test_cases.length > 0) {
+        testCasesContainer.innerHTML = challenge.test_cases.map((test, idx) => `
+            <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-xs font-bold px-2 py-1 rounded ${test.is_public ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'}">
+                        ${test.is_public ? 'Public' : 'Hidden'}
+                    </span>
+                    <span class="text-xs text-gray-500">Test Case #${idx + 1}</span>
+                </div>
+                <div class="grid md:grid-cols-2 gap-4 text-sm">
+                    <div class="bg-gray-900 rounded p-3">
+                        <span class="text-gray-500 block text-xs mb-1 uppercase tracking-wider">Input:</span>
+                        <code class="text-blue-400 font-mono text-xs break-all">${escapeHtml(test.input)}</code>
+                    </div>
+                    <div class="bg-gray-900 rounded p-3">
+                        <span class="text-gray-500 block text-xs mb-1 uppercase tracking-wider">Expected Output:</span>
+                        <code class="text-green-400 font-mono text-xs break-all">${escapeHtml(test.expected)}</code>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        testCasesContainer.innerHTML = '<p class="text-gray-500 text-sm">No test cases available</p>';
+    }
+}
+
+function renderTable(candidates) {
+    const tbody = document.getElementById('candidates-table');
+    
+    if (candidates.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-gray-500">No candidates have taken the assessment yet</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = candidates.map(c => {
+        let scoreColor = 'text-red-400';
+        if (c.final_score >= 90) scoreColor = 'text-green-400';
+        else if (c.final_score >= 70) scoreColor = 'text-yellow-400';
+        
+        const flags = (c.flags || []).map(f => {
+            const icons = {
+                'excessive_tab_switching': '🔄',
+                'copy_paste_detected': '📋',
+                'fullscreen_exit': '⛶'
+            };
+            return `<span title="${f}" class="cursor-help">${icons[f] || '⚠️'}</span>`;
+        }).join(' ');
+        
+        return `
+            <tr class="border-b border-gray-700/50 hover:bg-gray-800/30 transition-colors">
+                <td class="p-4 font-bold text-gray-400">#${c.rank}</td>
+                <td class="p-4">
+                    <div class="font-semibold text-white">${c.student_name}</div>
+                    <div class="text-sm text-gray-500">Match: ${Math.round(c.match_score)}%</div>
+                </td>
+                <td class="p-4 font-bold ${scoreColor}">${c.final_score ? Math.round(c.final_score) + '%' : 'N/A'}</td>
+                <td class="p-4 text-gray-300">${c.layer1_score ? Math.round(c.layer1_score) + '%' : '-'}</td>
+                <td class="p-4 text-gray-300">${c.layer2_score ? Math.round(c.layer2_score) + '%' : '-'}</td>
+                <td class="p-4 text-gray-300">${c.layer3_score ? Math.round(c.layer3_score) + '%' : '-'}</td>
+                <td class="p-4">
+                    ${c.vetting_status === 'not_started' ? 
+                        '<span class="px-2 py-1 rounded text-xs bg-gray-700 text-gray-300">Not Started</span>' :
+                        `<span class="px-2 py-1 rounded text-xs ${c.passed ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}">
+                            ${c.passed ? 'PASSED' : 'FAILED'}
+                        </span>`
+                    }
+                </td>
+                <td class="p-4 text-lg">${flags || '-'}</td>
+                <td class="p-4">
+                    ${c.submission_id ? `
+                        <button onclick="viewCode('${c.submission_id}')" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm mr-2 transition-colors">
+                            View Code
+                        </button>
+                    ` : ''}
+                    ${c.passed ? `
+                        <button onclick="inviteInterview('${c.application_id}')" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm transition-colors">
+                            Interview
+                        </button>
+                    ` : ''}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function toggleChallenge() {
+    const content = document.getElementById('challenge-content');
+    const icon = document.getElementById('challenge-toggle-icon');
+    
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.style.transform = 'rotate(180deg)';
+    } else {
+        content.classList.add('hidden');
+        icon.style.transform = 'rotate(0deg)';
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function previewAssessment() {
+    // Open a modal or new window showing the student view
+    alert('Student preview would open here. Implement modal or redirect to test view.');
+}
+
+function regenerateChallenge() {
+    if (confirm('⚠️ This will delete the current assessment and create a new one. All existing candidate submissions will be preserved. Continue?')) {
+        const difficulty = prompt('Select difficulty (easy/medium/hard):', 'medium');
+        if (!difficulty || !['easy', 'medium', 'hard'].includes(difficulty)) {
+            alert('Invalid difficulty selected');
+            return;
+        }
+        
+        fetch('/vetting/api/challenge/create/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({job_id: jobId, difficulty: difficulty})
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('✅ Assessment regenerated successfully!');
+                window.location.reload();
+            } else {
+                alert('❌ Error: ' + (data.message || 'Failed to regenerate'));
+            }
+        })
+        .catch(err => {
+            alert('❌ Network error');
+            console.error(err);
+        });
+    }
+}
+
+function createNewChallenge() {
+    const difficulty = prompt('Select difficulty (easy/medium/hard):', 'medium');
+    if (!difficulty || !['easy', 'medium', 'hard'].includes(difficulty)) {
+        if (difficulty) alert('Invalid difficulty. Choose: easy, medium, or hard');
+        return;
+    }
+    
+    fetch('/vetting/api/challenge/create/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({job_id: jobId, difficulty: difficulty})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('✅ Assessment created successfully!');
+            window.location.reload();
+        } else {
+            alert('❌ Error: ' + (data.message || 'Failed to create'));
+        }
+    })
+    .catch(err => {
+        alert('❌ Network error');
+        console.error(err);
+    });
+}
+
+function viewCode(submissionId) {
+    // Open modal or redirect to code view
+    alert('View code: ' + submissionId + '\nImplement modal to show submitted code here.');
+}
+
+function inviteInterview(appId) {
+    if (confirm('Invite this candidate for interview?')) {
+        // Update application status to interview
+        alert('Candidate ' + appId + ' marked for interview. Implement status update API call.');
+    }
+}
+
+// Load data on page load
+loadData();
+</script>
+
+<style>
+/* Additional styles for the dashboard */
+.glass-card {
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(72, 187, 255, 0.2);
+    border-radius: 1rem;
+}
+
+#challenge-content {
+    transition: all 0.3s ease;
+}
+
+pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+code {
+    font-family: 'Courier New', monospace;
+}
+
+/* Smooth transitions */
+.transition-colors {
+    transition: background-color 0.2s, color 0.2s;
+}
+
+tr:hover {
+    background-color: rgba(72, 187, 255, 0.05);
+}
+</style>
+{% endblock %}

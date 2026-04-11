@@ -3,10 +3,10 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from core.views import (
-    landing_page, about_us, services,
+    InterviewSlotAvailabilityView, landing_page, about_us, services,
     student_login, student_register, student_dashboard, student_profile, student_job_detail, student_jobs,  # ADD student_jobs HERE
     company_login, company_register, company_dashboard, company_post_job, company_applicants,
-    admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView ,admin_login_page
+    admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView ,admin_login_page, ApplicationsListView
 )
 
 urlpatterns = [
@@ -39,9 +39,14 @@ urlpatterns = [
     path('admin/fraud-review/', admin_fraud_review, name='admin_fraud_review'),
     path('admin/login/', admin_login_page, name='admin_login_page'),
     path('admin/', admin.site.urls),
-    
+    path('applications/', ApplicationsListView.as_view()),
+    path('job/<uuid:job_id>/slot-availability/', InterviewSlotAvailabilityView.as_view()),
     # API
     path('api/', include('core.urls')),
+    
+    #vetting
+    path('vetting/', include('vetting.urls')),  # ADD THIS LINE
+    path('vetting/api/', include('vetting.urls')),
 ]
 
 if settings.DEBUG:

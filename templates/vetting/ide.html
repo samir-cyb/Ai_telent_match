@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Assessment | AI Talent Match</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1e1e1e; color: #fff; font-family: 'Segoe UI', sans-serif; }
+        #editor-container { height: calc(100vh - 120px); }
+        .anti-cheat-warning { 
+            position: fixed; top: 0; left: 0; right: 0; background: #dc2626; color: white; 
+            padding: 10px; text-align: center; z-index: 9999; display: none;
+        }
+        .test-case { padding: 10px; margin: 5px 0; border-radius: 5px; }
+        .test-pass { background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; }
+        .test-fail { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; }
+        #timer { font-size: 1.2rem; font-weight: bold; color: #fbbf24; }
+        .fullscreen-only { display: block; }
+        :not(:fullscreen) .fullscreen-only { display: none; }
+        :fullscreen .exit-fullscreen-btn { display: block; }
+    </style>
+</head>
+<body>
+    <!-- Anti-Cheat Warning -->
+    <div id="cheat-warning" class="anti-cheat-warning">
+        ⚠️ Warning: Suspicious activity detected. Further violations will result in automatic submission.
+    </div>
+
+    <!-- Header -->
+    <div class="bg-gray-900 border-b border-gray-700 p-4 flex justify-between items-center h-[60px]">
+        <div>
+            <h1 class="text-lg font-bold text-blue-400">Technical Assessment</h1>
+            <p class="text-sm text-gray-400">{{ challenge.title }}</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <div id="timer" data-seconds="{{ time_remaining }}">45:00</div>
+            <button onclick="toggleFullscreen()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm">
+                Fullscreen
+            </button>
+            <button onclick="submitTest()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-sm font-bold">
+                Submit Test
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div class="flex h-[calc(100vh-60px)]">
+        <!-- Left Panel: Problem -->
+        <div class="w-1/3 bg-gray-800 border-r border-gray-700 p-4 overflow-y-auto">
+            <div class="mb-4">
+                <h2 class="text-xl font-bold mb-2 text-white">Problem Description</h2>
+                <div class="prose prose-invert text-gray-300 text-sm">
+                    {{ challenge.description|linebreaks }}
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <h3 class="font-bold text-blue-400 mb-2">Test Cases</h3>
+                <div id="test-results" class="space-y-2 text-sm">
+                    <p class="text-gray-500">Click "Run Tests" to see results</p>
+                </div>
+            </div>
+
+            <div class="mt-4 p-3 bg-gray-700 rounded text-xs text-gray-400">
+                <p class="font-bold text-yellow-500 mb-1">⚠️ Anti-Cheat Active:</p>
+                <ul class="list-disc pl-4 space-y-1">
+                    <li>Do not switch tabs (detected: <span id="tab-count">0</span>)</li>
+                    <li>Do not copy/paste (detected: <span id="paste-count">0</span>)</li>
+                    <li>Stay in fullscreen mode</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Right Panel: Editor -->
+        <div class="w-2/3 flex flex-col">
+            <!-- Toolbar -->
+            <div class="bg-gray-900 p-2 border-b border-gray-700 flex gap-2">
+                <select id="language-select" class="bg-gray-800 text-white px-3 py-1 rounded text-sm border border-gray-600">
+                    <option value="python" {% if language == 'python' %}selected{% endif %}>Python</option>
+                    <option value="javascript" {% if language == 'javascript' %}selected{% endif %}>JavaScript</option>
+                    <option value="java" {% if language == 'java' %}selected{% endif %}>Java</option>
+                    <option value="cpp" {% if language == 'cpp' %}selected{% endif %}>C++</option>
+                </select>
+                <button onclick="runCode()" class="bg-blue-600 hover:bg-blue-700 px-4 py-1 rounded text-sm">
+                    ▶ Run Code
+                </button>
+                <button onclick="runTests()" class="bg-purple-600 hover:bg-purple-700 px-4 py-1 rounded text-sm">
+                    ✓ Run Tests
+                </button>
+                <button onclick="resetCode()" class="bg-gray-600 hover:bg-gray-700 px-4 py-1 rounded text-sm ml-auto">
+                    Reset Code
+                </button>
+            </div>
+
+            <!-- Monaco Editor -->
+            <div id="editor-container"></div>
+
+            <!-- Console Output -->
+            <div class="h-32 bg-gray-900 border-t border-gray-700 p-2 overflow-y-auto font-mono text-sm">
+                <div class="text-gray-500 text-xs mb-1">Output:</div>
+                <pre id="console-output" class="text-gray-300"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const TOKEN = "{{ session.access_token }}";
+        const STARTER_CODE = `{{ starter_code|escapejs }}`;
+        
+        let editor;
+        let tabSwitches = 0;
+        let copyPastes = 0;
+        let fullscreenExits = 0;
+        let timeRemaining = parseInt(document.getElementById('timer').dataset.seconds);
+        let timerInterval;
+
+        // Initialize Monaco Editor
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            editor = monaco.editor.create(document.getElementById('editor-container'), {
+                value: STARTER_CODE,
+                language: '{{ language }}',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                minimap: { enabled: false },
+                fontSize: 14,
+                fontFamily: 'Fira Code, monospace',
+                scrollBeyondLastLine: false,
+                roundedSelection: false,
+                padding: { top: 16 }
+            });
+        });
+
+        // Anti-Cheat: Prevent copy/paste
+        document.addEventListener('copy', (e) => {
+            copyPastes++;
+            updateCheatDisplay();
+            e.preventDefault();
+            alert('Copy is disabled during the assessment');
+        });
+
+        document.addEventListener('paste', (e) => {
+            copyPastes++;
+            updateCheatDisplay();
+            e.preventDefault();
+            alert('Paste is disabled during the assessment');
+        });
+
+        document.addEventListener('cut', (e) => {
+            e.preventDefault();
+        });
+
+        // Anti-Cheat: Tab switch detection
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                tabSwitches++;
+                updateCheatDisplay();
+                document.getElementById('cheat-warning').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('cheat-warning').style.display = 'none';
+                }, 3000);
+            }
+        });
+
+        // Anti-Cheat: Fullscreen enforcement
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                fullscreenExits++;
+                updateCheatDisplay();
+                alert('Please remain in fullscreen mode during the assessment');
+            }
+        });
+
+        function updateCheatDisplay() {
+            document.getElementById('tab-count').textContent = tabSwitches;
+            document.getElementById('paste-count').textContent = copyPastes;
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // Timer
+        function updateTimer() {
+            if (timeRemaining <= 0) {
+                clearInterval(timerInterval);
+                alert('Time is up! Your assessment will be submitted automatically.');
+                submitTest();
+                return;
+            }
+            
+            const mins = Math.floor(timeRemaining / 60);
+            const secs = timeRemaining % 60;
+            document.getElementById('timer').textContent = 
+                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            
+            if (timeRemaining < 300) { // Less than 5 minutes
+                document.getElementById('timer').style.color = '#ef4444';
+            }
+            
+            timeRemaining--;
+        }
+
+        timerInterval = setInterval(updateTimer, 1000);
+        updateTimer();
+
+        // Run Code
+        async function runCode() {
+            const code = editor.getValue();
+            const outputDiv = document.getElementById('console-output');
+            outputDiv.textContent = 'Running...';
+
+            try {
+                const response = await fetch(`/vetting/api/test/${TOKEN}/execute/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: code,
+                        language: document.getElementById('language-select').value,
+                        stdin: ''
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const output = data.output;
+                    let display = '';
+                    if (output.stdout) display += output.stdout;
+                    if (output.stderr) display += '\n[Errors]:\n' + output.stderr;
+                    if (output.compile_output) display += '\n[Compile]:\n' + output.compile_output;
+                    outputDiv.textContent = display || 'No output';
+                } else {
+                    outputDiv.textContent = 'Error: ' + data.message;
+                }
+            } catch (error) {
+                outputDiv.textContent = 'Network error: ' + error.message;
+            }
+        }
+
+        // Run Tests
+        async function runTests() {
+            const code = editor.getValue();
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<p class="text-yellow-500">Running tests...</p>';
+
+            try {
+                const response = await fetch(`/vetting/api/test/${TOKEN}/execute/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: code,
+                        language: document.getElementById('language-select').value,
+                        run_tests: true
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    displayTestResults(data.results);
+                } else {
+                    resultsDiv.innerHTML = '<p class="text-red-500">Error running tests</p>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = '<p class="text-red-500">Network error</p>';
+            }
+        }
+
+        function displayTestResults(results) {
+            const container = document.getElementById('test-results');
+            container.innerHTML = `
+                <div class="mb-2 font-bold ${results.score === 100 ? 'text-green-500' : 'text-yellow-500'}">
+                    Score: ${Math.round(results.score)}% (${results.passed}/${results.total} passed)
+                </div>
+            `;
+
+            results.details.forEach((test, idx) => {
+                const div = document.createElement('div');
+                div.className = `test-case ${test.passed ? 'test-pass' : 'test-fail'}`;
+                div.innerHTML = `
+                    <div class="font-bold">Test ${test.test_number}: ${test.passed ? '✓ PASS' : '✗ FAIL'}</div>
+                    <div class="text-xs mt-1">
+                        <div>Input: ${test.input}</div>
+                        <div>Expected: ${test.expected}</div>
+                        ${!test.passed ? `<div>Got: ${test.actual}</div>` : ''}
+                        ${test.error ? `<div class="text-red-400">Error: ${test.error}</div>` : ''}
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Submit Test
+        async function submitTest() {
+            if (!confirm('Are you sure you want to submit? You cannot undo this action.')) {
+                return;
+            }
+
+            const code = editor.getValue();
+            
+            try {
+                const response = await fetch(`/vetting/api/test/${TOKEN}/submit/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: code,
+                        tab_switches: tabSwitches,
+                        copy_pastes: copyPastes,
+                        fullscreen_exits: fullscreenExits
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    alert(`Assessment submitted!\\nScore: ${data.score}%\\nPassed: ${data.passed ? 'Yes' : 'No'}`);
+                    window.location.href = '/student/dashboard/';
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Network error during submission');
+            }
+        }
+
+        function resetCode() {
+            if (confirm('Reset to starter code? All your changes will be lost.')) {
+                editor.setValue(STARTER_CODE);
+            }
+        }
+
+        // Warn before leaving
+        window.onbeforeunload = function() {
+            return "Are you sure you want to leave? Your progress will be lost.";
+        };
+
+        // Enter fullscreen on load
+        window.onload = function() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log('Fullscreen denied:', err);
+                });
+            }
+        };
+    </script>
+</body>
+</html>

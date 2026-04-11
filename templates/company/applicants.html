@@ -35,6 +35,9 @@ Pool{%endblock%} {% block content %}
       <button class="btn-primary" onclick="openSlotModal()">
         <i class="fas fa-calendar-plus"></i> Set Interview Slots
       </button>
+      <button class="btn-primary" onclick="viewVettingDashboard()">
+        <i class="fas fa-code"></i> Vetting Dashboard
+      </button>
       <button class="btn-primary" onclick="exportCSV()">
         <i class="fas fa-download"></i> Export
       </button>
@@ -184,11 +187,117 @@ Pool{%endblock%} {% block content %}
   </div>
 </div>
 
+<!-- Vetting Dashboard Modal -->
+<div id="vetting-modal" class="modal" style="display: none">
+  <div class="modal-content glass-card" style="max-width: 900px; width: 95%;">
+    <h3><i class="fas fa-code"></i> Technical Vetting Dashboard</h3>
+    <p>Candidates ranked by coding assessment scores</p>
+    
+    <div id="vetting-content">
+      <div class="loading-spinner">
+        <i class="fas fa-spinner fa-spin"></i> Loading vetting data...
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeVettingModal()">Close</button>
+      <button class="btn-primary" onclick="createVettingChallenge()">
+        <i class="fas fa-plus"></i> Create New Assessment
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Challenge Modal -->
+<div id="challenge-modal" class="modal" style="display: none">
+  <div class="modal-content glass-card">
+    <h3><i class="fas fa-plus"></i> Create Technical Assessment</h3>
+    <p>Generate AI-powered coding challenge for this job</p>
+
+    <div class="form-group">
+      <label>Difficulty Level</label>
+      <select id="challenge-difficulty">
+        <option value="easy">Easy (30 min)</option>
+        <option value="medium" selected>Medium (45 min)</option>
+        <option value="hard">Hard (60 min)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Programming Language</label>
+      <select id="challenge-language">
+        <option value="python" selected>Python</option>
+        <option value="javascript">JavaScript</option>
+        <option value="java">Java</option>
+        <option value="cpp">C++</option>
+      </select>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeChallengeModal()">Cancel</button>
+      <button class="btn-primary" onclick="confirmCreateChallenge()">
+        <i class="fas fa-magic"></i> Generate Challenge
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- View Code Modal -->
+<div id="code-modal" class="modal" style="display: none">
+  <div class="modal-content glass-card" style="max-width: 800px; width: 95%;">
+    <h3><i class="fas fa-code"></i> Candidate Submission</h3>
+    <p id="code-modal-title">Student Name - Score: 0%</p>
+    
+    <div class="form-group">
+      <label>Submitted Code</label>
+      <pre id="submitted-code" class="code-preview"></pre>
+    </div>
+    
+    <div class="form-group">
+      <label>Test Results</label>
+      <div id="test-results"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeCodeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
-  const API_BASE = "http://127.0.0.1:8000/api";
-  const urlParams = new URLSearchParams(window.location.search);
-  const jobId = urlParams.get("job_id");
-  const companyId = localStorage.getItem("company_id");
+ // Use existing API_BASE from base.html or declare if not present
+if (typeof API_BASE === 'undefined') {
+  var API_BASE = "http://127.0.0.1:8000/api";
+}
+
+const urlParams = new URLSearchParams(window.location.search);
+let jobId = urlParams.get("job_id");
+const companyId = localStorage.getItem("company_id");
+
+// ✅ FIX: Try localStorage if missing from URL
+if (!jobId || jobId === 'null' || jobId === 'undefined') {
+  jobId = localStorage.getItem('last_viewed_job_id');
+  
+  // If found in localStorage, update URL silently
+  if (jobId && jobId !== 'null') {
+    const newUrl = window.location.pathname + '?job_id=' + jobId;
+    window.history.replaceState({}, '', newUrl);
+  }
+}
+
+// ✅ Only redirect if absolutely no job_id found anywhere
+if (!jobId || jobId === 'null' || jobId === 'undefined') {
+  alert('Error: No job selected. Please go to dashboard and select a job.');
+  window.location.href = '/company/dashboard/';
+  throw new Error('job_id is required');
+}
+
+// ✅ Store for next time
+localStorage.setItem('last_viewed_job_id', jobId);
+
+if (!companyId) {
+  window.location.href = "/company/login/";
+}
 
   if (!companyId) {
     window.location.href = "/company/login/";
@@ -197,6 +306,7 @@ Pool{%endblock%} {% block content %}
   let allApplicants = [];
   let selectedApplicationId = null;
   let availableSlotsData = [];
+  let vettingData = [];
 
   // Load applicants
   async function loadApplicants() {
@@ -270,6 +380,14 @@ Pool{%endblock%} {% block content %}
             <span class="status-badge ${app.status}">${app.status}</span>
             <span class="date">Applied ${formatDate(app.applied_at)}</span>
           </div>
+          ${app.vetting_score !== null && app.vetting_score !== undefined ? `
+            <div class="vetting-score mt-2">
+              <span class="score-badge ${app.vetting_score >= 70 ? 'pass' : app.vetting_score >= 50 ? 'warning' : 'fail'}">
+                <i class="fas fa-code"></i> Code: ${Math.round(app.vetting_score)}%
+              </span>
+              ${app.vetting_passed ? '<span class="pass-badge"><i class="fas fa-check"></i> Passed</span>' : ''}
+            </div>
+          ` : ''}
         </div>
         <div class="applicant-actions">
           ${getActionButtons(app)}
@@ -291,7 +409,6 @@ Pool{%endblock%} {% block content %}
     const buttons = [];
 
     if (app.status === "applied") {
-      // Applied status: Show Shortlist and Reject buttons
       buttons.push(`<button class="btn-primary btn-sm" onclick="updateStatus('${app.id}', 'shortlisted')">
             <i class="fas fa-star"></i> Shortlist
         </button>`);
@@ -299,8 +416,18 @@ Pool{%endblock%} {% block content %}
             <i class="fas fa-times"></i> Reject
         </button>`);
     } else if (app.status === "shortlisted") {
-      // Shortlisted status: Show Interview and Hire buttons
-      buttons.push(`<button class="btn-primary btn-sm" onclick="openScheduleModal('${app.id}', '${app.student_name}')">
+      // Show Send Assessment button if no vetting score yet
+      if (!app.vetting_score && !app.vetting_invited) {
+      buttons.push(`<button class="btn-secondary btn-sm" onclick="sendAssessment(this, '${app.id}', '${app.student_name.replace(/'/g, "\\'")}')">
+          <i class="fas fa-paper-plane"></i> Send Assessment
+      </button>`);
+      } else if (app.vetting_invited && !app.vetting_score) {
+        buttons.push(`<button class="btn-secondary btn-sm" disabled>
+            <i class="fas fa-clock"></i> Assessment Pending
+        </button>`);
+      }
+      
+      buttons.push(`<button class="btn-primary btn-sm" onclick="openScheduleModal('${app.id}', '${app.student_name.replace(/'/g, "\\'")}')">
             <i class="fas fa-calendar"></i> Schedule Interview
         </button>`);
       buttons.push(`<button class="btn-success btn-sm" onclick="hireCandidate('${app.id}')">
@@ -310,7 +437,6 @@ Pool{%endblock%} {% block content %}
             <i class="fas fa-times"></i> Reject
         </button>`);
     } else if (app.status === "interview") {
-      // Interview status: Show Hire and Reject buttons
       buttons.push(`<button class="btn-success btn-sm" onclick="hireCandidate('${app.id}')">
             <i class="fas fa-check"></i> Hire
         </button>`);
@@ -318,18 +444,15 @@ Pool{%endblock%} {% block content %}
             <i class="fas fa-times"></i> Reject
         </button>`);
     } else if (app.status === "hired") {
-      // Hired status: Show hired badge instead of buttons
       buttons.push(
         `<span class="status-badge hired"><i class="fas fa-check-circle"></i> Hired</span>`,
       );
     } else if (app.status === "rejected") {
-      // Rejected status: Show rejected badge
       buttons.push(
         `<span class="status-badge rejected"><i class="fas fa-times-circle"></i> Rejected</span>`,
       );
     }
 
-    // Add Details button for all statuses (except maybe hired/rejected)
     if (app.status !== "hired" && app.status !== "rejected") {
       buttons.push(`<button class="btn-secondary btn-sm" onclick="viewDetails('${app.id}')">
             <i class="fas fa-eye"></i> Details
@@ -337,6 +460,232 @@ Pool{%endblock%} {% block content %}
     }
 
     return buttons.join("");
+  }
+
+  // Vetting Functions
+  async function sendAssessment(btn, applicationId, studentName) {
+    // FIX: Properly receive 'btn' as first parameter
+    if (!confirm(`Send technical assessment to ${studentName}?`)) return;
+    
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+    btn.disabled = true;
+
+    try {
+        // FIX: Remove /api from base since vetting URLs are at root
+        const baseUrl = API_BASE.replace('/api', '');
+        const response = await fetch(`${baseUrl}/vetting/api/challenge/token/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ application_id: applicationId })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            alert(`✅ Assessment sent!\n\nStudent: ${studentName}\nToken: ${data.token.substring(0, 8)}...\nExpires: ${new Date(data.expires_at).toLocaleDateString()}`);
+            
+            // Update UI
+            const app = allApplicants.find(a => a.id === applicationId);
+            if (app) app.vetting_invited = true;
+            renderApplicants();
+        } else {
+            alert('❌ Error: ' + (data.message || 'Failed to send'));
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        alert('❌ Network error. Please try again.');
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+    }
+}
+
+  function viewVettingDashboard() {
+    document.getElementById("vetting-modal").style.display = "flex";
+    loadVettingData();
+  }
+
+  function closeVettingModal() {
+    document.getElementById("vetting-modal").style.display = "none";
+  }
+
+  async function loadVettingData() {
+  const container = document.getElementById("vetting-content");
+  container.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+  
+  try {
+    // ✅ FIX: Use correct URL path that matches your urls.py
+    const response = await fetch(`/vetting/api/job/${jobId}/vetting-dashboard/`)
+    const data = await response.json();
+    
+    if (data.status === 'success') {
+      vettingData = data.candidates || [];
+      renderVettingDashboard(data);
+    } else {
+      container.innerHTML = `<p class="no-data">${data.message || 'No vetting data available'}</p>`;
+    }
+  } catch (error) {
+    console.error("Error loading vetting data:", error);
+    container.innerHTML = '<p class="no-data">Error loading vetting dashboard</p>';
+  }
+}
+
+  function renderVettingDashboard(data) {
+    const container = document.getElementById("vetting-content");
+    
+    if (!data.candidates || data.candidates.length === 0) {
+      container.innerHTML = `
+        <div class="no-vetting-data">
+          <p>No candidates have taken the technical assessment yet.</p>
+          <p>Shortlist candidates and send them assessments to see results here.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const stats = `
+      <div class="vetting-stats">
+        <div class="stat-box">
+          <span class="stat-number">${data.total_assessed || 0}</span>
+          <span class="stat-label">Assessed</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-number">${data.pass_count || 0}</span>
+          <span class="stat-label">Passed (70%+)</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-number">${Math.round(data.candidates.reduce((a,b) => a + (b.final_score || 0), 0) / data.candidates.length)}%</span>
+          <span class="stat-label">Avg Score</span>
+        </div>
+      </div>
+    `;
+
+    const table = `
+      <div class="vetting-table-container">
+        <table class="vetting-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Candidate</th>
+              <th>Total Score</th>
+              <th>Tests</th>
+              <th>Quality</th>
+              <th>Time</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.candidates.map((c, i) => `
+              <tr class="${c.passed ? 'passed' : 'failed'}">
+                <td>#${i + 1}</td>
+                <td>${c.student_name}</td>
+                <td>
+                  <span class="score-badge ${c.final_score >= 90 ? 'excellent' : c.final_score >= 70 ? 'good' : c.final_score >= 50 ? 'average' : 'poor'}">
+                    ${Math.round(c.final_score || 0)}%
+                  </span>
+                </td>
+                <td>${Math.round(c.layer1_score || 0)}%</td>
+                <td>${Math.round(c.layer2_score || 0)}%</td>
+                <td>${c.time_taken || '-'} min</td>
+                <td>
+                  ${c.passed ? '<span class="pass-badge"><i class="fas fa-check"></i> Pass</span>' : '<span class="fail-badge"><i class="fas fa-times"></i> Fail</span>'}
+                  ${c.flags && c.flags.length > 0 ? `<span class="flag-badge" title="${c.flags.join(', ')}"><i class="fas fa-exclamation-triangle"></i></span>` : ''}
+                </td>
+                <td>
+                  <button class="btn-sm btn-secondary" onclick="viewSubmission('${c.submission_id}', '${c.student_name}', ${c.final_score})">
+                    <i class="fas fa-code"></i> View Code
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    container.innerHTML = stats + table;
+  }
+
+  async function viewSubmission(submissionId, studentName, score) {
+    try {
+      const response = await fetch(`${API_BASE}/vetting/submission/${submissionId}/`);
+      const data = await response.json();
+      
+      if (data.status === 'success') {
+        document.getElementById("code-modal-title").textContent = `${studentName} - Score: ${Math.round(score)}%`;
+        document.getElementById("submitted-code").textContent = data.code || 'No code available';
+        
+        const resultsHtml = data.test_results ? `
+          <div class="test-results-summary">
+            <p><strong>Passed:</strong> ${data.test_results.passed || 0} / ${data.test_results.total || 0}</p>
+            ${data.test_results.details ? data.test_results.details.map(r => `
+              <div class="test-case ${r.passed ? 'pass' : 'fail'}">
+                <i class="fas ${r.passed ? 'fa-check' : 'fa-times'}"></i>
+                ${r.name || 'Test'}: ${r.passed ? 'Passed' : 'Failed'}
+              </div>
+            `).join('') : ''}
+          </div>
+        ` : '<p>No test results available</p>';
+        
+        document.getElementById("test-results").innerHTML = resultsHtml;
+        document.getElementById("code-modal").style.display = "flex";
+      } else {
+        alert('Error loading submission: ' + data.message);
+      }
+    } catch (error) {
+      alert('Error loading submission details');
+    }
+  }
+
+  function closeCodeModal() {
+    document.getElementById("code-modal").style.display = "none";
+  }
+
+  function createVettingChallenge() {
+    closeVettingModal();
+    document.getElementById("challenge-modal").style.display = "flex";
+  }
+
+  function closeChallengeModal() {
+    document.getElementById("challenge-modal").style.display = "none";
+  }
+
+  async function confirmCreateChallenge() {
+    const difficulty = document.getElementById("challenge-difficulty").value;
+    const language = document.getElementById("challenge-language").value;
+    
+    const btn = event.target;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    btn.disabled = true;
+
+    try {
+      const response = await fetch(`/vetting/api/challenge/create/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          job_id: jobId,
+          difficulty: difficulty,
+          language: language
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.status === 'success') {
+        alert(`✅ Assessment created!\n\nTitle: ${data.data?.title || 'Technical Challenge'}\nTest Cases: ${data.data?.test_cases_count || 0}\n\nYou can now send this to shortlisted candidates.`);
+        closeChallengeModal();
+      } else {
+        alert('❌ Error: ' + (data.message || 'Failed to create'));
+      }
+    } catch (error) {
+      alert('❌ Network error. Please try again.');
+    } finally {
+      btn.innerHTML = '<i class="fas fa-magic"></i> Generate Challenge';
+      btn.disabled = false;
+    }
   }
 
   function formatDate(timestamp) {
@@ -408,9 +757,9 @@ Pool{%endblock%} {% block content %}
   }
 
   function exportCSV() {
-    let csv = "Name,Match Score,Status,Applied Date\n";
+    let csv = "Name,Match Score,Status,Vetting Score,Applied Date\n";
     allApplicants.forEach((app) => {
-      csv += `${app.student_name},${app.match_score},${app.status},${app.applied_at}\n`;
+      csv += `${app.student_name},${app.match_score},${app.status},${app.vetting_score || 'N/A'},${app.applied_at}\n`;
     });
     const blob = new Blob([csv], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
@@ -632,7 +981,6 @@ Pool{%endblock%} {% block content %}
       );
       const result = await response.json();
       if (result.status === "success") {
-        // Format the date and time nicely
         const interviewDate = new Date(slot.date);
         const formattedDate = interviewDate.toLocaleDateString("en-US", {
           weekday: "long",
@@ -642,7 +990,6 @@ Pool{%endblock%} {% block content %}
         });
         const formattedTime = slot.start;
 
-        // Show success message with interview details
         alert(
           `✅ Interview Scheduled!\n\n📅 Date: ${formattedDate}\n⏰ Time: ${formattedTime}\n🔗 Link: ${data.meeting_link || "Will be shared"}\n\nStudent has been notified!`,
         );
@@ -651,7 +998,6 @@ Pool{%endblock%} {% block content %}
         loadApplicants();
         loadSlotAvailability();
 
-        // Clear the form
         document.getElementById("meeting-link").value = "";
         document.getElementById("interview-notes").value = "";
       } else {
@@ -1162,6 +1508,189 @@ Pool{%endblock%} {% block content %}
     width: 20px;
   }
 
+  /* Vetting Styles */
+  .vetting-score {
+    margin-top: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .score-badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .score-badge.pass {
+    background: rgba(0, 184, 107, 0.2);
+    color: #00b86b;
+    border: 1px solid #00b86b;
+  }
+
+  .score-badge.warning {
+    background: rgba(255, 204, 0, 0.2);
+    color: #ffcc00;
+    border: 1px solid #ffcc00;
+  }
+
+  .score-badge.fail {
+    background: rgba(255, 88, 88, 0.2);
+    color: #ff5858;
+    border: 1px solid #ff5858;
+  }
+
+  .score-badge.excellent {
+    background: rgba(0, 184, 107, 0.3);
+    color: #00b86b;
+    border: 1px solid #00b86b;
+  }
+
+  .score-badge.good {
+    background: rgba(72, 187, 255, 0.3);
+    color: #48bbff;
+    border: 1px solid #48bbff;
+  }
+
+  .score-badge.average {
+    background: rgba(255, 204, 0, 0.3);
+    color: #ffcc00;
+    border: 1px solid #ffcc00;
+  }
+
+  .score-badge.poor {
+    background: rgba(255, 88, 88, 0.3);
+    color: #ff5858;
+    border: 1px solid #ff5858;
+  }
+
+  .pass-badge {
+    background: rgba(0, 184, 107, 0.2);
+    color: #00b86b;
+    padding: 0.2rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.7rem;
+  }
+
+  .fail-badge {
+    background: rgba(255, 88, 88, 0.2);
+    color: #ff5858;
+    padding: 0.2rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.7rem;
+  }
+
+  .flag-badge {
+    background: rgba(255, 204, 0, 0.2);
+    color: #ffcc00;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.5rem;
+    font-size: 0.7rem;
+    margin-left: 0.3rem;
+    cursor: help;
+  }
+
+  .vetting-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .stat-box {
+    background: rgba(72, 187, 255, 0.1);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .stat-number {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #48bbff;
+    display: block;
+  }
+
+  .vetting-table-container {
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .vetting-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .vetting-table th {
+    background: rgba(72, 187, 255, 0.2);
+    padding: 0.75rem;
+    text-align: left;
+    color: #48bbff;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+  }
+
+  .vetting-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .vetting-table tr.passed {
+    background: rgba(0, 184, 107, 0.05);
+  }
+
+  .vetting-table tr.failed {
+    background: rgba(255, 88, 88, 0.05);
+  }
+
+  .code-preview {
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .test-results-summary {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 0.5rem;
+    padding: 1rem;
+  }
+
+  .test-case {
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    border-radius: 0.25rem;
+    font-size: 0.85rem;
+  }
+
+  .test-case.pass {
+    background: rgba(0, 184, 107, 0.2);
+    color: #00b86b;
+  }
+
+  .test-case.fail {
+    background: rgba(255, 88, 88, 0.2);
+    color: #ff5858;
+  }
+
+  .no-vetting-data {
+    text-align: center;
+    padding: 2rem;
+    color: #94a3b8;
+  }
+
+  .mt-2 {
+    margin-top: 0.5rem;
+  }
+
   @media (max-width: 968px) {
     .applicants-grid {
       grid-template-columns: 1fr;
@@ -1192,6 +1721,10 @@ Pool{%endblock%} {% block content %}
     }
     .stats-row-inline {
       flex-direction: column;
+    }
+    
+    .vetting-stats {
+      grid-template-columns: 1fr;
     }
   }
 
