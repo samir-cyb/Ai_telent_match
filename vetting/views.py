@@ -1,4 +1,5 @@
 import json
+from urllib import request
 from django.http import JsonResponse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
@@ -149,6 +150,56 @@ class CompanyVettingDashboardView(View):
         if session.fullscreen_exits > 0:
             flags.append('fullscreen_exit')
         return flags
+    
+    
+class SubmissionDetailView(View):
+    """View submitted code for a specific vetting result"""
+    
+    def get(self, request, submission_id):
+        try:
+            # submission_id is actually VettingResult ID from the dashboard
+            result = get_object_or_404(VettingResult, id=submission_id)
+            session = result.session
+            
+            # Get the final code submission
+            code_submission = CodeSubmission.objects.filter(
+                session=session,
+                is_final=True
+            ).first()
+            
+            if not code_submission:
+                # Fallback to any submission
+                code_submission = CodeSubmission.objects.filter(
+                    session=session
+                ).first()
+            
+            if not code_submission:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'No code submission found'
+                }, status=404)
+            
+            return JsonResponse({
+                'status': 'success',
+                'code': code_submission.code,
+                'language': code_submission.language,
+                'test_results': result.test_case_results,
+                'static_analysis': result.static_analysis_report,
+                'quality_issues': result.code_quality_issues,
+                'final_score': float(result.final_score) if result.final_score else 0,
+                'submitted_at': session.completed_at.isoformat() if session.completed_at else None,
+                'anti_cheat': {
+                    'tab_switches': session.tab_switch_count,
+                    'copy_pastes': session.copy_paste_attempts,
+                    'fullscreen_exits': session.fullscreen_exits
+                }
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class GenerateAssessmentTokenView(View):
@@ -372,19 +423,30 @@ class SubmitTestView(View):
                 data = json.loads(request.body)
                 final_code = data.get('code', '')
                 
-                # Get anti-cheat data
-                session.tab_switch_count = data.get('tab_switches', session.tab_switch_count)
-                session.copy_paste_attempts = data.get('copy_pastes', session.copy_paste_attempts)
-                session.fullscreen_exits = data.get('fullscreen_exits', session.fullscreen_exits)
+                # Get anti-cheat data from request
+                tab_switches = data.get('tab_switches', 0)
+                copy_pastes = data.get('copy_pastes', 0)
+                fullscreen_exits = data.get('fullscreen_exits', 0)
                 
                 # Check for cheating (basic thresholds)
-                if session.tab_switch_count > 10 or session.copy_paste_attempts > 10:
+                if tab_switches > 10 or copy_pastes > 10:
+                    # Update session with anti-cheat data
+                    session.tab_switch_count = tab_switches
+                    session.copy_paste_attempts = copy_pastes
+                    session.fullscreen_exits = fullscreen_exits
                     session.status = 'cheating_detected'
                     session.save()
+                    
                     return JsonResponse({
                         'status': 'error',
                         'message': 'Assessment flagged for review due to suspicious activity.'
                     }, status=403)
+                
+                # If not cheating, update anti-cheat data and save
+                session.tab_switch_count = tab_switches
+                session.copy_paste_attempts = copy_pastes
+                session.fullscreen_exits = fullscreen_exits
+                session.save()  # Save anti-cheat data here
                 
                 # Final execution with all test cases
                 executor = CodeExecutor()
@@ -464,6 +526,8 @@ class SubmitTestView(View):
                 })
                 
         except Exception as e:
+            import traceback
+            print(traceback.format_exc())
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     
     def _auto_submit(self, session):
