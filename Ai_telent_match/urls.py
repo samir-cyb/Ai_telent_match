@@ -2,6 +2,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
+from vetting.views import SubmissionDetailView
 from core.views import (
     InterviewSlotAvailabilityView, landing_page, about_us, services,
     student_login, student_register, student_dashboard, student_profile, student_job_detail, student_jobs,  # ADD student_jobs HERE
@@ -47,6 +48,7 @@ urlpatterns = [
     #vetting
     path('vetting/', include('vetting.urls')),  # ADD THIS LINE
     path('vetting/api/', include('vetting.urls')),
+    path('vetting/submission/<uuid:submission_id>/', SubmissionDetailView.as_view(), name='submission_detail'),
 ]
 
 if settings.DEBUG:
