@@ -566,55 +566,107 @@ if (!companyId) {
     `;
 
     const table = `
-      <div class="vetting-table-container">
-        <table class="vetting-table">
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Candidate</th>
-              <th>Total Score</th>
-              <th>Tests</th>
-              <th>Quality</th>
-              <th>Time</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.candidates.map((c, i) => `
-              <tr class="${c.passed ? 'passed' : 'failed'}">
-                <td>#${i + 1}</td>
-                <td>${c.student_name}</td>
-                <td>
-                  <span class="score-badge ${c.final_score >= 90 ? 'excellent' : c.final_score >= 70 ? 'good' : c.final_score >= 50 ? 'average' : 'poor'}">
-                    ${Math.round(c.final_score || 0)}%
-                  </span>
-                </td>
-                <td>${Math.round(c.layer1_score || 0)}%</td>
-                <td>${Math.round(c.layer2_score || 0)}%</td>
-                <td>${c.time_taken || '-'} min</td>
-                <td>
-                  ${c.passed ? '<span class="pass-badge"><i class="fas fa-check"></i> Pass</span>' : '<span class="fail-badge"><i class="fas fa-times"></i> Fail</span>'}
-                  ${c.flags && c.flags.length > 0 ? `<span class="flag-badge" title="${c.flags.join(', ')}"><i class="fas fa-exclamation-triangle"></i></span>` : ''}
-                </td>
-                <td>
-                  <button class="btn-sm btn-secondary" onclick="viewSubmission('${c.submission_id}', '${c.student_name}', ${c.final_score})">
-                    <i class="fas fa-code"></i> View Code
-                  </button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
+  <div class="vetting-table-container">
+    <table class="vetting-table">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Candidate</th>
+          <th>Total Score</th>
+          <th>Tests</th>
+          <th>Quality</th>
+          <th>Time</th>
+          <th>Tab Switches</th>
+          <th>Copy/Paste</th>
+          <th>Fullscreen Exits</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.candidates.map((c, i) => {
+          // Determine risk level based on anti-cheat metrics
+          let riskLevel = 'safe';
+          let riskClass = 'text-green-400';
+          let riskIcon = '✓';
+          
+          if (c.tab_switches > 5 || c.copy_pastes > 3 || c.fullscreen_exits > 0) {
+            riskLevel = 'high';
+            riskClass = 'text-red-400';
+            riskIcon = '⚠️';
+          } else if (c.tab_switches > 2 || c.copy_pastes > 0) {
+            riskLevel = 'medium';
+            riskClass = 'text-yellow-400';
+            riskIcon = '⚡';
+          }
+          
+          return `
+          <tr class="${c.passed ? 'passed' : 'failed'}">
+            <td>#${i + 1}</td>
+            <td>
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-weight: 600;">${c.student_name}</span>
+                ${riskLevel !== 'safe' ? `<span style="font-size: 0.7rem; color: #ff5858;">${riskIcon} Suspicious Activity</span>` : ''}
+              </div>
+            </td>
+            <td>
+              <span class="score-badge ${c.final_score >= 90 ? 'excellent' : c.final_score >= 70 ? 'good' : c.final_score >= 50 ? 'average' : 'poor'}">
+                ${Math.round(c.final_score || 0)}%
+              </span>
+            </td>
+            <td>${Math.round(c.layer1_score || 0)}%</td>
+            <td>${Math.round(c.layer2_score || 0)}%</td>
+            <td>${c.time_taken || '-'} min</td>
+            <td>
+              <span class="${c.tab_switches > 3 ? 'text-red-400 font-bold' : 'text-gray-400'}">
+                ${c.tab_switches || 0}
+                ${c.tab_switches > 3 ? '⚠️' : ''}
+              </span>
+            </td>
+            <td>
+              <span class="${c.copy_pastes > 0 ? 'text-red-400 font-bold' : 'text-gray-400'}">
+                ${c.copy_pastes || 0}
+                ${c.copy_pastes > 2 ? '🚫' : ''}
+              </span>
+            </td>
+            <td>
+              <span class="${c.fullscreen_exits > 0 ? 'text-red-400 font-bold' : 'text-green-400'}">
+                ${c.fullscreen_exits || 0}
+                ${c.fullscreen_exits > 0 ? '❌' : '✓'}
+              </span>
+            </td>
+            <td>
+              ${c.passed ? '<span class="pass-badge"><i class="fas fa-check"></i> Pass</span>' : '<span class="fail-badge"><i class="fas fa-times"></i> Fail</span>'}
+              ${c.flags && c.flags.length > 0 ? `<span class="flag-badge" title="${c.flags.join(', ')}"><i class="fas fa-exclamation-triangle"></i> ${c.flags.length}</span>` : ''}
+              ${riskLevel === 'high' ? '<span style="background: rgba(255, 88, 88, 0.3); color: #ff5858; padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-size: 0.7rem; margin-left: 0.5rem;">FLAGGED</span>' : ''}
+            </td>
+            <td>
+              <button class="btn-sm btn-secondary" onclick="viewSubmission('${c.submission_id}', '${c.student_name}', ${c.final_score})">
+                <i class="fas fa-code"></i> View Code
+              </button>
+            </td>
+          </tr>
+        `}).join('')}
+      </tbody>
+    </table>
+  </div>
+  
+  <!-- Anti-Cheat Legend -->
+  <div style="margin-top: 1rem; padding: 1rem; background: rgba(0, 0, 0, 0.2); border-radius: 0.5rem; font-size: 0.85rem; color: #94a3b8;">
+    <strong style="color: #48bbff;">Anti-Cheat Legend:</strong>
+    <span style="margin-left: 1rem; color: #00b86b;">✓ Normal (0-2 tabs)</span>
+    <span style="margin-left: 1rem; color: #ffcc00;">⚡ Warning (3-5 tabs or 1-2 copy/paste)</span>
+    <span style="margin-left: 1rem; color: #ff5858;">⚠️ High Risk (>5 tabs, >2 copy/paste, or fullscreen exit)</span>
+  </div>
+`;
 
     container.innerHTML = stats + table;
   }
 
   async function viewSubmission(submissionId, studentName, score) {
     try {
-      const response = await fetch(`${API_BASE}/vetting/submission/${submissionId}/`);
+      const baseUrl = API_BASE.replace('/api', '');
+      const response = await fetch(`${baseUrl}/vetting/submission/${submissionId}/`);
       const data = await response.json();
       
       if (data.status === 'success') {
