@@ -20,6 +20,18 @@
         .fullscreen-only { display: block; }
         :not(:fullscreen) .fullscreen-only { display: none; }
         :fullscreen .exit-fullscreen-btn { display: block; }
+        /* Prevent text selection on problem description */
+.prose, .prose-invert, h2, h3, p, .test-case, #problem-description {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+}
+
+/* Allow selection in editor only for editing, but copying is still blocked by JS */
+.monaco-editor, .monaco-editor * {
+    user-select: text !important;
+}
     </style>
 </head>
 <body>
@@ -66,10 +78,12 @@
             <div class="mt-4 p-3 bg-gray-700 rounded text-xs text-gray-400">
                 <p class="font-bold text-yellow-500 mb-1">⚠️ Anti-Cheat Active:</p>
                 <ul class="list-disc pl-4 space-y-1">
-                    <li>Do not switch tabs (detected: <span id="tab-count">0</span>)</li>
-                    <li>Do not copy/paste (detected: <span id="paste-count">0</span>)</li>
-                    <li>Stay in fullscreen mode</li>
+                    <li>Tab switches: <span id="tab-count" class="text-red-400 font-bold">0</span></li>
+                    <li>Copy attempts (BLOCKED): <span id="copy-count" class="text-red-400 font-bold">0</span></li>
+                    <li>Paste attempts (BLOCKED): <span id="paste-count" class="text-red-400 font-bold">0</span></li>
+                    <li>Fullscreen exits: <span id="fullscreen-count" class="text-red-400 font-bold">0</span></li>
                 </ul>
+                <p id="cheat-status" class="mt-2 text-green-400 font-bold">✓ Activity Normal</p>
             </div>
         </div>
 
@@ -106,249 +120,473 @@
     </div>
 
     <script>
-        const TOKEN = "{{ session.access_token }}";
-        const STARTER_CODE = `{{ starter_code|escapejs }}`;
+    const TOKEN = "{{ session.access_token }}";
+    const STARTER_CODE = `{{ starter_code|escapejs }}`;
+    
+    let editor;
+    let tabSwitches = 0;
+    let copyCount = 0;        // Separate counter for copy
+    let pasteCount = 0;     // Separate counter for paste
+    let copyPastes = 0;     // Total for backward compatibility
+    let fullscreenExits = 0;
+    let timeRemaining = parseInt(document.getElementById('timer').dataset.seconds);
+    let timerInterval;
+    let cheatScore = 0; // Accumulated cheat score
+
+    // Initialize Monaco Editor
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+    require(['vs/editor/editor.main'], function() {
+        editor = monaco.editor.create(document.getElementById('editor-container'), {
+            value: STARTER_CODE,
+            language: '{{ language }}',
+            theme: 'vs-dark',
+            automaticLayout: true,
+            minimap: { enabled: false },
+            fontSize: 14,
+            fontFamily: 'Fira Code, monospace',
+            scrollBeyondLastLine: false,
+            roundedSelection: false,
+            padding: { top: 16 }
+        });
+    });
+
+    // ==================== ANTI-CHEAT: COPY/CUT/PASTE BLOCKING ====================
+    
+    // BLOCK COPY COMPLETELY - Prevent copying questions
+    document.addEventListener('copy', (e) => {
+        e.preventDefault(); // BLOCK THE COPY ACTION
+        e.stopPropagation();
         
-        let editor;
-        let tabSwitches = 0;
-        let copyPastes = 0;
-        let fullscreenExits = 0;
-        let timeRemaining = parseInt(document.getElementById('timer').dataset.seconds);
-        let timerInterval;
+        copyCount++;
+        copyPastes++;
+        cheatScore += 10; // Heavy penalty for trying to copy
+        updateCheatDisplay();
+        showCheatWarning('🚫 COPYING IS STRICTLY PROHIBITED! Attempt recorded.');
+        console.log('Copy BLOCKED, attempt:', copyCount);
+        
+        // Alert the user
+        alert('⚠️ COPYING IS NOT ALLOWED!\n\nCopying assessment content is strictly prohibited. This attempt has been logged and will be flagged.');
+    }, true);
 
-        // Initialize Monaco Editor
-        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
-        require(['vs/editor/editor.main'], function() {
-            editor = monaco.editor.create(document.getElementById('editor-container'), {
-                value: STARTER_CODE,
-                language: '{{ language }}',
-                theme: 'vs-dark',
-                automaticLayout: true,
-                minimap: { enabled: false },
-                fontSize: 14,
-                fontFamily: 'Fira Code, monospace',
-                scrollBeyondLastLine: false,
-                roundedSelection: false,
-                padding: { top: 16 }
-            });
-        });
+    // BLOCK CUT COMPLETELY
+    document.addEventListener('cut', (e) => {
+        e.preventDefault(); // BLOCK THE CUT ACTION
+        e.stopPropagation();
+        
+        copyCount++;
+        copyPastes++;
+        cheatScore += 10;
+        updateCheatDisplay();
+        showCheatWarning('🚫 CUTTING IS STRICTLY PROHIBITED! Attempt recorded.');
+        console.log('Cut BLOCKED, attempt:', copyCount);
+        
+        alert('⚠️ CUTTING IS NOT ALLOWED!\n\nThis attempt has been logged.');
+    }, true);
 
-        // Anti-Cheat: Prevent copy/paste
-        document.addEventListener('copy', (e) => {
-            copyPastes++;
-            updateCheatDisplay();
-            e.preventDefault();
-            alert('Copy is disabled during the assessment');
-        });
+    // BLOCK PASTE COMPLETELY - Prevent external code
+    document.addEventListener('paste', (e) => {
+        e.preventDefault(); // BLOCK THE PASTE ACTION
+        e.stopPropagation();
+        
+        pasteCount++;
+        copyPastes++;
+        cheatScore += 15; // Paste is the most serious offense
+        updateCheatDisplay();
+        showCheatWarning('🚫 PASTING IS STRICTLY PROHIBITED! External code not allowed.');
+        console.log('Paste BLOCKED, attempt:', pasteCount);
+        
+        alert('⚠️ PASTING IS NOT ALLOWED!\n\nExternal code cannot be pasted into this assessment. This attempt has been logged and will be flagged.');
+    }, true); // 'true' = capture phase to catch event before Monaco Editor
 
-        document.addEventListener('paste', (e) => {
-            copyPastes++;
-            updateCheatDisplay();
-            e.preventDefault();
-            alert('Paste is disabled during the assessment');
-        });
-
-        document.addEventListener('cut', (e) => {
-            e.preventDefault();
-        });
-
-        // Anti-Cheat: Tab switch detection
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                tabSwitches++;
+    // ==================== ANTI-CHEAT: KEYBOARD SHORTCUTS BLOCKING ====================
+    
+    // Block Ctrl+C, Ctrl+X, Ctrl+V, Ctrl+A (select all)
+    document.addEventListener('keydown', (e) => {
+        const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+        
+        if (isCtrlOrCmd) {
+            // Block copy (Ctrl+C)
+            if (e.key === 'c' || e.key === 'C') {
+                e.preventDefault();
+                e.stopPropagation();
+                copyCount++;
+                copyPastes++;
+                cheatScore += 10;
                 updateCheatDisplay();
-                document.getElementById('cheat-warning').style.display = 'block';
-                setTimeout(() => {
-                    document.getElementById('cheat-warning').style.display = 'none';
-                }, 3000);
+                showCheatWarning('Ctrl+C blocked!');
+                alert('⚠️ Copying is not allowed!');
+                return false;
             }
-        });
-
-        // Anti-Cheat: Fullscreen enforcement
-        document.addEventListener('fullscreenchange', () => {
-            if (!document.fullscreenElement) {
-                fullscreenExits++;
+            
+            // Block cut (Ctrl+X)
+            if (e.key === 'x' || e.key === 'X') {
+                e.preventDefault();
+                e.stopPropagation();
+                copyCount++;
+                copyPastes++;
+                cheatScore += 10;
                 updateCheatDisplay();
-                alert('Please remain in fullscreen mode during the assessment');
+                showCheatWarning('Ctrl+X blocked!');
+                alert('⚠️ Cutting is not allowed!');
+                return false;
             }
-        });
-
-        function updateCheatDisplay() {
-            document.getElementById('tab-count').textContent = tabSwitches;
-            document.getElementById('paste-count').textContent = copyPastes;
+            
+            // Block paste (Ctrl+V)
+            if (e.key === 'v' || e.key === 'V') {
+                e.preventDefault();
+                e.stopPropagation();
+                pasteCount++;
+                copyPastes++;
+                cheatScore += 15;
+                updateCheatDisplay();
+                showCheatWarning('Ctrl+V blocked! External code not allowed.');
+                alert('⚠️ Pasting external code is not allowed!');
+                return false;
+            }
+            
+            // Block select all (Ctrl+A) in problem description area
+            const activeElement = document.activeElement;
+            const isInProblemArea = activeElement.closest('.prose, .prose-invert, #problem-description');
+            if ((e.key === 'a' || e.key === 'A') && isInProblemArea) {
+                e.preventDefault();
+                e.stopPropagation();
+                showCheatWarning('Select All blocked in problem area!');
+                return false;
+            }
         }
+    }, true);
 
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
-            } else {
+    // ==================== ANTI-CHEAT: TAB SWITCH DETECTION ====================
+    
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            tabSwitches++;
+            cheatScore += 5; // Tab switch is serious
+            updateCheatDisplay();
+            showCheatWarning('⚠️ Tab switch detected! Stay on this page.');
+            console.log('Tab switch detected, count:', tabSwitches);
+        }
+    });
+
+    // ==================== ANTI-CHEAT: FULLSCREEN EXIT DETECTION ====================
+    
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) {
+            fullscreenExits++;
+            cheatScore += 10; // Exiting fullscreen is very serious
+            updateCheatDisplay();
+            showCheatWarning('⚠️ Fullscreen exit detected! Return to fullscreen immediately.');
+            console.log('Fullscreen exit detected, count:', fullscreenExits);
+            
+            // Auto-request fullscreen again after short delay
+            setTimeout(() => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.log('Auto fullscreen denied:', err);
+                    });
+                }
+            }, 1000);
+        }
+    });
+
+    // Additional window blur detection
+    window.addEventListener('blur', () => {
+        console.log('Window lost focus');
+    });
+
+    // ==================== ANTI-CHEAT: RIGHT-CLICK BLOCKING ====================
+    
+    // Block right-click context menu completely
+    document.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showCheatWarning('Right-click is disabled');
+        return false;
+    });
+
+    // ==================== ANTI-CHEAT: DISPLAY UPDATES ====================
+    
+    function updateCheatDisplay() {
+        document.getElementById('tab-count').textContent = tabSwitches;
+        document.getElementById('paste-count').textContent = pasteCount; // Now shows actual paste count
+        document.getElementById('fullscreen-count').textContent = fullscreenExits;
+        
+        const statusEl = document.getElementById('cheat-status');
+        if (cheatScore > 50) {
+            statusEl.textContent = '⚠️ HIGH RISK - Will be flagged';
+            statusEl.className = 'mt-2 text-red-500 font-bold';
+        } else if (cheatScore > 20) {
+            statusEl.textContent = '⚠️ Suspicious Activity';
+            statusEl.className = 'mt-2 text-yellow-400 font-bold';
+        } else {
+            statusEl.textContent = '✓ Activity Normal';
+            statusEl.className = 'mt-2 text-green-400 font-bold';
+        }
+    }
+
+    function showCheatWarning(message) {
+        const warning = document.getElementById('cheat-warning');
+        warning.textContent = '⚠️ ' + message;
+        warning.style.display = 'block';
+        
+        // Auto-hide after 3 seconds unless it's severe
+        const hideDelay = cheatScore > 30 ? 5000 : 3000;
+        setTimeout(() => {
+            warning.style.display = 'none';
+        }, hideDelay);
+    }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.log('Fullscreen denied:', err);
+            });
+        } else {
+            // Don't allow manual exit easily
+            if (confirm('Are you sure you want to exit fullscreen? This will be flagged.')) {
                 document.exitFullscreen();
             }
         }
+    }
 
-        // Timer
-        function updateTimer() {
-            if (timeRemaining <= 0) {
-                clearInterval(timerInterval);
-                alert('Time is up! Your assessment will be submitted automatically.');
-                submitTest();
-                return;
+    // ==================== TIMER ====================
+    
+    function updateTimer() {
+        if (timeRemaining <= 0) {
+            clearInterval(timerInterval);
+            alert('Time is up! Your assessment will be submitted automatically.');
+            submitTest(true); // Auto-submit flag
+            return;
+        }
+        
+        const mins = Math.floor(timeRemaining / 60);
+        const secs = timeRemaining % 60;
+        document.getElementById('timer').textContent = 
+            `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        
+        if (timeRemaining < 300) { // Less than 5 minutes
+            document.getElementById('timer').style.color = '#ef4444';
+        }
+        
+        timeRemaining--;
+    }
+
+    timerInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+
+    // ==================== CODE EXECUTION ====================
+    
+    async function runCode() {
+        const code = editor.getValue();
+        const outputDiv = document.getElementById('console-output');
+        outputDiv.textContent = 'Running...';
+
+        try {
+            const response = await fetch(`/vetting/api/test/${TOKEN}/execute/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    code: code,
+                    language: document.getElementById('language-select').value,
+                    stdin: ''
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                const output = data.output;
+                let display = '';
+                if (output.stdout) display += output.stdout;
+                if (output.stderr) display += '\n[Errors]:\n' + output.stderr;
+                if (output.compile_output) display += '\n[Compile]:\n' + output.compile_output;
+                outputDiv.textContent = display || 'No output';
+            } else {
+                outputDiv.textContent = 'Error: ' + data.message;
             }
+        } catch (error) {
+            outputDiv.textContent = 'Network error: ' + error.message;
+        }
+    }
+
+    // ==================== TEST EXECUTION ====================
+    
+    async function runTests() {
+        const code = editor.getValue();
+        const resultsDiv = document.getElementById('test-results');
+        resultsDiv.innerHTML = '<p class="text-yellow-500">Running tests...</p>';
+
+        try {
+            const response = await fetch(`/vetting/api/test/${TOKEN}/execute/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    code: code,
+                    language: document.getElementById('language-select').value,
+                    run_tests: true
+                })
+            });
+
+            const data = await response.json();
             
-            const mins = Math.floor(timeRemaining / 60);
-            const secs = timeRemaining % 60;
-            document.getElementById('timer').textContent = 
-                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-            
-            if (timeRemaining < 300) { // Less than 5 minutes
-                document.getElementById('timer').style.color = '#ef4444';
+            if (data.status === 'success') {
+                displayTestResults(data.results);
+            } else {
+                resultsDiv.innerHTML = '<p class="text-red-500">Error running tests: ' + data.message + '</p>';
             }
-            
-            timeRemaining--;
+        } catch (error) {
+            resultsDiv.innerHTML = '<p class="text-red-500">Network error: ' + error.message + '</p>';
+        }
+    }
+
+    function displayTestResults(results) {
+        const container = document.getElementById('test-results');
+        container.innerHTML = `
+            <div class="mb-2 font-bold ${results.score === 100 ? 'text-green-500' : 'text-yellow-500'}">
+                Score: ${Math.round(results.score)}% (${results.passed}/${results.total} passed)
+            </div>
+        `;
+
+        if (!results.details || results.details.length === 0) {
+            container.innerHTML += '<p class="text-gray-400">No test details available</p>';
+            return;
         }
 
-        timerInterval = setInterval(updateTimer, 1000);
-        updateTimer();
-
-        // Run Code
-        async function runCode() {
-            const code = editor.getValue();
-            const outputDiv = document.getElementById('console-output');
-            outputDiv.textContent = 'Running...';
-
-            try {
-                const response = await fetch(`/vetting/api/test/${TOKEN}/execute/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        code: code,
-                        language: document.getElementById('language-select').value,
-                        stdin: ''
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    const output = data.output;
-                    let display = '';
-                    if (output.stdout) display += output.stdout;
-                    if (output.stderr) display += '\n[Errors]:\n' + output.stderr;
-                    if (output.compile_output) display += '\n[Compile]:\n' + output.compile_output;
-                    outputDiv.textContent = display || 'No output';
-                } else {
-                    outputDiv.textContent = 'Error: ' + data.message;
-                }
-            } catch (error) {
-                outputDiv.textContent = 'Network error: ' + error.message;
-            }
-        }
-
-        // Run Tests
-        async function runTests() {
-            const code = editor.getValue();
-            const resultsDiv = document.getElementById('test-results');
-            resultsDiv.innerHTML = '<p class="text-yellow-500">Running tests...</p>';
-
-            try {
-                const response = await fetch(`/vetting/api/test/${TOKEN}/execute/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        code: code,
-                        language: document.getElementById('language-select').value,
-                        run_tests: true
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    displayTestResults(data.results);
-                } else {
-                    resultsDiv.innerHTML = '<p class="text-red-500">Error running tests</p>';
-                }
-            } catch (error) {
-                resultsDiv.innerHTML = '<p class="text-red-500">Network error</p>';
-            }
-        }
-
-        function displayTestResults(results) {
-            const container = document.getElementById('test-results');
-            container.innerHTML = `
-                <div class="mb-2 font-bold ${results.score === 100 ? 'text-green-500' : 'text-yellow-500'}">
-                    Score: ${Math.round(results.score)}% (${results.passed}/${results.total} passed)
+        results.details.forEach((test, idx) => {
+            const div = document.createElement('div');
+            div.className = `test-case ${test.passed ? 'test-pass' : 'test-fail'}`;
+            div.innerHTML = `
+                <div class="font-bold">Test ${test.test_number}: ${test.passed ? '✓ PASS' : '✗ FAIL'}</div>
+                <div class="text-xs mt-1">
+                    <div>Input: ${test.input || 'N/A'}</div>
+                    <div>Expected: ${test.expected || 'N/A'}</div>
+                    ${!test.passed ? `<div>Got: ${test.actual || 'N/A'}</div>` : ''}
+                    ${test.error ? `<div class="text-red-400">Error: ${test.error}</div>` : ''}
                 </div>
             `;
+            container.appendChild(div);
+        });
+    }
 
-            results.details.forEach((test, idx) => {
-                const div = document.createElement('div');
-                div.className = `test-case ${test.passed ? 'test-pass' : 'test-fail'}`;
-                div.innerHTML = `
-                    <div class="font-bold">Test ${test.test_number}: ${test.passed ? '✓ PASS' : '✗ FAIL'}</div>
-                    <div class="text-xs mt-1">
-                        <div>Input: ${test.input}</div>
-                        <div>Expected: ${test.expected}</div>
-                        ${!test.passed ? `<div>Got: ${test.actual}</div>` : ''}
-                        ${test.error ? `<div class="text-red-400">Error: ${test.error}</div>` : ''}
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-        }
-
-        // Submit Test
-        async function submitTest() {
-            if (!confirm('Are you sure you want to submit? You cannot undo this action.')) {
+    // ==================== TEST SUBMISSION ====================
+    
+    async function submitTest(autoSubmit = false) {
+        if (!autoSubmit) {
+            const confirmMsg = cheatScore > 30 
+                ? `⚠️ WARNING: ${tabSwitches} tab switches, ${copyCount} copy attempts, ${pasteCount} paste attempts detected.\nYour submission will be flagged for review.\n\nSubmit anyway?`
+                : 'Are you sure you want to submit? You cannot undo this action.';
+            
+            if (!confirm(confirmMsg)) {
                 return;
             }
+        }
 
-            const code = editor.getValue();
+        const code = editor.getValue();
+        
+        // Show submitting state
+        const btn = document.querySelector('button[onclick="submitTest()"]');
+        if (btn) {
+            btn.textContent = 'Submitting...';
+            btn.disabled = true;
+        }
+
+        try {
+            console.log('Submitting with anti-cheat data:', {
+                tab_switches: tabSwitches,
+                copy_count: copyCount,
+                paste_count: pasteCount,
+                copy_pastes: copyPastes, // Total for backward compatibility
+                fullscreen_exits: fullscreenExits,
+                cheat_score: cheatScore
+            });
+
+            const response = await fetch(`/vetting/api/test/${TOKEN}/submit/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    code: code,
+                    tab_switches: tabSwitches,
+                    copy_pastes: copyPastes, // Send total for backward compatibility
+                    copy_count: copyCount,   // Send separate counts
+                    paste_count: pasteCount,
+                    fullscreen_exits: fullscreenExits,
+                    cheat_score: cheatScore,
+                    auto_submitted: autoSubmit
+                })
+            });
+
+            const data = await response.json();
             
-            try {
-                const response = await fetch(`/vetting/api/test/${TOKEN}/submit/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        code: code,
-                        tab_switches: tabSwitches,
-                        copy_pastes: copyPastes,
-                        fullscreen_exits: fullscreenExits
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    alert(`Assessment submitted!\\nScore: ${data.score}%\\nPassed: ${data.passed ? 'Yes' : 'No'}`);
-                    window.location.href = '/student/dashboard/';
-                } else {
-                    alert('Error: ' + data.message);
+            if (data.status === 'success') {
+                let msg = `Assessment submitted!\n\nScore: ${data.score}%\nPassed: ${data.passed ? 'Yes ✓' : 'No ✗'}`;
+                if (data.layer_breakdown) {
+                    msg += `\n\nBreakdown:\n- Tests: ${data.layer_breakdown.tests}%\n- Quality: ${data.layer_breakdown.quality}%\n- AI: ${data.layer_breakdown.ai || 'N/A'}%`;
                 }
-            } catch (error) {
-                alert('Network error during submission');
+                if (cheatScore > 30) {
+                    msg += `\n\n⚠️ Your submission was flagged for suspicious activity:\n`;
+                    msg += `- ${tabSwitches} tab switches\n`;
+                    msg += `- ${copyCount} copy attempts (BLOCKED)\n`;
+                    msg += `- ${pasteCount} paste attempts (BLOCKED)\n`;
+                    msg += `- ${fullscreenExits} fullscreen exits`;
+                }
+                alert(msg);
+                window.location.href = '/student/dashboard/';
+            } else {
+                alert('Error: ' + data.message);
+                if (btn) {
+                    btn.textContent = 'Submit Test';
+                    btn.disabled = false;
+                }
+            }
+        } catch (error) {
+            console.error('Submission error:', error);
+            alert('Network error during submission. Please try again.');
+            if (btn) {
+                btn.textContent = 'Submit Test';
+                btn.disabled = false;
             }
         }
+    }
 
-        function resetCode() {
-            if (confirm('Reset to starter code? All your changes will be lost.')) {
-                editor.setValue(STARTER_CODE);
-            }
+    function resetCode() {
+        if (confirm('Reset to starter code? All your changes will be lost.')) {
+            editor.setValue(STARTER_CODE);
         }
+    }
 
-        // Warn before leaving
-        window.onbeforeunload = function() {
-            return "Are you sure you want to leave? Your progress will be lost.";
-        };
+    // ==================== PAGE LIFECYCLE ====================
+    
+    // Warn before leaving
+    window.onbeforeunload = function(e) {
+        if (timeRemaining > 0) {
+            e.preventDefault();
+            e.returnValue = "Are you sure you want to leave? Your assessment will be lost.";
+            return e.returnValue;
+        }
+    };
 
-        // Enter fullscreen on load
-        window.onload = function() {
+    // Enter fullscreen on load
+    window.onload = function() {
+        console.log('Assessment loaded. Anti-cheat active.');
+        updateCheatDisplay();
+        
+        // Request fullscreen after user interaction
+        setTimeout(() => {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
-                    console.log('Fullscreen denied:', err);
+                    console.log('Initial fullscreen denied:', err);
                 });
             }
-        };
-    </script>
+        }, 1000);
+    };
+
+    // Keyboard shortcut to run code (Ctrl+Enter) - ALLOW THIS ONE
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            runCode();
+        }
+    });
+</script>
 </body>
 </html>
