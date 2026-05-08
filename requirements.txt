@@ -20,12 +20,12 @@ Django==4.2.7
 django-cors-headers==4.9.0
 djangorestframework==3.17.1
 fsspec==2026.3.0
-git-filter-repo==2.47.0
 google-ai-generativelanguage==0.6.15
-google-api-core==2.30.3
-google-api-python-client==2.194.0
-google-auth==2.49.2
+google-api-core==2.30.2
+google-api-python-client==2.193.0
+google-auth==2.49.1
 google-auth-httplib2==0.3.1
+google-genai==1.72.0
 google-generativeai==0.8.6
 googleapis-common-protos==1.74.0
 grpcio==1.80.0
@@ -45,7 +45,7 @@ markdown-it-py==4.0.0
 mdurl==0.1.2
 mmh3==5.2.1
 multidict==6.7.1
-numpy==2.2.6
+numpy==2.4.4
 openai==2.30.0
 packaging==26.0
 pandas==3.0.2
