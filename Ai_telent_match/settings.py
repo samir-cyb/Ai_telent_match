@@ -82,7 +82,10 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-API_key=os.getenv('API_KEY')
+# This stays safe in your GitHub repo
+GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default-key')
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
