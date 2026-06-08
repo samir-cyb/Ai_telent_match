@@ -115,11 +115,15 @@ class CompanyVettingDashboardView(View):
             'final_score': float(result.final_score) if result and result.final_score else None,
             'layer1_score': float(result.layer1_test_score) if result and result.layer1_test_score else None,
             'layer2_score': float(result.layer2_static_score) if result and result.layer2_static_score else None,
-            'layer3_score': float(result.layer3_ai_score) if result and result.layer3_ai_score is not None else None,  # FIX HERE
+            'layer3_score': float(result.layer3_ai_score) if result and result.layer3_ai_score is not None else None,
             'time_taken': self._get_time_taken(session),
             'flags': self._get_flags(session),
             'passed': result.passed if result else False,
-            'submission_id': str(result.id) if result else None
+            'submission_id': str(result.id) if result else None,
+            # ADD THESE THREE LINES:
+            'tab_switches': session.tab_switch_count if session else 0,
+            'copy_pastes': session.copy_paste_attempts if session else 0,
+            'fullscreen_exits': session.fullscreen_exits if session else 0
         }
             data.append(item)
         
