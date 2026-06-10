@@ -79,6 +79,19 @@
         </div>
     </div>
 
+    <!-- Resume Upload Drop Zone -->
+    <div class="glass-card section-card" id="resume-drop-zone" style="margin-bottom: 2rem; cursor: pointer;">
+        <div class="section-header">
+            <h3><i class="fas fa-file-upload"></i> AI Resume Upload</h3>
+        </div>
+        <div class="drop-zone-content" id="drop-zone-content" style="border: 2px dashed rgba(72, 187, 255, 0.4); border-radius: 1rem; padding: 2.5rem 2rem; text-align: center; transition: all 0.3s ease;">
+            <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: #48bbff; margin-bottom: 1rem; display: block;"></i>
+            <p style="color: #f0f9ff; font-weight: 600; margin-bottom: 0.4rem; font-size: 1.05rem;">Drag & drop your CV here, or click to browse</p>
+            <p style="color: #64748b; font-size: 0.85rem;">Supports PDF, JPG, PNG</p>
+            <input type="file" id="resume-file-input" accept=".pdf,image/*" style="display: none;">
+        </div>
+    </div>
+
     <!-- Main Profile Grid -->
     <div class="profile-grid">
         <!-- Left Column: Personal Info & Skills -->
@@ -284,13 +297,92 @@
                     </ul>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
 
-<!-- ==================== MAIN EDIT PROFILE MODAL (CONSOLIDATED) ==================== -->
-<div class="modal-overlay" id="edit-modal" style="display: none;">
-    <div class="modal-container large">
+            <!-- ===== LINKEDIN VERIFICATION CARD ===== -->
+            <div class="glass-card section-card" id="linkedin-verification-card">
+                <div class="section-header">
+                    <h3><i class="fab fa-linkedin" style="color:#0a66c2;"></i> LinkedIn Verification</h3>
+                    <span class="linkedin-score-badge" id="li-score-badge" style="display:none;"></span>
+                </div>
+
+                <!-- Not yet uploaded state -->
+                <div id="li-upload-zone">
+                    <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1rem;">
+                        Upload your <strong style="color:#e2e8f0;">LinkedIn PDF export</strong> to cross-verify your skills and boost your trust score.
+                    </p>
+                    <ol style="color:#64748b;font-size:0.82rem;margin-bottom:1.2rem;padding-left:1.2rem;line-height:1.8;">
+                        <li>Open LinkedIn → Me → Settings &amp; Privacy</li>
+                        <li>Data Privacy → Get a copy of your data</li>
+                        <li>Select "Profile" → Request archive → Download PDF</li>
+                    </ol>
+                    <div class="linkedin-drop-zone" id="li-drop-zone" onclick="document.getElementById('li-file-input').click()">
+                        <i class="fab fa-linkedin" style="font-size:2rem;color:#0a66c2;margin-bottom:0.5rem;display:block;"></i>
+                        <span style="color:#94a3b8;font-size:0.9rem;">Click to upload LinkedIn PDF</span>
+                        <input type="file" id="li-file-input" accept=".pdf" style="display:none;" onchange="handleLinkedInUpload(this.files[0])">
+                    </div>
+                </div>
+
+                <!-- Verified state (hidden until upload succeeds) -->
+                <div id="li-verified-zone" style="display:none;">
+                    <div class="li-score-row">
+                        <div class="li-score-circle" id="li-score-circle">0</div>
+                        <div class="li-score-meta">
+                            <div class="li-stat" id="li-headline-display" style="color:#e2e8f0;font-size:0.9rem;font-style:italic;"></div>
+                            <div style="margin-top:0.5rem;display:flex;gap:0.5rem;flex-wrap:wrap;" id="li-stats-row"></div>
+                        </div>
+                    </div>
+                    <div id="li-cross-validated-list" style="margin-top:1rem;"></div>
+                    <div id="li-new-skills-list" style="margin-top:0.8rem;"></div>
+                    <button class="btn-secondary" style="margin-top:1rem;font-size:0.8rem;" onclick="document.getElementById('li-file-input').click()">
+                        <i class="fas fa-redo"></i> Re-upload LinkedIn PDF
+                    </button>
+                </div>
+
+                <div id="li-loader" style="display:none;text-align:center;padding:1.5rem;">
+                    <div class="li-spinner"></div>
+                    <p style="color:#94a3b8;margin-top:0.8rem;font-size:0.9rem;">Parsing LinkedIn profile…</p>
+                </div>
+            </div>
+
+            <!-- ===== SMART JOB RECOMMENDATIONS CARD ===== -->
+            <div class="glass-card section-card" id="recommendations-card">
+                <div class="section-header">
+                    <h3><i class="fas fa-magic" style="color:#a78bfa;"></i> Smart Recommendations</h3>
+                    <button class="btn-icon" onclick="loadRecommendations()" title="Refresh">
+                        <i class="fas fa-sync" id="reco-refresh-icon"></i>
+                    </button>
+                </div>
+
+                <div id="reco-loading" style="text-align:center;padding:1.5rem;display:none;">
+                    <div class="li-spinner" style="border-top-color:#a78bfa;"></div>
+                    <p style="color:#94a3b8;margin-top:0.8rem;font-size:0.85rem;">Analyzing job market…</p>
+                </div>
+
+                <div id="reco-empty" style="color:#64748b;font-size:0.88rem;text-align:center;padding:1rem;">
+                    <i class="fas fa-briefcase" style="font-size:1.5rem;color:#334155;display:block;margin-bottom:0.5rem;"></i>
+                    Click refresh to see your best job matches.
+                </div>
+
+                <!-- Top Jobs List -->
+                <div id="reco-jobs-list" style="display:none;"></div>
+
+                <!-- Career Guide -->
+                <div id="career-guide-section" style="display:none;margin-top:1.2rem;border-top:1px solid rgba(72,187,255,0.15);padding-top:1rem;">
+                    <h4 style="color:#a78bfa;font-size:0.85rem;margin-bottom:0.7rem;">
+                        <i class="fas fa-graduation-cap"></i> Career Guide — Skills That Unlock More Jobs
+                    </h4>
+                    <div id="career-guide-list"></div>
+                </div>
+            </div>
+
+        </div><!-- end profile-right -->
+    </div><!-- end profile-grid -->
+</div><!-- end container -->
+
+<!-- ==================== FULL-SCREEN EDIT PROFILE MODAL ==================== -->
+<!-- FIX: True full-screen modal - fills entire viewport, no black border areas -->
+<div id="edit-modal" class="edit-modal-overlay">
+    <div class="edit-modal-container">
         <div class="modal-header-large">
             <h2><i class="fas fa-user-edit"></i> Edit Profile</h2>
             <button class="modal-close-btn" onclick="closeModal()">
@@ -313,12 +405,49 @@
                         </div>
                         <div class="form-group enhanced">
                             <label>Department *</label>
-                            <select id="edit-department" required>
-                                <option value="CSE">Computer Science & Engineering</option>
-                                <option value="BBA">Business Administration</option>
-                                <option value="EEE">Electrical & Electronic Engineering</option>
-                                <option value="ME">Mechanical Engineering</option>
-                                <option value="CE">Civil Engineering</option>
+                            <select id="edit-department" required onchange="onDepartmentChange(this.value)">
+                                <optgroup label="Technology">
+                                    <option value="CSE">Computer Science & Engineering</option>
+                                    <option value="SWE">Software Engineering</option>
+                                    <option value="IT">Information Technology</option>
+                                    <option value="Data Science">Data Science & ML</option>
+                                    <option value="Cybersecurity">Cybersecurity</option>
+                                </optgroup>
+                                <optgroup label="Engineering">
+                                    <option value="EEE">Electrical & Electronic Engineering</option>
+                                    <option value="ECE">Electronics & Communication Engg.</option>
+                                    <option value="ME">Mechanical Engineering</option>
+                                    <option value="CE">Civil Engineering</option>
+                                    <option value="ChE">Chemical Engineering</option>
+                                    <option value="BME">Biomedical Engineering</option>
+                                </optgroup>
+                                <optgroup label="Business">
+                                    <option value="BBA">Business Administration (BBA)</option>
+                                    <option value="MBA">Business Administration (MBA)</option>
+                                    <option value="Finance">Finance & Accounting</option>
+                                    <option value="Marketing">Marketing</option>
+                                    <option value="HRM">Human Resource Management</option>
+                                </optgroup>
+                                <optgroup label="Design & Creative">
+                                    <option value="Design">Graphic Design / Visual Arts</option>
+                                    <option value="UI/UX">UI/UX Design</option>
+                                    <option value="Fine Arts">Fine Arts</option>
+                                    <option value="Architecture">Architecture</option>
+                                </optgroup>
+                                <optgroup label="Science & Research">
+                                    <option value="Physics">Physics</option>
+                                    <option value="Chemistry">Chemistry</option>
+                                    <option value="Biology">Biology</option>
+                                    <option value="Mathematics">Mathematics</option>
+                                    <option value="Statistics">Statistics</option>
+                                </optgroup>
+                                <optgroup label="Humanities & Liberal Arts">
+                                    <option value="English">English Literature</option>
+                                    <option value="Journalism">Journalism & Media</option>
+                                    <option value="Economics">Economics</option>
+                                    <option value="Sociology">Sociology</option>
+                                    <option value="Political Science">Political Science</option>
+                                </optgroup>
                                 <option value="Other">Other</option>
                             </select>
                         </div>
@@ -354,9 +483,15 @@
                         <h4>Profile Links</h4>
                     </div>
                     <div class="form-row">
-                        <div class="form-group enhanced">
+                        <!-- GitHub: shown for tech / engineering only -->
+                        <div class="form-group enhanced dept-field dept-tech dept-engineering" id="github-field-group">
                             <label><i class="fab fa-github"></i> GitHub Username</label>
                             <input type="text" id="edit-github" placeholder="username">
+                        </div>
+                        <!-- Behance: shown for design only -->
+                        <div class="form-group enhanced dept-field dept-design" id="behance-field-group" style="display:none">
+                            <label><i class="fab fa-behance"></i> Behance / Dribbble URL</label>
+                            <input type="url" id="edit-behance" placeholder="https://behance.net/username">
                         </div>
                         <div class="form-group enhanced">
                             <label><i class="fab fa-linkedin"></i> LinkedIn URL</label>
@@ -364,7 +499,7 @@
                         </div>
                     </div>
                     <div class="form-group enhanced full-width">
-                        <label><i class="fas fa-globe"></i> Portfolio Website</label>
+                        <label><i class="fas fa-globe"></i> Portfolio / Personal Website</label>
                         <input type="url" id="edit-portfolio" placeholder="https://yourportfolio.com">
                     </div>
                 </div>
@@ -387,13 +522,26 @@
                                 <label>Category</label>
                                 <select id="new-skill-category">
                                     <option value="">Select Category</option>
-                                    <option value="Frontend">Frontend Development</option>
-                                    <option value="Backend">Backend Development</option>
-                                    <option value="AI/ML">AI/ML</option>
-                                    <option value="Design">Design</option>
-                                    <option value="Soft Skills">Soft Skills</option>
-                                    <option value="DevOps">DevOps</option>
-                                    <option value="Data Science">Data Science</option>
+                                    <optgroup label="Technology">
+                                        <option value="Frontend">Frontend Development</option>
+                                        <option value="Backend">Backend Development</option>
+                                        <option value="AI/ML">AI / ML</option>
+                                        <option value="DevOps">DevOps & Cloud</option>
+                                        <option value="Data Science">Data Science</option>
+                                        <option value="Mobile">Mobile Development</option>
+                                        <option value="Cybersecurity">Cybersecurity</option>
+                                    </optgroup>
+                                    <optgroup label="Non-Tech">
+                                        <option value="Design">Design & Creative</option>
+                                        <option value="Business">Business & Management</option>
+                                        <option value="Finance">Finance & Accounting</option>
+                                        <option value="Marketing">Marketing & Sales</option>
+                                        <option value="Engineering">Engineering</option>
+                                        <option value="Research">Research & Analytics</option>
+                                        <option value="Communication">Communication & Languages</option>
+                                        <option value="Soft Skills">Soft Skills</option>
+                                    </optgroup>
+                                    <option value="Uncategorized">Uncategorized</option>
                                 </select>
                             </div>
                             <div class="form-group enhanced">
@@ -416,7 +564,7 @@
                     </div>
                 </div>
 
-                <!-- Projects Management Section - NEW -->
+                <!-- Projects Management Section -->
                 <div class="form-section-card">
                     <div class="section-title-bar">
                         <i class="fas fa-project-diagram"></i>
@@ -516,7 +664,106 @@
                         <p class="no-data-small">No experience added yet. Add your first experience above.</p>
                     </div>
                 </div>
-                
+
+                <!-- Certifications Section (all departments) -->
+                <div class="form-section-card" id="certifications-section">
+                    <div class="section-title-bar">
+                        <i class="fas fa-certificate"></i>
+                        <h4>Certifications</h4>
+                    </div>
+                    <div class="add-cert-form">
+                        <div class="form-row three-col">
+                            <div class="form-group enhanced">
+                                <label>Certification Name</label>
+                                <input type="text" id="new-cert-name" placeholder="e.g., AWS Solutions Architect">
+                            </div>
+                            <div class="form-group enhanced">
+                                <label>Issuing Organization</label>
+                                <input type="text" id="new-cert-issuer" placeholder="e.g., Amazon Web Services">
+                            </div>
+                            <div class="form-group enhanced">
+                                <label>Year</label>
+                                <input type="number" id="new-cert-year" placeholder="2024" min="2000" max="2030">
+                            </div>
+                        </div>
+                        <div class="form-group enhanced full-width">
+                            <label>Certificate URL (optional)</label>
+                            <input type="url" id="new-cert-url" placeholder="https://credential.net/...">
+                        </div>
+                        <button type="button" class="btn-secondary btn-sm" onclick="addCertification()">
+                            <i class="fas fa-plus"></i> Add Certification
+                        </button>
+                    </div>
+                    <div class="managed-list" id="modal-certs-list">
+                        <p class="no-data-small">No certifications added yet.</p>
+                    </div>
+                </div>
+
+                <!-- ECA Activities Section (all departments) -->
+                <div class="form-section-card" id="eca-section">
+                    <div class="section-title-bar">
+                        <i class="fas fa-users"></i>
+                        <h4>Extra-Curricular Activities & Leadership</h4>
+                    </div>
+                    <div class="add-eca-form">
+                        <div class="form-row three-col">
+                            <div class="form-group enhanced">
+                                <label>Activity / Club / Organisation</label>
+                                <input type="text" id="new-eca-title" placeholder="e.g., Debate Club, Hackathon">
+                            </div>
+                            <div class="form-group enhanced">
+                                <label>Role</label>
+                                <input type="text" id="new-eca-role" placeholder="e.g., President, Participant">
+                            </div>
+                            <div class="form-group enhanced">
+                                <label>Duration</label>
+                                <input type="text" id="new-eca-duration" placeholder="e.g., 2022–2024">
+                            </div>
+                        </div>
+                        <button type="button" class="btn-secondary btn-sm" onclick="addECA()">
+                            <i class="fas fa-plus"></i> Add Activity
+                        </button>
+                    </div>
+                    <div class="managed-list" id="modal-eca-list">
+                        <p class="no-data-small">No activities added yet.</p>
+                    </div>
+                </div>
+
+                <!-- Research Papers Section (science / engineering) -->
+                <div class="form-section-card dept-field dept-science dept-engineering" id="research-section" style="display:none">
+                    <div class="section-title-bar">
+                        <i class="fas fa-flask"></i>
+                        <h4>Research Papers & Publications</h4>
+                    </div>
+                    <div class="add-research-form">
+                        <div class="form-row">
+                            <div class="form-group enhanced">
+                                <label>Paper / Thesis Title</label>
+                                <input type="text" id="new-research-title" placeholder="e.g., Deep Learning for Protein Folding">
+                            </div>
+                            <div class="form-group enhanced">
+                                <label>Venue / Journal</label>
+                                <input type="text" id="new-research-venue" placeholder="e.g., IEEE, Nature, ICML">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group enhanced">
+                                <label>Year</label>
+                                <input type="number" id="new-research-year" placeholder="2024" min="2000" max="2030">
+                            </div>
+                            <div class="form-group enhanced">
+                                <label>URL (optional)</label>
+                                <input type="url" id="new-research-url" placeholder="https://arxiv.org/abs/...">
+                            </div>
+                        </div>
+                        <button type="button" class="btn-secondary btn-sm" onclick="addResearchPaper()">
+                            <i class="fas fa-plus"></i> Add Paper
+                        </button>
+                    </div>
+                    <div class="managed-list" id="modal-research-list">
+                        <p class="no-data-small">No papers added yet.</p>
+                    </div>
+                </div>
 
                 <!-- Job Preferences Section -->
                 <div class="form-section-card">
@@ -592,12 +839,26 @@
     </div>
 </div>
 
+<!-- ==================== AI PARSING LOADER OVERLAY ==================== -->
+<!-- FIX: Full-screen loader with progress bar - visible IMMEDIATELY when CV is uploaded -->
+<div id="ai-loader-overlay" class="ai-loader-overlay">
+    <div class="ai-loader-content">
+        <div class="ai-spinner"></div>
+        <p class="ai-loader-title">AI is reading and parsing your resume...</p>
+        <div class="ai-progress-bar-container">
+            <div class="ai-progress-bar" id="ai-progress-bar"></div>
+        </div>
+        <p class="ai-progress-text" id="ai-progress-text">Uploading file...</p>
+    </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <script>
 const API_BASE = "http://127.0.0.1:8000/api";
 const studentId = localStorage.getItem('student_id');
+window.__studentId = studentId;  // expose for LinkedIn + recommendations functions
 
 if (!studentId) {
     window.location.href = '/student/login/';
@@ -607,10 +868,47 @@ let skillsChart;
 let profileData = {};
 let currentSkills = [];
 let currentExperiences = [];
-let currentProjects = [];  // NEW: Track projects in modal
+let currentProjects = [];
+let currentCertifications = [];
+let currentECA = [];
+let currentResearchPapers = [];
 let isSaving = false;
 
-// Load profile data
+// Maps department value → category group (mirrors Python DEPARTMENT_GROUP_MAP)
+const DEPT_GROUP_MAP = {
+    CSE:'tech', SWE:'tech', IT:'tech', 'Data Science':'tech', Cybersecurity:'tech',
+    EEE:'engineering', ECE:'engineering', ME:'engineering', CE:'engineering',
+    ChE:'engineering', BME:'engineering',
+    BBA:'business', MBA:'business', Finance:'business', Marketing:'business', HRM:'business',
+    Design:'design', 'UI/UX':'design', 'Fine Arts':'design', Architecture:'design',
+    Physics:'science', Chemistry:'science', Biology:'science',
+    Mathematics:'science', Statistics:'science',
+    English:'humanities', Journalism:'humanities', Economics:'humanities',
+    Sociology:'humanities', 'Political Science':'humanities',
+};
+
+function getDeptCategory(dept) {
+    return DEPT_GROUP_MAP[dept] || 'any';
+}
+
+function onDepartmentChange(dept) {
+    const cat = getDeptCategory(dept);
+
+    // GitHub field: tech + engineering only
+    const githubGroup = document.getElementById('github-field-group');
+    if (githubGroup) githubGroup.style.display = (cat === 'tech' || cat === 'engineering') ? '' : 'none';
+
+    // Behance field: design only
+    const behanceGroup = document.getElementById('behance-field-group');
+    if (behanceGroup) behanceGroup.style.display = (cat === 'design') ? '' : 'none';
+
+    // Research papers: science + engineering
+    const researchSection = document.getElementById('research-section');
+    if (researchSection) researchSection.style.display = (cat === 'science' || cat === 'engineering') ? '' : 'none';
+}
+
+// ==================== LOAD PROFILE ====================
+
 async function loadProfile() {
     try {
         const response = await fetch(`${API_BASE}/student/${studentId}/profile/`);
@@ -620,7 +918,7 @@ async function loadProfile() {
             profileData = data.data;
             currentSkills = data.data.skills || [];
             currentExperiences = data.data.experiences || [];
-            currentProjects = data.data.projects || [];  // NEW: Load projects
+            currentProjects = data.data.projects || [];
             updateProfile(data.data);
         }
     } catch (error) {
@@ -667,36 +965,59 @@ function updateProfile(data) {
     document.getElementById('portfolio-display').textContent = data.portfolio_url ? 'View Portfolio' : 'Not set';
     document.getElementById('portfolio-link').href = data.portfolio_url || '#';
     
-    // Update skills with fresh data
     currentSkills = data.skills || [];
     updateSkills(currentSkills);
-    
+
     const prefs = data.preferences || {};
     document.getElementById('pref-job-types').textContent = (prefs.job_types || []).join(', ') || 'Not set';
     document.getElementById('pref-salary').textContent = prefs.salary_expectation || 'Not set';
     document.getElementById('pref-company-size').textContent = (prefs.company_size || []).join(', ') || 'Not set';
     document.getElementById('pref-relocate').textContent = prefs.willing_to_relocate ? 'Yes' : 'No';
-    
+
     document.getElementById('github-score').textContent = `Score: ${data.github?.score || '--'}`;
-    
-    // NEW: Update projects with fresh data
+
     currentProjects = data.projects || [];
     updateProjects(currentProjects);
-    
-    // Update experiences with fresh data
+
     currentExperiences = data.experiences || [];
     updateExperience(currentExperiences);
+
+    // Store new department-enrichment fields in globals
+    currentCertifications = data.certifications || [];
+    currentECA = data.eca_activities || [];
+    currentResearchPapers = data.research_papers || [];
     
     updateTrajectory(data.career_trajectory || {});
     updateTrustBreakdown(data);
-    
+
+    // Restore LinkedIn verification card if already uploaded
+    if (data.linkedin_score && data.linkedin_score > 0) {
+        const liParsed = data.linkedin_parsed_data || {};
+        renderLinkedInResult({
+            linkedin_score: data.linkedin_score,
+            cross_validated_count: 0,
+            newly_cross_validated: [],
+            added_skills: [],
+            verified_experiences: [],
+            new_certifications: [],
+            parsed_summary: {
+                headline: liParsed.headline || null,
+                total_skills: (liParsed.skills || []).length,
+                total_experiences: (liParsed.experiences || []).length,
+                total_certifications: (liParsed.certifications || []).length,
+                experience_months: liParsed.total_experience_months || null,
+            },
+        });
+    }
+
     animateProfileElements();
 }
+
+// ==================== SKILLS DISPLAY ====================
 
 function updateSkills(skills) {
     const ctx = document.getElementById('skillsRadarChart').getContext('2d');
     
-    // Properly destroy existing chart
     if (skillsChart) {
         skillsChart.destroy();
         skillsChart = null;
@@ -761,6 +1082,8 @@ function updateSkills(skills) {
     document.getElementById('total-skills').textContent = skills.length;
 }
 
+// ==================== PROJECTS DISPLAY ====================
+
 function updateProjects(projects) {
     const container = document.getElementById('projects-grid');
     document.getElementById('total-projects').textContent = projects.length;
@@ -774,7 +1097,7 @@ function updateProjects(projects) {
         <div class="project-card" style="animation-delay: ${index * 0.1}s">
             <div class="project-header">
                 <h4>${proj.title}</h4>
-                ${proj.verified ? '<span class="verified-badge"><i class="fas fa-check"></i> Verified</span>' : '<span class="manual-badge"><i class="fas fa-user"></i> Manual</span>'}
+                <span class="${proj.verified ? 'verified-badge' : 'manual-badge'}">${proj.verified ? 'Verified' : 'Manual'}</span>
             </div>
             <p class="project-desc">${proj.description || 'No description'}</p>
             <div class="project-tech">
@@ -787,6 +1110,8 @@ function updateProjects(projects) {
         </div>
     `).join('');
 }
+
+// ==================== EXPERIENCE DISPLAY ====================
 
 function updateExperience(experiences) {
     const container = document.getElementById('experience-timeline');
@@ -811,6 +1136,8 @@ function updateExperience(experiences) {
         </div>
     `).join('');
 }
+
+// ==================== TRAJECTORY & TRUST ====================
 
 function updateTrajectory(trajectory) {
     if (!trajectory || Object.keys(trajectory).length === 0) {
@@ -881,30 +1208,47 @@ function animateProfileElements() {
 // ==================== MODAL FUNCTIONS ====================
 
 function editProfile() {
+    console.log('[DEBUG] editProfile() called - opening full-screen edit profile');
     const modal = document.getElementById('edit-modal');
-    modal.style.display = 'flex';
+    
+    // FIX: Use CSS class to show modal - cleaner and more reliable
     modal.classList.add('active');
+    
+    // Prevent body scroll when modal is open
     document.body.style.overflow = 'hidden';
+    
+    // Scroll modal to top
+    const scrollableBody = modal.querySelector('.modal-scrollable-body');
+    if (scrollableBody) scrollableBody.scrollTop = 0;
     
     // Reset arrays to current profile data
     currentSkills = [...(profileData.skills || [])];
     currentExperiences = [...(profileData.experiences || [])];
-    currentProjects = [...(profileData.projects || [])];  // NEW: Reset projects
-    
+    currentProjects = [...(profileData.projects || [])];
+    currentCertifications = [...(profileData.certifications || [])];
+    currentECA = [...(profileData.eca_activities || [])];
+    currentResearchPapers = [...(profileData.research_papers || [])];
+
     // Basic Info
     document.getElementById('edit-name').value = profileData.name || '';
-    document.getElementById('edit-department').value = profileData.department || 'CSE';
+    const dept = profileData.department || 'CSE';
+    document.getElementById('edit-department').value = dept;
     document.getElementById('edit-cgpa').value = profileData.cgpa || '';
-    
-    // FIX: Use the correct field name - check both university_id and student_id
+
     const studentIdValue = profileData.university_id || profileData.student_id || '';
     document.getElementById('edit-student-id').value = studentIdValue;
-    
+
     document.getElementById('edit-graduation').value = profileData.graduation_date || '';
-    document.getElementById('edit-github').value = profileData.github?.username || '';
-    document.getElementById('edit-linkedin').value = profileData.linkedin_url || '';
-    document.getElementById('edit-portfolio').value = profileData.portfolio_url || '';
-    
+
+    const safeSet = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+    safeSet('edit-github', profileData.github?.username);
+    safeSet('edit-linkedin', profileData.linkedin_url);
+    safeSet('edit-portfolio', profileData.portfolio_url);
+    safeSet('edit-behance', profileData.behance_url);
+
+    // Trigger department-adaptive visibility
+    onDepartmentChange(dept);
+
     // Job Preferences
     const prefs = profileData.preferences || {};
     document.getElementById('pref-remote').checked = (prefs.job_types || []).includes('Remote');
@@ -915,35 +1259,34 @@ function editProfile() {
     document.getElementById('pref-enterprise').checked = (prefs.company_size || []).includes('Enterprise');
     document.getElementById('pref-salary-input').value = prefs.salary_expectation || '';
     document.getElementById('pref-relocate-input').checked = prefs.willing_to_relocate || false;
-    
-    // Render Skills, Projects, and Experience in Modal
+
+    // Render all modal lists
     renderModalSkills();
-    renderModalProjects();  // NEW: Render projects
+    renderModalProjects();
     renderModalExperience();
+    renderCertifications();
+    renderECA();
+    renderResearchPapers();
 }
 
 function closeModal() {
+    console.log('[DEBUG] closeModal() called - closing edit profile');
     const modal = document.getElementById('edit-modal');
-    modal.style.display = 'none';
     modal.classList.remove('active');
+    
+    // Restore body scroll
     document.body.style.overflow = 'auto';
     
-    // Clear temporary inputs
-    document.getElementById('new-skill-name').value = '';
-    document.getElementById('new-skill-category').value = '';
-    document.getElementById('new-skill-level').value = 'Intermediate';
-    document.getElementById('new-exp-company').value = '';
-    document.getElementById('new-exp-role').value = '';
-    document.getElementById('new-exp-start').value = '';
-    document.getElementById('new-exp-end').value = '';
-    document.getElementById('new-exp-current').checked = false;
-    document.getElementById('new-exp-description').value = '';
-    // NEW: Clear project inputs
-    document.getElementById('new-project-title').value = '';
-    document.getElementById('new-project-github').value = '';
-    document.getElementById('new-project-description').value = '';
-    document.getElementById('new-project-tech').value = '';
-    document.getElementById('new-project-complexity').value = '3';
+    // Clear temporary inputs (use safe helper since some fields may not exist in every state)
+    const clearEl = (id, val = '') => { const el = document.getElementById(id); if (el) { if (typeof val === 'boolean') el.checked = val; else el.value = val; } };
+    clearEl('new-skill-name'); clearEl('new-skill-category'); clearEl('new-skill-level', 'Intermediate');
+    clearEl('new-exp-company'); clearEl('new-exp-role'); clearEl('new-exp-start'); clearEl('new-exp-end');
+    clearEl('new-exp-current', false); clearEl('new-exp-description');
+    clearEl('new-project-title'); clearEl('new-project-github');
+    clearEl('new-project-description'); clearEl('new-project-tech'); clearEl('new-project-complexity', '3');
+    clearEl('new-cert-name'); clearEl('new-cert-issuer'); clearEl('new-cert-year'); clearEl('new-cert-url');
+    clearEl('new-eca-title'); clearEl('new-eca-role'); clearEl('new-eca-duration');
+    clearEl('new-research-title'); clearEl('new-research-venue'); clearEl('new-research-year'); clearEl('new-research-url');
 }
 
 // ==================== SKILLS MANAGEMENT IN MODAL ====================
@@ -988,7 +1331,6 @@ function addSkillFromModal() {
     
     currentSkills.push(newSkill);
     
-    // Clear inputs
     document.getElementById('new-skill-name').value = '';
     document.getElementById('new-skill-category').value = '';
     document.getElementById('new-skill-level').value = 'Intermediate';
@@ -1003,7 +1345,7 @@ function removeSkill(index) {
     showNotification(`Skill "${removed.name}" removed`, 'success');
 }
 
-// ==================== PROJECTS MANAGEMENT IN MODAL - NEW ====================
+// ==================== PROJECTS MANAGEMENT IN MODAL ====================
 
 function renderModalProjects() {
     const container = document.getElementById('modal-projects-list');
@@ -1038,7 +1380,6 @@ function addProjectFromModal() {
         return;
     }
     
-    // Parse tech stack from comma-separated string
     const techStack = techInput ? techInput.split(',').map(t => t.trim()).filter(t => t) : [];
     
     const newProject = {
@@ -1047,12 +1388,11 @@ function addProjectFromModal() {
         tech_stack: techStack,
         complexity: complexity,
         github_url: githubUrl || null,
-        verified: false  // Manual projects are not verified by default
+        verified: false
     };
     
     currentProjects.push(newProject);
     
-    // Clear inputs
     document.getElementById('new-project-title').value = '';
     document.getElementById('new-project-github').value = '';
     document.getElementById('new-project-description').value = '';
@@ -1125,7 +1465,6 @@ function addExperienceFromModal() {
     
     currentExperiences.push(newExp);
     
-    // Clear inputs
     document.getElementById('new-exp-company').value = '';
     document.getElementById('new-exp-role').value = '';
     document.getElementById('new-exp-start').value = '';
@@ -1143,12 +1482,314 @@ function removeExperience(index) {
     showNotification(`Experience at "${removed.company}" removed`, 'success');
 }
 
-// Close modal on outside click
-window.onclick = function(event) {
-    if (event.target.classList.contains('modal-overlay')) {
-        closeModal();
+// ==================== CERTIFICATIONS ====================
+
+function renderCertifications() {
+    const container = document.getElementById('modal-certs-list');
+    if (!container) return;
+    if (!currentCertifications.length) {
+        container.innerHTML = '<p class="no-data-small">No certifications added yet.</p>';
+        return;
+    }
+    container.innerHTML = currentCertifications.map((c, i) => `
+        <div class="managed-item">
+            <div class="managed-item-info">
+                <span class="managed-item-title">${c.name}</span>
+                <span class="managed-item-subtitle">${c.issuer || ''}${c.year ? ' • ' + c.year : ''}</span>
+            </div>
+            <button type="button" class="btn-delete" onclick="removeCertification(${i})">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function addCertification() {
+    const name = document.getElementById('new-cert-name').value.trim();
+    const issuer = document.getElementById('new-cert-issuer').value.trim();
+    const year = document.getElementById('new-cert-year').value.trim();
+    const url = document.getElementById('new-cert-url').value.trim();
+    if (!name) { showNotification('Certification name is required', 'error'); return; }
+    currentCertifications.push({ name, issuer, year: year ? parseInt(year) : null, url });
+    document.getElementById('new-cert-name').value = '';
+    document.getElementById('new-cert-issuer').value = '';
+    document.getElementById('new-cert-year').value = '';
+    document.getElementById('new-cert-url').value = '';
+    renderCertifications();
+    showNotification(`Certification "${name}" added`, 'success');
+}
+
+function removeCertification(index) {
+    const removed = currentCertifications.splice(index, 1)[0];
+    renderCertifications();
+    showNotification(`Removed "${removed.name}"`, 'success');
+}
+
+// ==================== ECA ACTIVITIES ====================
+
+function renderECA() {
+    const container = document.getElementById('modal-eca-list');
+    if (!container) return;
+    if (!currentECA.length) {
+        container.innerHTML = '<p class="no-data-small">No activities added yet.</p>';
+        return;
+    }
+    container.innerHTML = currentECA.map((a, i) => `
+        <div class="managed-item">
+            <div class="managed-item-info">
+                <span class="managed-item-title">${a.title}</span>
+                <span class="managed-item-subtitle">${a.role || ''}${a.duration ? ' • ' + a.duration : ''}</span>
+            </div>
+            <button type="button" class="btn-delete" onclick="removeECA(${i})">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function addECA() {
+    const title = document.getElementById('new-eca-title').value.trim();
+    const role = document.getElementById('new-eca-role').value.trim();
+    const duration = document.getElementById('new-eca-duration').value.trim();
+    if (!title) { showNotification('Activity name is required', 'error'); return; }
+    currentECA.push({ title, role, duration });
+    document.getElementById('new-eca-title').value = '';
+    document.getElementById('new-eca-role').value = '';
+    document.getElementById('new-eca-duration').value = '';
+    renderECA();
+    showNotification(`Activity "${title}" added`, 'success');
+}
+
+function removeECA(index) {
+    const removed = currentECA.splice(index, 1)[0];
+    renderECA();
+    showNotification(`Removed "${removed.title}"`, 'success');
+}
+
+// ==================== RESEARCH PAPERS ====================
+
+function renderResearchPapers() {
+    const container = document.getElementById('modal-research-list');
+    if (!container) return;
+    if (!currentResearchPapers.length) {
+        container.innerHTML = '<p class="no-data-small">No papers added yet.</p>';
+        return;
+    }
+    container.innerHTML = currentResearchPapers.map((p, i) => `
+        <div class="managed-item">
+            <div class="managed-item-info">
+                <span class="managed-item-title">${p.title}</span>
+                <span class="managed-item-subtitle">${p.venue || ''}${p.year ? ' • ' + p.year : ''}</span>
+            </div>
+            <button type="button" class="btn-delete" onclick="removeResearchPaper(${i})">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function addResearchPaper() {
+    const title = document.getElementById('new-research-title').value.trim();
+    const venue = document.getElementById('new-research-venue').value.trim();
+    const year = document.getElementById('new-research-year').value.trim();
+    const url = document.getElementById('new-research-url').value.trim();
+    if (!title) { showNotification('Paper title is required', 'error'); return; }
+    currentResearchPapers.push({ title, venue, year: year ? parseInt(year) : null, url });
+    document.getElementById('new-research-title').value = '';
+    document.getElementById('new-research-venue').value = '';
+    document.getElementById('new-research-year').value = '';
+    document.getElementById('new-research-url').value = '';
+    renderResearchPapers();
+    showNotification(`Paper "${title}" added`, 'success');
+}
+
+function removeResearchPaper(index) {
+    const removed = currentResearchPapers.splice(index, 1)[0];
+    renderResearchPapers();
+    showNotification(`Removed "${removed.title}"`, 'success');
+}
+
+// ==================== LINKEDIN PDF UPLOAD ====================
+
+async function handleLinkedInUpload(file) {
+    if (!file) return;
+    const studentId = window.__studentId;
+    if (!studentId) return;
+
+    document.getElementById('li-upload-zone').style.display = 'none';
+    document.getElementById('li-verified-zone').style.display = 'none';
+    document.getElementById('li-loader').style.display = 'block';
+
+    try {
+        const fd = new FormData();
+        fd.append('linkedin_pdf', file);
+        const res = await fetch(`/api/student/${studentId}/upload-linkedin/`, {
+            method: 'POST', body: fd
+        });
+        const json = await res.json();
+        if (json.status !== 'success') throw new Error(json.message || 'Upload failed');
+        renderLinkedInResult(json);
+        showNotification('LinkedIn profile verified!', 'success');
+    } catch (err) {
+        document.getElementById('li-upload-zone').style.display = '';
+        document.getElementById('li-loader').style.display = 'none';
+        showNotification('LinkedIn upload failed: ' + err.message, 'error');
     }
 }
+
+function renderLinkedInResult(data) {
+    document.getElementById('li-loader').style.display = 'none';
+    document.getElementById('li-verified-zone').style.display = '';
+
+    const score = data.linkedin_score || 0;
+
+    // Score circle
+    const circle = document.getElementById('li-score-circle');
+    circle.textContent = score;
+    circle.style.background = score >= 70 ? 'linear-gradient(135deg,#10b981,#059669)'
+                             : score >= 40 ? 'linear-gradient(135deg,#f59e0b,#d97706)'
+                             : 'linear-gradient(135deg,#ef4444,#dc2626)';
+
+    // Badge in header
+    const badge = document.getElementById('li-score-badge');
+    badge.textContent = `Score: ${score}/100`;
+    badge.style.display = 'inline-flex';
+    badge.style.background = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444';
+
+    // Headline
+    const summary = data.parsed_summary || {};
+    const headlineEl = document.getElementById('li-headline-display');
+    if (summary.headline) headlineEl.textContent = summary.headline;
+
+    // Stats row
+    const statsRow = document.getElementById('li-stats-row');
+    statsRow.innerHTML = [
+        summary.total_skills && `<span class="li-stat-pill"><i class="fas fa-star"></i> ${summary.total_skills} skills</span>`,
+        summary.total_experiences && `<span class="li-stat-pill"><i class="fas fa-briefcase"></i> ${summary.total_experiences} roles</span>`,
+        summary.total_certifications && `<span class="li-stat-pill"><i class="fas fa-certificate"></i> ${summary.total_certifications} certs</span>`,
+        summary.experience_months && `<span class="li-stat-pill"><i class="fas fa-clock"></i> ${Math.round(summary.experience_months/12*10)/10}y exp</span>`,
+    ].filter(Boolean).join('');
+
+    // Cross-validated skills
+    const cvList = document.getElementById('li-cross-validated-list');
+    if (data.newly_cross_validated && data.newly_cross_validated.length) {
+        cvList.innerHTML = `
+            <p style="color:#10b981;font-size:0.8rem;margin-bottom:0.4rem;">
+                <i class="fas fa-check-double"></i> Cross-validated (${data.newly_cross_validated.length} skills confirmed in both CV & LinkedIn)
+            </p>
+            <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
+                ${data.newly_cross_validated.map(s => `<span class="li-cv-pill">${s}</span>`).join('')}
+            </div>`;
+    } else {
+        cvList.innerHTML = `<p style="color:#64748b;font-size:0.8rem;"><i class="fas fa-info-circle"></i> ${data.cross_validated_count || 0} existing skills confirmed</p>`;
+    }
+
+    // New skills from LinkedIn
+    const newList = document.getElementById('li-new-skills-list');
+    if (data.added_skills && data.added_skills.length) {
+        newList.innerHTML = `
+            <p style="color:#a78bfa;font-size:0.8rem;margin-bottom:0.4rem;">
+                <i class="fas fa-plus-circle"></i> ${data.added_skills.length} new skills added from LinkedIn
+            </p>
+            <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
+                ${data.added_skills.slice(0, 8).map(s => `<span class="li-new-pill">${s}</span>`).join('')}
+                ${data.added_skills.length > 8 ? `<span class="li-new-pill">+${data.added_skills.length-8} more</span>` : ''}
+            </div>`;
+    }
+
+    // Reload page skills after 1s to reflect changes
+    setTimeout(() => loadProfile && loadProfile(), 1200);
+}
+
+// ==================== SMART JOB RECOMMENDATIONS ====================
+
+async function loadRecommendations() {
+    const studentId = window.__studentId;
+    if (!studentId) return;
+
+    document.getElementById('reco-empty').style.display = 'none';
+    document.getElementById('reco-jobs-list').style.display = 'none';
+    document.getElementById('career-guide-section').style.display = 'none';
+    document.getElementById('reco-loading').style.display = 'block';
+    const icon = document.getElementById('reco-refresh-icon');
+    if (icon) icon.classList.add('fa-spin');
+
+    try {
+        const res = await fetch(`/api/student/${studentId}/recommendations/`);
+        const json = await res.json();
+        if (json.status !== 'success') throw new Error(json.message || 'Failed');
+        renderRecommendations(json.data);
+    } catch (err) {
+        document.getElementById('reco-loading').style.display = 'none';
+        document.getElementById('reco-empty').style.display = '';
+        document.getElementById('reco-empty').textContent = 'Could not load recommendations.';
+    } finally {
+        if (icon) icon.classList.remove('fa-spin');
+    }
+}
+
+function renderRecommendations(data) {
+    document.getElementById('reco-loading').style.display = 'none';
+    const jobs = data.top_jobs || [];
+    const guide = data.career_guide || [];
+
+    if (!jobs.length) {
+        document.getElementById('reco-empty').style.display = '';
+        return;
+    }
+
+    // Render top jobs
+    const jobsEl = document.getElementById('reco-jobs-list');
+    jobsEl.innerHTML = jobs.map(j => {
+        const fitColor = j.fit_percentage >= 70 ? '#10b981' : j.fit_percentage >= 50 ? '#f59e0b' : '#ef4444';
+        const gapHtml = j.gap_skills.length
+            ? `<div class="reco-gaps"><span style="color:#94a3b8;font-size:0.75rem;">Missing: </span>${j.gap_skills.slice(0,4).map(s=>
+                `<span class="reco-gap-pill">${s.name||s}</span>`).join('')}${j.gap_skills.length>4?`<span class="reco-gap-pill">+${j.gap_skills.length-4}</span>`:''}</div>`
+            : `<div style="color:#10b981;font-size:0.75rem;"><i class="fas fa-check"></i> All required skills matched</div>`;
+
+        const reachBadge = j.is_reachable && j.fit_percentage < 70
+            ? `<span class="reco-reach-badge" title="Potential: ${j.potential_score}%">↑${j.potential_score}% possible</span>` : '';
+
+        return `
+        <div class="reco-job-card">
+            <div class="reco-job-header">
+                <div class="reco-job-meta">
+                    <div class="reco-job-title">${j.job_title}</div>
+                    <div class="reco-company-name">${j.company_name}</div>
+                </div>
+                <div class="reco-fit-score" style="color:${fitColor};">${j.fit_percentage}%</div>
+            </div>
+            <div class="reco-fit-bar"><div class="reco-fit-fill" style="width:${j.fit_percentage}%;background:${fitColor};"></div></div>
+            ${gapHtml}
+            ${reachBadge}
+        </div>`;
+    }).join('');
+    jobsEl.style.display = 'block';
+
+    // Render career guide
+    if (guide.length) {
+        const guideEl = document.getElementById('career-guide-list');
+        guideEl.innerHTML = guide.map(g => `
+            <div class="career-guide-item">
+                <div class="cg-skill-name"><i class="fas fa-plus-circle" style="color:#a78bfa;margin-right:0.4rem;"></i>${g.skill}</div>
+                <div class="cg-message">${g.message}</div>
+            </div>`).join('');
+        document.getElementById('career-guide-section').style.display = 'block';
+    }
+}
+
+// ==================== END NEW FEATURES ====================
+
+// Teleport overlays to direct children of <body> so position:fixed works
+// correctly regardless of any perspective/transform on ancestor elements.
+(function() {
+    ['edit-modal', 'ai-loader-overlay'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el && el.parentElement !== document.body) {
+            document.body.appendChild(el);
+        }
+    });
+})();
 
 // Close modal on Escape key
 document.addEventListener('keydown', function(event) {
@@ -1162,8 +1803,13 @@ document.addEventListener('keydown', function(event) {
 document.getElementById('edit-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    if (isSaving) return;
+    if (isSaving) {
+        console.log('[DEBUG] Save already in progress, skipping...');
+        return;
+    }
     isSaving = true;
+    
+    console.log('[DEBUG] === FORM SUBMISSION STARTED ===');
     
     // Collect Job Types
     const jobTypes = [];
@@ -1185,12 +1831,16 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
         cgpa: parseFloat(document.getElementById('edit-cgpa').value) || null,
         university_id: studentIdValue,
         graduation_date: document.getElementById('edit-graduation').value || null,
-        github_username: document.getElementById('edit-github').value,
+        github_username: document.getElementById('edit-github')?.value || '',
         linkedin_url: document.getElementById('edit-linkedin').value,
         portfolio_url: document.getElementById('edit-portfolio').value,
+        behance_url: document.getElementById('edit-behance')?.value || '',
+        certifications: currentCertifications,
+        eca_activities: currentECA,
+        research_papers: currentResearchPapers,
         skills: currentSkills,
         experiences: currentExperiences,
-        projects: currentProjects,  // NEW: Include projects in payload
+        projects: currentProjects,
         preferences: {
             job_types: jobTypes,
             company_size: companySizes,
@@ -1199,8 +1849,16 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
         }
     };
     
+    console.log('[DEBUG] Saving profile with payload:');
+    console.log('[DEBUG]   - Name:', payload.name);
+    console.log('[DEBUG]   - Skills count:', payload.skills.length);
+    console.log('[DEBUG]   - Projects count:', payload.projects.length);
+    console.log('[DEBUG]   - Experiences count:', payload.experiences.length);
+    console.log('[DEBUG]   - Projects data:', JSON.stringify(payload.projects, null, 2));
+    console.log('[DEBUG]   - Experiences data:', JSON.stringify(payload.experiences, null, 2));
+    
     try {
-        // Use the CORRECT PUT endpoint
+        console.log('[DEBUG] Sending PUT request to:', `${API_BASE}/student/${studentId}/profile/update/`);
         const response = await fetch(`${API_BASE}/student/${studentId}/profile/update/`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -1208,20 +1866,24 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
         });
         
         const data = await response.json();
+        console.log('[DEBUG] PUT response status:', response.status);
+        console.log('[DEBUG] PUT response data:', JSON.stringify(data, null, 2));
         
         if (response.ok && data.status === 'success') {
+            console.log('[DEBUG] Profile saved successfully!');
             showNotification('Profile updated successfully!', 'success');
             closeModal();
-            // Reload profile to show updated data
             await loadProfile();
         } else {
+            console.error('[DEBUG] Profile save failed:', data.message);
             throw new Error(data.message || 'Update failed');
         }
     } catch (error) {
-        console.error('Error saving profile:', error);
+        console.error('[DEBUG] Error saving profile:', error);
         showNotification('Error: ' + error.message, 'error');
     } finally {
         isSaving = false;
+        console.log('[DEBUG] === FORM SUBMISSION ENDED ===');
     }
 });
 
@@ -1246,7 +1908,7 @@ function showNotification(message, type) {
         border-radius: 0.5rem;
         background: ${type === 'success' ? 'rgba(72, 187, 255, 0.9)' : 'rgba(255, 88, 88, 0.9)'};
         color: white;
-        z-index: 10001;
+        z-index: 50000;
         animation: slideIn 0.3s ease;
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255,255,255,0.1);
@@ -1263,11 +1925,456 @@ function showNotification(message, type) {
     }, 3000);
 }
 
+// ==================== RESUME UPLOAD & AI PARSING ====================
+
+const dropZone = document.getElementById('resume-drop-zone');
+const fileInput = document.getElementById('resume-file-input');
+const dropZoneContent = document.getElementById('drop-zone-content');
+const aiLoader = document.getElementById('ai-loader-overlay');
+const aiProgressBar = document.getElementById('ai-progress-bar');
+const aiProgressText = document.getElementById('ai-progress-text');
+
+// Simulated progress animation for AI parsing
+let progressInterval = null;
+let currentProgress = 0;
+
+function startProgressAnimation() {
+    currentProgress = 0;
+    aiProgressBar.style.width = '0%';
+    aiProgressText.textContent = 'Uploading file...';
+    
+    progressInterval = setInterval(() => {
+        if (currentProgress < 90) {
+            // Slow down as we approach 90% (wait for real response)
+            const increment = currentProgress < 30 ? 5 : currentProgress < 60 ? 3 : 1;
+            currentProgress = Math.min(currentProgress + increment, 90);
+            aiProgressBar.style.width = currentProgress + '%';
+            
+            if (currentProgress < 20) aiProgressText.textContent = 'Uploading file...';
+            else if (currentProgress < 40) aiProgressText.textContent = 'Analyzing document structure...';
+            else if (currentProgress < 60) aiProgressText.textContent = 'Extracting skills & projects...';
+            else if (currentProgress < 80) aiProgressText.textContent = 'Matching with skill categories...';
+            else aiProgressText.textContent = 'Finalizing parsed data...';
+        }
+    }, 300);
+}
+
+function completeProgressAnimation() {
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+    }
+    currentProgress = 100;
+    aiProgressBar.style.width = '100%';
+    aiProgressText.textContent = 'Parsing complete! Opening editor...';
+}
+
+function resetProgressAnimation() {
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+    }
+    currentProgress = 0;
+    aiProgressBar.style.width = '0%';
+}
+
+dropZone.addEventListener('click', (e) => {
+    if (e.target !== fileInput) fileInput.click();
+});
+
+dropZoneContent.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZoneContent.style.borderColor = '#48bbff';
+    dropZoneContent.style.background = 'rgba(72, 187, 255, 0.08)';
+});
+
+dropZoneContent.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dropZoneContent.style.borderColor = 'rgba(72, 187, 255, 0.4)';
+    dropZoneContent.style.background = 'transparent';
+});
+
+dropZoneContent.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZoneContent.style.borderColor = 'rgba(72, 187, 255, 0.4)';
+    dropZoneContent.style.background = 'transparent';
+    if (e.dataTransfer.files.length > 0) {
+        handleResumeUpload(e.dataTransfer.files[0]);
+    }
+});
+
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        handleResumeUpload(e.target.files[0]);
+    }
+});
+
+async function handleResumeUpload(file) {
+    console.log('[DEBUG] handleResumeUpload called with file:', file.name, file.type, file.size);
+    
+    const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    const isValid = validTypes.includes(file.type) || file.name.toLowerCase().endsWith('.pdf');
+    if (!isValid) {
+        console.log('[DEBUG] Invalid file type:', file.type);
+        showNotification('Please upload a PDF or image file (JPG/PNG)', 'error');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('resume', file);
+    
+    // FIX: Show loader IMMEDIATELY - user sees the progress bar right away
+    console.log('[DEBUG] Showing AI loader overlay with progress bar...');
+    aiLoader.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    startProgressAnimation();
+    
+    try {
+        console.log('[DEBUG] Sending resume to API...');
+        const response = await fetch(`${API_BASE}/student/${studentId}/upload-resume/`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        console.log('[DEBUG] Upload response status:', response.status);
+        console.log('[DEBUG] Upload response data:', JSON.stringify(result, null, 2));
+        
+        if (response.ok && result.status === 'success') {
+            console.log('[DEBUG] Resume parsed successfully, completing progress and opening edit modal...');
+            showNotification('AI Auto-filled your details. Please review before clicking Save Changes!', 'success');
+
+            // Complete the progress animation to 100%
+            completeProgressAnimation();
+
+            // Small delay for the 100% animation, then hide loader and open modal
+            // NOTE: setTimeout callbacks are NOT covered by the outer try/catch.
+            // Any error here must be caught independently, otherwise overflow stays locked.
+            setTimeout(() => {
+                // Always hide the loader first
+                aiLoader.classList.remove('active');
+                resetProgressAnimation();
+                document.body.style.overflow = 'auto';  // Restore before opening modal
+
+                try {
+                    autoFillProfileModal(result.data);
+                } catch (modalErr) {
+                    console.error('[DEBUG] autoFillProfileModal threw:', modalErr);
+                    // Emergency recovery: close modal if it got partially opened
+                    const modal = document.getElementById('edit-modal');
+                    if (modal) modal.classList.remove('active');
+                    document.body.style.overflow = 'auto';
+                    showNotification('Could not auto-fill profile. Please edit manually.', 'error');
+                }
+            }, 600);
+        } else {
+            throw new Error(result.message || 'Upload failed');
+        }
+    } catch (error) {
+        console.error('[DEBUG] Resume upload error:', error);
+        showNotification('Error parsing resume: ' + error.message, 'error');
+        // Hide loader on error
+        aiLoader.classList.remove('active');
+        resetProgressAnimation();
+        document.body.style.overflow = 'auto';
+    }
+}
+
+function autoFillProfileModal(data) {
+    console.log('[DEBUG] autoFillProfileModal called with data:', JSON.stringify(data, null, 2));
+
+    // Safely read parsed arrays with fallback
+    currentSkills = Array.isArray(data?.skills) ? data.skills : [];
+    currentProjects = Array.isArray(data?.projects) ? data.projects : [];
+    currentExperiences = Array.isArray(data?.experiences) ? data.experiences : [];
+
+    console.log('[DEBUG] AI parsed - Skills:', currentSkills.length, 'Projects:', currentProjects.length, 'Experiences:', currentExperiences.length);
+
+    // Show the modal
+    const modal = document.getElementById('edit-modal');
+    if (!modal) throw new Error('edit-modal element not found');
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    console.log('[DEBUG] Modal activated, filling form fields...');
+
+    // Helper: safely set a form field's value (skip if element doesn't exist)
+    const safeSet = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val ?? '';
+    };
+    const safeCheck = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.checked = !!val;
+    };
+
+    // Fill basic info fields from existing profileData first
+    safeSet('edit-name', profileData?.name);
+    safeSet('edit-department', profileData?.department || 'CSE');
+    safeSet('edit-cgpa', profileData?.cgpa);
+    safeSet('edit-student-id', profileData?.university_id || profileData?.student_id);
+    safeSet('edit-graduation', profileData?.graduation_date);
+    safeSet('edit-github', profileData?.github?.username);
+    safeSet('edit-linkedin', profileData?.linkedin_url);
+    safeSet('edit-portfolio', profileData?.portfolio_url);
+
+    // Job Preferences from existing profile
+    const prefs = profileData?.preferences || {};
+    safeCheck('pref-remote', (prefs.job_types || []).includes('Remote'));
+    safeCheck('pref-hybrid', (prefs.job_types || []).includes('Hybrid'));
+    safeCheck('pref-onsite', (prefs.job_types || []).includes('On-site'));
+    safeCheck('pref-startup', (prefs.company_size || []).includes('Startup'));
+    safeCheck('pref-mid', (prefs.company_size || []).includes('Mid'));
+    safeCheck('pref-enterprise', (prefs.company_size || []).includes('Enterprise'));
+    safeSet('pref-salary-input', prefs.salary_expectation);
+    safeCheck('pref-relocate-input', prefs.willing_to_relocate);
+
+    // Override with AI parsed data (name and cgpa)
+    if (data?.name) safeSet('edit-name', data.name);
+    if (data?.cgpa != null) safeSet('edit-cgpa', parseFloat(data.cgpa));
+
+    // Populate new department-based fields from existing profileData
+    safeSet('edit-behance', profileData?.behance_url);
+    currentCertifications = Array.isArray(profileData?.certifications) ? profileData.certifications : [];
+    currentECA = Array.isArray(profileData?.eca_activities) ? profileData.eca_activities : [];
+    currentResearchPapers = Array.isArray(profileData?.research_papers) ? profileData.research_papers : [];
+
+    // Trigger department-adaptive visibility
+    const dept = profileData?.department || '';
+    onDepartmentChange(dept);
+
+    // Render all modal lists from AI-parsed data
+    renderModalSkills();
+    renderModalProjects();
+    renderModalExperience();
+    renderCertifications();
+    renderECA();
+    renderResearchPapers();
+
+    // Scroll modal body to top so user sees the form immediately
+    const scrollableBody = modal.querySelector('.modal-scrollable-body');
+    if (scrollableBody) scrollableBody.scrollTop = 0;
+
+    console.log('[DEBUG] autoFillProfileModal complete - modal is visible and scrolled to top');
+}
+
 // Load profile on page load
 loadProfile();
 </script>
 
 <style>
+/* AI Loader Spinner */
+.ai-spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid rgba(72, 187, 255, 0.2);
+    border-top-color: #48bbff;
+    border-radius: 50%;
+    animation: ai-spin 1s linear infinite;
+}
+@keyframes ai-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ==================== LINKEDIN VERIFICATION CARD ==================== */
+.linkedin-drop-zone {
+    border: 2px dashed rgba(10,102,194,0.5);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: rgba(10,102,194,0.05);
+}
+.linkedin-drop-zone:hover {
+    border-color: #0a66c2;
+    background: rgba(10,102,194,0.12);
+}
+.linkedin-score-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 2rem;
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+.li-score-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+.li-score-circle {
+    min-width: 60px; min-height: 60px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; font-weight: 800; color: #fff;
+    flex-shrink: 0;
+}
+.li-score-meta { flex: 1; }
+.li-stat-pill {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    background: rgba(72,187,255,0.1); border: 1px solid rgba(72,187,255,0.2);
+    border-radius: 1rem; padding: 0.2rem 0.6rem;
+    font-size: 0.75rem; color: #94a3b8;
+}
+.li-cv-pill {
+    background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3);
+    color: #10b981; border-radius: 1rem; padding: 0.15rem 0.55rem; font-size: 0.75rem;
+}
+.li-new-pill {
+    background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.3);
+    color: #a78bfa; border-radius: 1rem; padding: 0.15rem 0.55rem; font-size: 0.75rem;
+}
+.li-spinner {
+    width: 36px; height: 36px; margin: 0 auto;
+    border: 3px solid rgba(10,102,194,0.2);
+    border-top-color: #0a66c2;
+    border-radius: 50%;
+    animation: ai-spin 1s linear infinite;
+}
+
+/* ==================== SMART RECOMMENDATIONS CARD ==================== */
+.reco-job-card {
+    background: rgba(15,30,55,0.4);
+    border: 1px solid rgba(72,187,255,0.12);
+    border-radius: 0.75rem;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.6rem;
+    transition: border-color 0.2s;
+}
+.reco-job-card:hover { border-color: rgba(72,187,255,0.3); }
+.reco-job-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem; }
+.reco-job-title { color: #e2e8f0; font-weight: 600; font-size: 0.88rem; }
+.reco-company-name { color: #64748b; font-size: 0.78rem; margin-top: 0.15rem; }
+.reco-fit-score { font-size: 1.2rem; font-weight: 800; }
+.reco-fit-bar {
+    height: 4px; background: rgba(255,255,255,0.08);
+    border-radius: 2px; margin-bottom: 0.5rem; overflow: hidden;
+}
+.reco-fit-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+.reco-gaps { margin-top: 0.35rem; display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem; }
+.reco-gap-pill {
+    background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25);
+    color: #fca5a5; border-radius: 1rem; padding: 0.12rem 0.5rem; font-size: 0.72rem;
+}
+.reco-reach-badge {
+    display: inline-block; margin-top: 0.35rem;
+    background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.3);
+    color: #a78bfa; border-radius: 1rem; padding: 0.12rem 0.55rem; font-size: 0.72rem;
+}
+.career-guide-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.career-guide-item:last-child { border-bottom: none; }
+.cg-skill-name { color: #e2e8f0; font-weight: 600; font-size: 0.85rem; }
+.cg-message { color: #64748b; font-size: 0.78rem; margin-top: 0.15rem; }
+
+/* ==================== AI LOADER OVERLAY ==================== */
+/* FIX: Hidden by default, shown via .active class. Uses display:flex for centering. */
+.ai-loader-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.92);
+    backdrop-filter: blur(12px);
+    z-index: 20000;
+    justify-content: center;
+    align-items: center;
+}
+.ai-loader-overlay.active {
+    display: flex !important;
+}
+.ai-loader-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    background: rgba(15, 30, 55, 0.95);
+    padding: 2.5rem 3rem;
+    border-radius: 1.5rem;
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    min-width: 360px;
+    max-width: 480px;
+}
+.ai-loader-title {
+    color: #48bbff;
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0;
+}
+.ai-progress-bar-container {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.ai-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #48bbff, #a855f7);
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+.ai-progress-text {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    margin: 0;
+    min-height: 1.2em;
+}
+
+/* ==================== EDIT MODAL OVERLAY (FULL-SCREEN) ==================== */
+/* FIX: True full-screen overlay using inset:0 so it always fills the viewport */
+.edit-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.92);
+    backdrop-filter: blur(12px);
+    overflow: hidden;
+}
+.edit-modal-overlay.active {
+    display: flex !important;
+    justify-content: center;
+    align-items: stretch;
+}
+
+/* FIX: The modal container now fills the ENTIRE viewport - no black borders */
+.edit-modal-container {
+    background: linear-gradient(135deg, rgba(15, 30, 55, 0.98), rgba(10, 20, 40, 0.99));
+    border: 1px solid rgba(72, 187, 255, 0.2);
+    border-radius: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    box-shadow: none;
+    animation: modalFadeIn 0.25s ease;
+    overflow: hidden;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 /* ==================== BASE STYLES ==================== */
 .profile-container {
     padding: 2rem 1rem;
@@ -1925,7 +3032,7 @@ loadProfile();
 .path-line {
     flex: 1;
     height: 2px;
-    background: linear-gradient(90deg , #48bbff, rgba(72, 187, 255, 0.3));
+    background: linear-gradient(90deg, #48bbff, rgba(72, 187, 255, 0.3));
     max-width: 40px;
     min-width: 20px;
 }
@@ -1942,7 +3049,7 @@ loadProfile();
     align-items: center;
     padding: 0.8rem 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    flex.wrap: wrap;
+    flex-wrap: wrap;
     gap: 0.5rem;
 }
 
@@ -2093,63 +3200,13 @@ loadProfile();
     font-size: 0.9rem;
 }
 
-/* ==================== MODAL STYLES ==================== */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    display: none;
-    z-index: 10000;
-    backdrop-filter: blur(8px);
-    padding: 20px;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    align-items: flex-start;
-    justify-content: center;
-}
-
-.modal-overlay.active {
-    display: flex;
-}
-
-.modal-container {
-    background: linear-gradient(135deg, rgba(15, 30, 55, 0.98), rgba(10, 20, 40, 0.99));
-        border: 1px solid rgba(72, 187, 255, 0.3);
-    border-radius: 1.5rem;
-    width: 100%;
-    max-width: 800px;
-    max-height: calc(100vh - 40px);
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(72, 187, 255, 0.1);
-    animation: modalSlideIn 0.3s ease;
-    overflow: hidden;
-}
-
-.modal-container.large {
-    max-width: 900px;
-}
-
-@keyframes modalSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-20px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
+/* ==================== MODAL STYLES (FULL-SCREEN) ==================== */
 
 .modal-header-large {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.25rem 1.5rem;
+    padding: 1.25rem 2rem;
     border-bottom: 1px solid rgba(72, 187, 255, 0.2);
     background: rgba(0, 0, 0, 0.3);
     flex-shrink: 0;
@@ -2190,7 +3247,7 @@ loadProfile();
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 1.5rem;
+    padding: 1.5rem 2rem;
     -webkit-overflow-scrolling: touch;
 }
 
@@ -2216,7 +3273,7 @@ loadProfile();
     display: flex;
     justify-content: flex-end;
     gap: 1rem;
-    padding: 1.25rem 1.5rem;
+    padding: 1.25rem 2rem;
     border-top: 1px solid rgba(72, 187, 255, 0.2);
     background: rgba(0, 0, 0, 0.3);
     flex-shrink: 0;
@@ -2227,6 +3284,8 @@ loadProfile();
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
+    max-width: 960px;
+    margin: 0 auto;
 }
 
 .form-section-card {
@@ -2333,22 +3392,12 @@ loadProfile();
     min-height: 80px;
 }
 
-.form-hint {
-    color: #64748b;
-    font-size: 0.8rem;
-    margin-top: 0.25rem;
-}
-
 /* Checkbox Styles */
 .checkbox-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
     margin-bottom: 1rem;
-}
-
-.checkbox-grid.single-col {
-    grid-template-columns: 1fr;
 }
 
 @media (max-width: 480px) {
@@ -2369,11 +3418,6 @@ loadProfile();
     display: flex;
     gap: 0.8rem;
     flex-wrap: wrap;
-}
-
-.checkbox-options.vertical {
-    flex-direction: column;
-    gap: 0.6rem;
 }
 
 .checkbox-label {
@@ -2575,16 +3619,6 @@ loadProfile();
         padding: 1.25rem;
     }
     
-    .modal-overlay {
-        padding: 10px;
-    }
-    
-    .modal-container,
-    .modal-container.large {
-        max-height: calc(100vh - 20px);
-        border-radius: 1rem;
-    }
-    
     .modal-scrollable-body {
         padding: 1rem;
     }
@@ -2651,40 +3685,8 @@ loadProfile();
         justify-content: center;
     }
     
-    .modal-overlay {
-        padding: 0;
-    }
-    
-    .modal-container,
-    .modal-container.large {
-        max-height: 100vh;
-        border-radius: 0;
-        max-width: 100%;
-    }
-    
-    .modal-header-large {
-        border-radius: 0;
-    }
-    
     .form-section-card {
         padding: 1rem;
-    }
-}
-
-@media (max-width: 320px) {
-    .modal-container,
-    .modal-container.large {
-        margin: 0;
-        border-radius: 0;
-        min-height: 100vh;
-    }
-    
-    .modal-header-large {
-        border-radius: 0;
-    }
-    
-    .modal-footer {
-        border-radius: 0;
     }
 }
 </style>

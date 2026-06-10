@@ -15,11 +15,12 @@
     
     <style>
         /* Modal Styles for Add Admin */
-        .modal-overlay {
-            position: absolute;
+        .admin-modal-overlay {
+            position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.7);
             backdrop-filter: blur(5px);
+            z-index: 9999;
         }
 
         .modal-content {
@@ -285,7 +286,7 @@
             const modal = document.createElement('div');
             modal.id = 'add-admin-modal';
             modal.innerHTML = `
-                <div class="modal-overlay" onclick="closeAddAdminModal()"></div>
+                <div class="admin-modal-overlay" onclick="closeAddAdminModal()"></div>
                 <div class="modal-content">
                     <h3><i class="fas fa-user-shield"></i> Add New Admin</h3>
                     <p class="modal-desc">Create admin account. They can access dashboard immediately.</p>

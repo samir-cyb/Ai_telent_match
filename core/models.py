@@ -5,13 +5,24 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 class Skill(models.Model):
     CATEGORY_CHOICES = [
+        # Technology
         ('Frontend', 'Frontend'),
         ('Backend', 'Backend'),
         ('AI/ML', 'AI/ML'),
-        ('Design', 'Design'),
-        ('Soft Skills', 'Soft Skills'),
         ('DevOps', 'DevOps'),
         ('Data Science', 'Data Science'),
+        ('Mobile', 'Mobile Development'),
+        ('Cybersecurity', 'Cybersecurity'),
+        # Non-Tech
+        ('Design', 'Design & Creative'),
+        ('Business', 'Business & Management'),
+        ('Finance', 'Finance & Accounting'),
+        ('Marketing', 'Marketing & Sales'),
+        ('Engineering', 'Engineering'),
+        ('Research', 'Research & Analytics'),
+        ('Communication', 'Communication & Languages'),
+        ('Soft Skills', 'Soft Skills'),
+        ('Uncategorized', 'Uncategorized'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -35,12 +46,38 @@ class Student(models.Model):
     # Preferences stored as JSON
     preferences = models.JSONField(default=dict)  # job_types, salary_expectation, company_size, relocate
     
+    # Department category (auto-derived from department field)
+    DEPARTMENT_CATEGORY_CHOICES = [
+        ('tech', 'Technology & Software'),
+        ('engineering', 'Engineering'),
+        ('business', 'Business & Management'),
+        ('design', 'Design & Creative'),
+        ('science', 'Science & Research'),
+        ('humanities', 'Humanities & Liberal Arts'),
+        ('any', 'General / Other'),
+    ]
+    department_category = models.CharField(
+        max_length=20, choices=DEPARTMENT_CATEGORY_CHOICES, default='any', blank=True
+    )
+
     # External Validations
     github_username = models.CharField(max_length=100, blank=True)
     github_verified = models.BooleanField(default=False)
     github_score = models.IntegerField(default=0)
     linkedin_url = models.URLField(blank=True)
     portfolio_url = models.URLField(blank=True)
+    behance_url = models.URLField(blank=True)  # For design/creative students
+    resume = models.FileField(upload_to='resumes/', null=True, blank=True)
+
+    # LinkedIn PDF verification
+    linkedin_pdf = models.FileField(upload_to='linkedin_pdfs/', null=True, blank=True)
+    linkedin_score = models.IntegerField(default=0)          # 0–100 computed score
+    linkedin_parsed_data = models.JSONField(default=dict)    # raw parsed data from PDF
+
+    # Non-tech enrichment fields
+    certifications = models.JSONField(default=list)   # [{name, issuer, year, url}]
+    eca_activities = models.JSONField(default=list)   # [{title, role, duration}]
+    research_papers = models.JSONField(default=list)  # [{title, venue, year, url}]
     
     # Trust Scores
     profile_complete_score = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
@@ -64,21 +101,89 @@ class Student(models.Model):
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
     
+    # Map specific department strings to a category group
+    DEPARTMENT_GROUP_MAP = {
+        # Tech
+        'CSE': 'tech', 'SWE': 'tech', 'IT': 'tech', 'CS': 'tech',
+        'Computer Science': 'tech', 'Computer Science & Engineering': 'tech',
+        'Data Science': 'tech', 'Cybersecurity': 'tech',
+        # Engineering
+        'EEE': 'engineering', 'ECE': 'engineering', 'ME': 'engineering',
+        'CE': 'engineering', 'ChE': 'engineering', 'BME': 'engineering',
+        'Electrical & Electronic Engineering': 'engineering',
+        'Mechanical Engineering': 'engineering', 'Civil Engineering': 'engineering',
+        # Business
+        'BBA': 'business', 'MBA': 'business', 'Finance': 'business',
+        'Marketing': 'business', 'Management': 'business', 'Accounting': 'business',
+        'HRM': 'business', 'Business Administration': 'business',
+        # Design
+        'Design': 'design', 'Fine Arts': 'design', 'Architecture': 'design',
+        'UI/UX': 'design', 'Graphic Design': 'design',
+        # Science
+        'Physics': 'science', 'Chemistry': 'science', 'Biology': 'science',
+        'Mathematics': 'science', 'Statistics': 'science',
+        'Mathematics & Statistics': 'science',
+        # Humanities
+        'English': 'humanities', 'Journalism': 'humanities', 'Economics': 'humanities',
+        'Sociology': 'humanities', 'History': 'humanities',
+        'Political Science': 'humanities', 'Media': 'humanities',
+        'Liberal Arts': 'humanities',
+    }
+
+    def get_department_category(self):
+        """Derive the department category from the department string."""
+        return self.DEPARTMENT_GROUP_MAP.get(self.department, 'any')
+
+    def save(self, *args, **kwargs):
+        """Auto-populate department_category before saving."""
+        if self.department:
+            self.department_category = self.get_department_category()
+        super().save(*args, **kwargs)
+
     def calculate_profile_completeness(self):
-        """Calculate how complete the profile is (0-1)"""
-        fields = [
-            self.name, self.email, self.department, self.cgpa,
-            self.github_username, self.linkedin_url
-        ]
-        filled = sum(1 for f in fields if f)
+        """Calculate how complete the profile is (0-1), department-aware."""
+        # Core fields every student needs
+        core_fields = [self.name, self.email, self.department, self.cgpa]
+        filled = sum(1 for f in core_fields if f)
+        base_score = filled / len(core_fields)
+
         skills_count = StudentSkill.objects.filter(student=self).count()
         projects_count = self.projects.count()
-        
-        base_score = filled / len(fields)
-        skills_bonus = min(skills_count / 5, 0.2)  # Max 0.2 bonus for 5+ skills
-        projects_bonus = min(projects_count / 3, 0.2)  # Max 0.2 bonus for 3+ projects
-        
-        return min(base_score + skills_bonus + projects_bonus, 1.0)
+
+        skills_bonus = min(skills_count / 5, 0.15)
+        projects_bonus = min(projects_count / 3, 0.15)
+
+        # Department-specific bonus signals
+        dept_cat = self.department_category or self.get_department_category()
+        dept_bonus = 0.0
+        if dept_cat == 'tech':
+            if self.github_username:
+                dept_bonus += 0.1
+            if self.linkedin_url:
+                dept_bonus += 0.05
+        elif dept_cat == 'design':
+            if self.behance_url or self.portfolio_url:
+                dept_bonus += 0.1
+            if self.linkedin_url:
+                dept_bonus += 0.05
+        elif dept_cat in ('business', 'humanities'):
+            if self.linkedin_url:
+                dept_bonus += 0.1
+            if self.eca_activities:
+                dept_bonus += 0.05
+        elif dept_cat == 'science':
+            if self.research_papers:
+                dept_bonus += 0.1
+            if self.linkedin_url:
+                dept_bonus += 0.05
+        else:
+            if self.linkedin_url:
+                dept_bonus += 0.05
+
+        if self.certifications:
+            dept_bonus += 0.05
+
+        return min(base_score + skills_bonus + projects_bonus + dept_bonus, 1.0)
     
     def calculate_trust_score(self):
         """Calculate trust score based on multiple factors"""
@@ -111,12 +216,21 @@ class StudentSkill(models.Model):
         ('Intermediate', 'Intermediate'),
         ('Expert', 'Expert'),
     ]
-    
+    SOURCE_CHOICES = [
+        ('cv', 'CV Upload'),
+        ('linkedin', 'LinkedIn PDF'),
+        ('manual', 'Manually Added'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='student_skills')
     skill = models.ForeignKey(Skill, on_delete=models.CASCADE)
     proficiency_level = models.CharField(max_length=20, choices=PROFICIENCY_LEVELS)
-    verified_via = models.CharField(max_length=50, blank=True, null=True)  # <-- ADD null=True HERE
+    verified_via = models.CharField(max_length=50, blank=True, null=True)
+    # Cross-validation: True when this skill appears in BOTH CV and LinkedIn PDF
+    cross_validated = models.BooleanField(default=False)
+    # Where was this skill first added from?
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
     verified_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
@@ -126,9 +240,9 @@ class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='projects')
     title = models.CharField(max_length=300)
-    description = models.TextField()
-    github_url = models.URLField(blank=True)
-    live_url = models.URLField(blank=True)
+    description = models.TextField(blank=True, default='')  # FIX: Allow blank, default to empty string
+    github_url = models.URLField(blank=True, null=True)
+    live_url = models.URLField(blank=True, null=True)
     tech_stack = models.ManyToManyField(Skill)
     duration_weeks = models.IntegerField(null=True, blank=True)
     complexity_score = models.IntegerField(default=1)
@@ -151,7 +265,7 @@ class WorkExperience(models.Model):
     is_current = models.BooleanField(default=False)
     verification_status = models.CharField(max_length=50, default='pending')
     verification_method = models.CharField(max_length=50, blank=True)
-    description = models.TextField()
+    description = models.TextField(blank=True, default='')  # FIX: Allow blank, default to empty string
 
 class Company(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -202,6 +316,20 @@ class Job(models.Model):
     deadline = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
+    # Target department category for this job
+    DEPARTMENT_CATEGORY_CHOICES = [
+        ('tech', 'Technology & Software'),
+        ('engineering', 'Engineering'),
+        ('business', 'Business & Management'),
+        ('design', 'Design & Creative'),
+        ('science', 'Science & Research'),
+        ('humanities', 'Humanities & Liberal Arts'),
+        ('any', 'Open to All Departments'),
+    ]
+    department_category = models.CharField(
+        max_length=20, choices=DEPARTMENT_CATEGORY_CHOICES, default='any', blank=True
+    )
+
     # Job-specific weights override
     custom_weights = models.JSONField(default=dict, blank=True)
 

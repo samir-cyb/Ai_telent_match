@@ -1,9 +1,10 @@
 import json
-import google.generativeai as genai
+from google import genai
 from django.conf import settings
 
-# Configure Gemini
-genai.configure(api_key='AIzaSyA3wGaElzQirAxAD-BK6LCQjJtFJe6DZlU')
+# Initialize the client using the modern SDK layout
+
+
 
 class QuestionGenerator:
     """Generate coding challenges using Gemini API"""
@@ -16,7 +17,7 @@ class QuestionGenerator:
     }
     
     def __init__(self):
-        self.model = genai.GenerativeModel('gemini-pro')
+        self.model = 'gemini-3.1-flash-lite'
     
     def generate_challenge(self, job, difficulty='medium'):
         """
@@ -55,7 +56,10 @@ class QuestionGenerator:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            response = client.models.generate_content(
+                model=self.model,
+                contents=prompt
+            )
             text = response.text
             
             # Extract JSON from markdown if present
@@ -75,6 +79,7 @@ class QuestionGenerator:
             return data
             
         except Exception as e:
+            print(f"[DEBUG] Gemini challenge generation failed: {e}")
             # Fallback challenge if AI fails
             return self._get_fallback_challenge(job, skills_str)
     
