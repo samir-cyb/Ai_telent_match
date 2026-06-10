@@ -5,6 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.shortcuts import get_object_or_404, render, redirect
 from django.db.models import Q, Avg, Count
+from django.db import IntegrityError  # FIX: Import IntegrityError for proper error handling
 from datetime import datetime, timedelta
 from django.contrib.sessions.backends.db import SessionStore
 from .decorators import student_login_required, company_login_required
@@ -16,6 +17,7 @@ from .models import *
 from .utils.ai_engine import AIMatchingEngine
 from .utils.github_scraper import GitHubValidator
 from .utils.fraud_detector import FraudDetectionEngine
+from .utils.resume_parser import ResumeParser
 from datetime import datetime, date, time
 from django.db import transaction
 # ==================== PAGE RENDERING VIEWS ====================
@@ -281,16 +283,25 @@ class StudentProfileView(View):
             },
             'linkedin_url': student.linkedin_url,
             'portfolio_url': student.portfolio_url,
+            'behance_url': student.behance_url,
+            'linkedin_score': student.linkedin_score or 0,
+            'linkedin_parsed_data': student.linkedin_parsed_data or {},
+            'department_category': student.department_category or student.get_department_category(),
+            'certifications': student.certifications or [],
+            'eca_activities': student.eca_activities or [],
+            'research_papers': student.research_papers or [],
             'trust_score': float(student.trust_score),
             'profile_complete_score': float(student.profile_complete_score),
             'activity_score': float(student.activity_score),
-            'total_applications': Application.objects.filter(student=student).count(),  # FIXED!
+            'total_applications': Application.objects.filter(student=student).count(),
             'skills': [
                 {
                     'name': ss.skill.name,
                     'category': ss.skill.category,
                     'level': ss.proficiency_level,
-                    'verified': ss.verified_via is not None
+                    'verified': ss.verified_via is not None,
+                    'cross_validated': getattr(ss, 'cross_validated', False),
+                    'source': getattr(ss, 'source', 'manual'),
                 } for ss in StudentSkill.objects.filter(student=student).select_related('skill')
             ],
             'projects': [
@@ -421,43 +432,60 @@ class StudentProfileView(View):
         try:
             data = json.loads(request.body)
             
-            print(f"Received data: {data}")
-            print(f"Projects data: {data.get('projects', [])}")
-            print(f"Experiences data: {data.get('experiences', [])}")
+            print(f"[DEBUG] PUT profile update for student: {student_id}")
+            print(f"[DEBUG] Received keys: {list(data.keys())}")
+            print(f"[DEBUG] Projects count: {len(data.get('projects', []))}")
+            print(f"[DEBUG] Experiences count: {len(data.get('experiences', []))}")
+            print(f"[DEBUG] Skills count: {len(data.get('skills', []))}")
             
             student = get_object_or_404(Student, id=student_id)
             
             # Update basic fields
-            student.name = data.get('name', student.name)
-            student.department = data.get('department', student.department)
-            student.cgpa = data.get('cgpa', student.cgpa)
-            student.university_id = data.get('university_id', student.university_id)
-            student.graduation_date = data.get('graduation_date', student.graduation_date)
-            student.github_username = data.get('github_username', student.github_username)
-            student.linkedin_url = data.get('linkedin_url', student.linkedin_url)
-            student.portfolio_url = data.get('portfolio_url', student.portfolio_url)
-            
+            student.name = data.get('name') or student.name
+            student.department = data.get('department') or student.department
+            student.cgpa = data.get('cgpa') or student.cgpa
+            student.university_id = data.get('university_id') or student.university_id
+            student.graduation_date = data.get('graduation_date') or student.graduation_date
+            student.github_username = data.get('github_username') or student.github_username
+            student.linkedin_url = data.get('linkedin_url') or student.linkedin_url
+            student.portfolio_url = data.get('portfolio_url') or student.portfolio_url
+            if 'behance_url' in data:
+                student.behance_url = data['behance_url'] or ''
+
+            # Department-enrichment fields (non-tech)
+            if 'certifications' in data and isinstance(data['certifications'], list):
+                student.certifications = data['certifications']
+            if 'eca_activities' in data and isinstance(data['eca_activities'], list):
+                student.eca_activities = data['eca_activities']
+            if 'research_papers' in data and isinstance(data['research_papers'], list):
+                student.research_papers = data['research_papers']
+
             # Update preferences
             if 'preferences' in data:
                 current_prefs = student.preferences or {}
                 current_prefs.update(data['preferences'])
                 student.preferences = current_prefs
-            
+
             student.save()
+            print(f"[DEBUG] Basic fields saved for student: {student.name}")
             
             # ==================== HANDLE SKILLS ====================
             if 'skills' in data:
-                # Get current skill names
-                current_skill_names = [ss.skill.name.lower() for ss in StudentSkill.objects.filter(student=student)]
                 new_skills = data['skills']
-                new_skill_names = [s['name'].lower() for s in new_skills]
+                new_skill_names_lower = [s.get('name', '').strip().lower() for s in new_skills if s.get('name')]
                 
-                # Remove skills not in new list
-                StudentSkill.objects.filter(student=student).exclude(skill__name__in=new_skill_names).delete()
+                # Remove skills not in new list (case-insensitive)
+                student_student_skills = StudentSkill.objects.filter(student=student)
+                for ss in student_student_skills:
+                    if ss.skill.name.lower() not in new_skill_names_lower:
+                        ss.delete()
+                        print(f"[DEBUG] Removed skill: {ss.skill.name}")
                 
                 # Add or update skills
                 for skill_data in new_skills:
-                    skill_name = skill_data['name'].strip()
+                    skill_name = (skill_data.get('name') or '').strip()
+                    if not skill_name:
+                        continue
                     skill_name_lower = skill_name.lower()
                     
                     # Handle case where multiple skills exist with same name
@@ -466,7 +494,7 @@ class StudentProfileView(View):
                             name__iexact=skill_name_lower,
                             defaults={
                                 'name': skill_name_lower,
-                                'category': skill_data.get('category', 'Uncategorized')
+                                'category': skill_data.get('category') or 'Uncategorized'
                             }
                         )
                     except Skill.MultipleObjectsReturned:
@@ -482,83 +510,174 @@ class StudentProfileView(View):
                         student=student,
                         skill=skill,
                         defaults={
-                            'proficiency_level': skill_data.get('level', 'Beginner'),
+                            'proficiency_level': skill_data.get('level') or 'Beginner',
                             'verified_via': None
                         }
                     )
+                    print(f"[DEBUG] Skill {'created' if created else 'updated'}: {skill_name_lower}")
             
             # ==================== HANDLE EXPERIENCES ====================
             if 'experiences' in data:
                 # Clear all existing experiences and recreate
-                student.experiences.all().delete()
+                deleted_count = student.experiences.all().delete()[0]
+                print(f"[DEBUG] Deleted {deleted_count} old experiences")
                 
                 for exp_data in data['experiences']:
-                    start_date = exp_data.get('start_date')
+                    start_date = exp_data.get('start_date') or None
                     end_date = exp_data.get('end_date') if not exp_data.get('is_current') else None
                     is_current = exp_data.get('is_current', False)
                     
+                    # FIX: Use `or ''` to handle None values from JSON (null -> None)
+                    company_name = exp_data.get('company') or ''
+                    role = exp_data.get('role') or ''
+                    description = exp_data.get('description') or ''
+                    
+                    # Validate required fields
+                    if not start_date:
+                        print(f"[DEBUG] Skipping experience - no start_date: {company_name}")
+                        continue
+                    
                     WorkExperience.objects.create(
                         student=student,
-                        company_name=exp_data.get('company', ''),
-                        role=exp_data.get('role', ''),
+                        company_name=company_name,
+                        role=role,
                         start_date=start_date,
                         end_date=end_date,
                         is_current=is_current,
-                        description=exp_data.get('description', ''),
+                        description=description,
                         verification_status='pending'
                     )
+                    print(f"[DEBUG] Created experience: {role} at {company_name}")
             
             # ==================== HANDLE PROJECTS ====================
             if 'projects' in data:
-                # Get current project titles for comparison
-                current_titles = [p.title.lower() for p in student.projects.all()]
                 new_projects = data['projects']
                 
-                # Build list of new titles to determine which to keep/delete
-                new_titles = [p['title'].lower().strip() for p in new_projects]
+                # Build list of new titles (lowercase) for comparison
+                new_titles_lower = []
+                for p in new_projects:
+                    title_raw = (p.get('title') or '').strip()
+                    if title_raw:
+                        new_titles_lower.append(title_raw.lower())
                 
-                # Delete projects not in the new list
-                student.projects.exclude(title__in=new_titles).delete()
+                print(f"[DEBUG] New project titles (lowercase): {new_titles_lower}")
+                
+                # FIX: Delete projects not in the new list using CASE-INSENSITIVE matching
+                projects_to_delete = []
+                for existing_proj in student.projects.all():
+                    if existing_proj.title.lower() not in new_titles_lower:
+                        projects_to_delete.append(existing_proj.id)
+                
+                if projects_to_delete:
+                    deleted = Project.objects.filter(id__in=projects_to_delete).delete()
+                    print(f"[DEBUG] Deleted {deleted[0]} old projects not in new list")
                 
                 # Add or update projects
                 for proj_data in new_projects:
-                    title = proj_data.get('title', '').strip()
+                    title = (proj_data.get('title') or '').strip()
                     if not title:
+                        print(f"[DEBUG] Skipping project with empty title")
                         continue
                     
                     # Parse tech stack
-                    tech_stack = proj_data.get('tech_stack', [])
+                    tech_stack = proj_data.get('tech_stack') or []
                     if isinstance(tech_stack, str):
                         tech_stack = [t.strip() for t in tech_stack.split(',') if t.strip()]
                     
-                    github_url = proj_data.get('github_url', '')
-                    description = proj_data.get('description', '')
-                    complexity = proj_data.get('complexity', 3)
-                    verified = proj_data.get('verified', False)
+                    # FIX: Use `or ''` instead of `.get('key', '')` to handle None/null values
+                    # When AI returns {"description": null}, .get('description', '') returns None!
+                    # But `or ''` catches both missing key AND null value.
+                    github_url = proj_data.get('github_url') or ''
+                    description = proj_data.get('description') or ''  # CRITICAL FIX
+                    complexity = proj_data.get('complexity') or 3
+                    verified = proj_data.get('verified') or False
                     
-                    # Try to get existing project by title
+                    print(f"[DEBUG] Processing project: '{title}' | description='{description[:50]}...' | tech_stack={tech_stack}")
+                    
+                    # FIX: Robust project lookup/create with IntegrityError handling
+                    # The problem: get_or_create(title__iexact=...) can fail because
+                    # unique_together=['student','title'] is case-SENSITIVE in SQLite,
+                    # so a project "My App" won't be found by title__iexact="my app"
+                    # but creating "my app" will violate the unique constraint.
+                    # Solution: First try case-insensitive lookup, then handle IntegrityError
+                    project = None
+                    created = False
+                    
                     try:
-                        project = student.projects.get(title__iexact=title)
+                        # Step 1: Try to find existing project by case-insensitive title
+                        project = student.projects.filter(title__iexact=title).first()
+                        
+                        if project:
+                            # Update existing project
+                            project.description = description
+                            project.github_url = github_url or None
+                            project.complexity_score = int(complexity)
+                            project.verified = bool(verified)
+                            project.save()
+                            created = False
+                            print(f"[DEBUG] Updated existing project: '{project.title}' (matched by title__iexact)")
+                        else:
+                            # Step 2: No match found - create new project
+                            # Wrap in try/except for IntegrityError (race condition or case-sensitive duplicate)
+                            try:
+                                project = Project.objects.create(
+                                    student=student,
+                                    title=title,
+                                    description=description,
+                                    github_url=github_url or None,
+                                    complexity_score=int(complexity),
+                                    verified=bool(verified),
+                                )
+                                created = True
+                                print(f"[DEBUG] Created new project: '{title}'")
+                            except IntegrityError as ie:
+                                # IntegrityError: unique_together constraint violated
+                                # This means a project with this exact title already exists
+                                # (maybe created in a race condition, or case-sensitive match)
+                                print(f"[DEBUG] IntegrityError creating project '{title}': {ie}")
+                                # Try to find it again and update it
+                                project = student.projects.filter(title=title).first()
+                                if not project:
+                                    # Try case-insensitive one more time
+                                    project = student.projects.filter(title__iexact=title).first()
+                                if project:
+                                    project.description = description
+                                    project.github_url = github_url or None
+                                    project.complexity_score = int(complexity)
+                                    project.verified = bool(verified)
+                                    project.save()
+                                    print(f"[DEBUG] Recovered from IntegrityError, updated project: '{project.title}'")
+                                else:
+                                    # Should never happen, but handle gracefully
+                                    print(f"[ERROR] Could not find or create project: '{title}' - SKIPPING")
+                                    continue
+                    except Project.MultipleObjectsReturned:
+                        # Edge case: multiple projects with same title (different case)
+                        # Keep the first one, delete the rest
+                        projects_qs = student.projects.filter(title__iexact=title).order_by('created_at')
+                        project = projects_qs.first()
+                        # Delete duplicates
+                        duplicates = projects_qs.exclude(id=project.id)
+                        dup_count = duplicates.count()
+                        if dup_count > 0:
+                            duplicates.delete()
+                            print(f"[DEBUG] Deleted {dup_count} duplicate projects for: '{title}'")
+                        
                         project.description = description
-                        project.github_url = github_url
-                        project.complexity_score = complexity
-                        project.verified = verified
+                        project.github_url = github_url or None
+                        project.complexity_score = int(complexity)
+                        project.verified = bool(verified)
                         project.save()
-                    except Project.DoesNotExist:
-                        project = Project.objects.create(
-                            student=student,
-                            title=title,
-                            description=description,
-                            github_url=github_url,
-                            complexity_score=complexity,
-                            verified=verified
-                        )
+                        print(f"[DEBUG] Updated project (resolved duplicates): '{title}'")
                     
                     # Update tech stack
-                    project.tech_stack.clear()
-                    for tech_name in tech_stack:
-                        if tech_name:
-                            tech_clean = tech_name.strip().lower()
+                    if project:
+                        project.tech_stack.clear()
+                        for tech_name in tech_stack:
+                            tech_clean = (tech_name or '').strip().lower()
+                            if not tech_clean:
+                                continue
+                                
                             skill = Skill.objects.filter(name__iexact=tech_clean).first()
                             
                             if not skill:
@@ -572,18 +691,25 @@ class StudentProfileView(View):
                                     skill.save()
                             
                             project.tech_stack.add(skill)
+                        
+                        print(f"[DEBUG] Project '{title}' tech_stack set: {tech_stack}")
             
             # Re-verify GitHub if username changed
             if data.get('github_username'):
-                validator = GitHubValidator()
-                result = validator.validate_student_github(data['github_username'])
-                if result['valid']:
-                    student.github_verified = True
-                    student.github_score = result['score']
-                    student.save()
+                try:
+                    validator = GitHubValidator()
+                    result = validator.validate_student_github(data['github_username'])
+                    if result.get('valid'):
+                        student.github_verified = True
+                        student.github_score = result.get('score', 0)
+                        student.save()
+                        print(f"[DEBUG] GitHub verified: {data['github_username']}")
+                except Exception as gh_err:
+                    print(f"[DEBUG] GitHub verification skipped: {gh_err}")
             
             # Recalculate trust score
             student.calculate_trust_score()
+            print(f"[DEBUG] Profile update complete. Trust score: {student.trust_score}")
             
             return JsonResponse({
                 'status': 'success',
@@ -594,6 +720,7 @@ class StudentProfileView(View):
             
         except Exception as e:
             import traceback
+            print(f"[ERROR] Profile update failed: {str(e)}")
             print(traceback.format_exc())
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
         
@@ -956,7 +1083,8 @@ class PostJobView(View):
                 job_type=data.get('job_type'),
                 salary_range=data.get('salary_range', {}),
                 location=data.get('location'),
-                deadline=deadline  # ✅ Now it's a datetime object or None
+                deadline=deadline,
+                department_category=data.get('department_category', 'any'),
             )
             
             # ✅ FIX 2: Improved skill handling with proper error handling
@@ -1833,6 +1961,224 @@ class StudentApplicationsView(View):
             'applied_job_ids': [str(job_id) for job_id in applications]
         })
         
+@method_decorator(csrf_exempt, name='dispatch')
+class UploadResumeView(View):
+    def post(self, request, student_id):
+        try:
+            print(f"[DEBUG] UploadResumeView called for student: {student_id}")
+            student = get_object_or_404(Student, id=student_id)
+            
+            uploaded_file = request.FILES.get('resume')
+            if not uploaded_file:
+                print("[DEBUG] No resume file provided in request")
+                return JsonResponse({'status': 'error', 'message': 'No resume file provided'}, status=400)
+            
+            print(f"[DEBUG] Received file: {uploaded_file.name}, size: {uploaded_file.size}, type: {uploaded_file.content_type}")
+            
+            # Parse resume first before Django consumes the file stream
+            parser = ResumeParser()
+            parsed_data = parser.parse_resume(uploaded_file)
+            
+            print(f"[DEBUG] Parsed data summary - Name: {parsed_data.get('name')}, "
+                  f"Skills: {len(parsed_data.get('skills', []))}, "
+                  f"Projects: {len(parsed_data.get('projects', []))}, "
+                  f"Experiences: {len(parsed_data.get('experiences', []))}")
+            
+            # Reset pointer and save to model
+            uploaded_file.seek(0)
+            student.resume = uploaded_file
+            student.save()
+            print(f"[DEBUG] Resume file saved to student record")
+            
+            # Run fraud detection with parsed CGPA
+            try:
+                fraud_engine = FraudDetectionEngine()
+                fraud_engine.analyze_student(student, cv_cgpa=parsed_data.get('cgpa'))
+                print(f"[DEBUG] Fraud detection complete")
+            except Exception as fraud_err:
+                print(f"[DEBUG] Fraud detection skipped: {fraud_err}")
+            
+            return JsonResponse({
+                'status': 'success',
+                'data': parsed_data
+            })
+            
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] UploadResumeView failed: {str(e)}")
+            print(traceback.format_exc())
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+        
+# ==================== LINKEDIN PDF UPLOAD VIEW ====================
+
+class LinkedInPDFUploadView(View):
+    """
+    POST /api/student/<student_id>/upload-linkedin/
+    Accepts a LinkedIn PDF export, parses it with Gemini, cross-validates against
+    existing profile skills, updates linkedin_score, and returns the diff.
+    """
+    def post(self, request, student_id):
+        try:
+            from .utils.linkedin_parser import LinkedInParser, calculate_linkedin_score
+
+            student = get_object_or_404(Student, id=student_id)
+            uploaded_file = request.FILES.get('linkedin_pdf')
+            if not uploaded_file:
+                return JsonResponse({'status': 'error', 'message': 'No LinkedIn PDF provided'}, status=400)
+
+            print(f"[LinkedIn] Upload for student {student_id}, file: {uploaded_file.name}")
+
+            # 1. Parse the LinkedIn PDF
+            parser = LinkedInParser()
+            parsed = parser.parse(uploaded_file)
+
+            # 2. Cross-validate skills against existing CV/manual skills
+            existing_skills = StudentSkill.objects.filter(student=student).select_related('skill')
+            existing_by_name = {ss.skill.name.lower(): ss for ss in existing_skills}
+
+            cross_validated_count = 0
+            linkedin_only_skills = []
+            newly_cross_validated = []
+
+            for li_skill in parsed.get('skills', []):
+                name_lower = li_skill['name'].lower()
+                if name_lower in existing_by_name:
+                    # Skill exists in both CV and LinkedIn → mark cross-validated
+                    ss = existing_by_name[name_lower]
+                    if not ss.cross_validated:
+                        ss.cross_validated = True
+                        # Promote proficiency if LinkedIn suggests higher
+                        level_order = {'Beginner': 0, 'Intermediate': 1, 'Expert': 2}
+                        if level_order.get(li_skill.get('level', 'Beginner'), 0) > level_order.get(ss.proficiency_level, 0):
+                            ss.proficiency_level = li_skill['level']
+                        ss.save()
+                        newly_cross_validated.append(li_skill['name'])
+                    cross_validated_count += 1
+                else:
+                    # LinkedIn-only skill — add to profile
+                    linkedin_only_skills.append(li_skill)
+
+            # Add LinkedIn-only skills to the student's profile
+            added_skills = []
+            for li_skill in linkedin_only_skills:
+                try:
+                    skill_obj, _ = Skill.objects.get_or_create(
+                        name__iexact=li_skill['name'],
+                        defaults={
+                            'name': li_skill['name'],
+                            'category': li_skill.get('category', 'Uncategorized'),
+                        }
+                    )
+                    StudentSkill.objects.get_or_create(
+                        student=student,
+                        skill=skill_obj,
+                        defaults={
+                            'proficiency_level': li_skill.get('level', 'Intermediate'),
+                            'source': 'linkedin',
+                            'cross_validated': False,
+                        }
+                    )
+                    added_skills.append(li_skill['name'])
+                except Exception as skill_err:
+                    print(f"[LinkedIn] Skill add error {li_skill['name']}: {skill_err}")
+
+            # 3. Cross-validate work experiences
+            verified_experiences = []
+            for li_exp in parsed.get('experiences', []):
+                matches = student.experiences.filter(
+                    company_name__iexact=li_exp.get('company_name', ''),
+                    role__iexact=li_exp.get('role', '')
+                )
+                if matches.exists():
+                    matches.update(verification_status='verified', verification_method='linkedin_pdf')
+                    verified_experiences.append(li_exp.get('company_name'))
+
+            # 4. Merge LinkedIn certifications into student profile
+            existing_cert_names = {c.get('name', '').lower() for c in (student.certifications or [])}
+            new_certs = []
+            for cert in parsed.get('certifications', []):
+                if cert.get('name', '').lower() not in existing_cert_names:
+                    new_certs.append({
+                        'name': cert.get('name', ''),
+                        'issuer': cert.get('issuer', ''),
+                        'year': cert.get('year'),
+                        'url': cert.get('url'),
+                    })
+            if new_certs:
+                student.certifications = (student.certifications or []) + new_certs
+
+            # 5. Calculate linkedin_score
+            total_linkedin_skills = len(parsed.get('skills', []))
+            li_score = calculate_linkedin_score(parsed, cross_validated_count, total_linkedin_skills)
+            student.linkedin_score = li_score
+            student.linkedin_parsed_data = parsed
+
+            # 6. Save LinkedIn PDF file
+            uploaded_file.seek(0)
+            student.linkedin_pdf = uploaded_file
+            student.save()
+
+            # 7. Recalculate trust score
+            student.calculate_trust_score()
+
+            print(f"[LinkedIn] Done — score={li_score}, cross_validated={cross_validated_count}, "
+                  f"added={len(added_skills)}, verified_exp={len(verified_experiences)}")
+
+            return JsonResponse({
+                'status': 'success',
+                'linkedin_score': li_score,
+                'cross_validated_count': cross_validated_count,
+                'newly_cross_validated': newly_cross_validated,
+                'added_skills': added_skills,
+                'verified_experiences': verified_experiences,
+                'new_certifications': [c['name'] for c in new_certs],
+                'parsed_summary': {
+                    'name': parsed.get('name'),
+                    'headline': parsed.get('headline'),
+                    'total_skills': total_linkedin_skills,
+                    'total_experiences': len(parsed.get('experiences', [])),
+                    'total_certifications': len(parsed.get('certifications', [])),
+                    'experience_months': parsed.get('total_experience_months'),
+                },
+            })
+
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] LinkedInPDFUploadView: {e}")
+            print(traceback.format_exc())
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+# ==================== SMART JOB RECOMMENDATIONS VIEW ====================
+
+class SmartJobRecommendationsView(View):
+    """
+    GET /api/student/<student_id>/recommendations/
+    Returns top job matches + career guide (which skills to add for max impact).
+    """
+    def get(self, request, student_id):
+        try:
+            student = get_object_or_404(Student, id=student_id)
+            engine = AIMatchingEngine()
+            data = engine.generate_smart_recommendations(student, top_n=5)
+
+            # Serialize gap_skills (Skill objects → dicts)
+            for job in data['top_jobs']:
+                job['gap_skills'] = [
+                    {'id': str(s.id), 'name': s.name}
+                    if hasattr(s, 'id') else s
+                    for s in job['gap_skills']
+                ]
+
+            return JsonResponse({'status': 'success', 'data': data})
+
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] SmartJobRecommendationsView: {e}")
+            print(traceback.format_exc())
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
 # ==================== SUPER ADMIN SETUP ====================
 # ==================== SUPER ADMIN SETUP ====================
 # Hardcoded super admin credentials

@@ -82,10 +82,8 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# This stays safe in your GitHub repo
-GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default-key')
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
+
+API_key=os.getenv('API_KEY')
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
@@ -96,6 +94,12 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static',
                     BASE_DIR / 'vetting' / 'static',
                     ]
+
+# Media files (uploaded resumes, etc.)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Celery Configuration (for daily batch processing)

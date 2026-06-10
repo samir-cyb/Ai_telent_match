@@ -2,25 +2,64 @@ import numpy as np
 from datetime import datetime, timedelta
 from django.db.models import Avg, Count
 from core.models import AIFeedbackLog, Application, Job, Student, StudentSkill, MatchExplanation, Skill, StudentBehaviorLog
-from django.utils import timezone 
+from django.utils import timezone
+
+
+# Default matching weights per department category.
+# Company custom_weights always override these via merge (see __init__).
+DEPARTMENT_DEFAULT_WEIGHTS = {
+    'tech': {
+        'skills': 0.40, 'cgpa': 0.15, 'projects': 0.25,
+        'activity': 0.10, 'trust': 0.10,
+    },
+    'engineering': {
+        'skills': 0.35, 'cgpa': 0.25, 'projects': 0.25,
+        'activity': 0.05, 'trust': 0.10,
+    },
+    'business': {
+        'skills': 0.25, 'cgpa': 0.25, 'projects': 0.10,
+        'activity': 0.25, 'trust': 0.15,
+    },
+    'design': {
+        'skills': 0.20, 'cgpa': 0.10, 'projects': 0.45,
+        'activity': 0.15, 'trust': 0.10,
+    },
+    'science': {
+        'skills': 0.30, 'cgpa': 0.35, 'projects': 0.20,
+        'activity': 0.05, 'trust': 0.10,
+    },
+    'humanities': {
+        'skills': 0.20, 'cgpa': 0.25, 'projects': 0.10,
+        'activity': 0.30, 'trust': 0.15,
+    },
+    'any': {
+        'skills': 0.35, 'cgpa': 0.20, 'projects': 0.20,
+        'activity': 0.15, 'trust': 0.10,
+    },
+}
+
+
 class AIMatchingEngine:
     def __init__(self, company=None, job=None):
         self.company = company
-        self.job = job  # Store job reference
-        
-        # Start with company weights as default
-        base_weights = company.get_weights() if company else {
-            'skills': 0.4, 'cgpa': 0.2, 'projects': 0.2, 
-            'activity': 0.1, 'trust': 0.1
-        }
-        
-        # Override with job-specific weights if they exist
+        self.job = job
+
+        # 1. Start from department-based defaults (from the job, if available)
+        dept_cat = getattr(job, 'department_category', 'any') or 'any'
+        base_weights = DEPARTMENT_DEFAULT_WEIGHTS.get(dept_cat, DEPARTMENT_DEFAULT_WEIGHTS['any']).copy()
+
+        # 2. Company custom_weights override department defaults
+        if company and company.custom_weights:
+            base_weights = {**base_weights, **company.custom_weights}
+
+        # 3. Job-level custom_weights have the highest priority
         if job and job.custom_weights:
-            self.weights = {**base_weights, **job.custom_weights}
-        else:
-            self.weights = base_weights
-        
-        # A/B Testing: Check if student is in variant group
+            base_weights = {**base_weights, **job.custom_weights}
+
+        self.weights = base_weights
+        self.department_category = dept_cat
+
+        # A/B Testing
         self.ab_test_variant = None
     
     def get_ab_test_weights(self, student):
@@ -50,41 +89,100 @@ class AIMatchingEngine:
         
         return self.weights
     
+    # Semantic skill similarity groups.
+    # If a student has skill A and job requires skill B (a related skill),
+    # they receive PARTIAL_SEMANTIC_SCORE credit instead of zero.
+    SKILL_SIMILARITY_GROUPS = {
+        # Frontend frameworks
+        'react': ['vue', 'angular', 'svelte', 'next.js', 'nuxt'],
+        'vue': ['react', 'angular', 'svelte'],
+        'angular': ['react', 'vue', 'svelte'],
+        # Backend frameworks
+        'django': ['flask', 'fastapi', 'rails', 'laravel', 'express'],
+        'flask': ['django', 'fastapi', 'express'],
+        'fastapi': ['django', 'flask', 'express'],
+        'express': ['django', 'flask', 'fastapi', 'spring boot'],
+        # Languages (similar paradigm)
+        'python': ['r', 'julia', 'matlab'],
+        'javascript': ['typescript'],
+        'typescript': ['javascript'],
+        'java': ['kotlin', 'scala', 'c#'],
+        'c#': ['java', 'kotlin'],
+        'kotlin': ['java', 'swift'],
+        'swift': ['kotlin', 'objective-c'],
+        # Data / ML
+        'tensorflow': ['pytorch', 'keras'],
+        'pytorch': ['tensorflow', 'keras'],
+        'pandas': ['numpy', 'polars'],
+        'scikit-learn': ['xgboost', 'lightgbm'],
+        # Databases
+        'postgresql': ['mysql', 'mariadb', 'sqlite'],
+        'mysql': ['postgresql', 'mariadb', 'sqlite'],
+        'mongodb': ['couchdb', 'dynamodb', 'firestore'],
+        # Cloud
+        'aws': ['gcp', 'azure'],
+        'gcp': ['aws', 'azure'],
+        'azure': ['aws', 'gcp'],
+        # Design
+        'figma': ['sketch', 'adobe xd', 'invision'],
+        'adobe photoshop': ['gimp', 'affinity photo'],
+        # Business
+        'excel': ['google sheets', 'tableau', 'power bi'],
+        'tableau': ['power bi', 'looker', 'excel'],
+    }
+    PARTIAL_SEMANTIC_SCORE = 0.4  # credit for a semantically similar skill
+
     def calculate_skill_match(self, student, job):
-        """Calculate skill match with proficiency consideration - FIXED: case-insensitive name matching"""
+        """
+        Semantic skill matching with cross-validation boost.
+
+        Scoring per required skill:
+          - Exact match + cross_validated:  proficiency_multiplier × 1.2  (capped 1.0)
+          - Exact match (not cross-validated): proficiency_multiplier (0.5/0.8/1.0)
+          - Semantic similar skill found:   PARTIAL_SEMANTIC_SCORE (0.4)
+          - Not found at all:               0 (added to missing list)
+        """
         required_skills = list(job.required_skills.all())
         student_skills_qs = StudentSkill.objects.filter(student=student).select_related('skill')
-        
-        # Build dict by lowercase skill name for case-insensitive matching
+
+        # Build lookup: lowercase name → {level, cross_validated}
         student_skills_by_name = {}
         for ss in student_skills_qs:
-            skill_name_lower = ss.skill.name.lower()
-            student_skills_by_name[skill_name_lower] = {
+            student_skills_by_name[ss.skill.name.lower()] = {
                 'level': ss.proficiency_level,
-                'skill_obj': ss.skill
+                'cross_validated': getattr(ss, 'cross_validated', False),
             }
-        
+
         if not required_skills:
             return 1.0, []
-        
-        matched = 0
+
+        matched = 0.0
         missing = []
-        
+
+        prof_map = {'Beginner': 0.5, 'Intermediate': 0.8, 'Expert': 1.0}
+
         for required_skill in required_skills:
-            required_name_lower = required_skill.name.lower()
-            
-            if required_name_lower in student_skills_by_name:
-                # Weight by proficiency
-                prof_level = student_skills_by_name[required_name_lower]['level']
-                prof_multiplier = {
-                    'Beginner': 0.5,
-                    'Intermediate': 0.8,
-                    'Expert': 1.0
-                }.get(prof_level, 0.5)
-                matched += prof_multiplier
+            req_lower = required_skill.name.lower()
+
+            if req_lower in student_skills_by_name:
+                # Exact match
+                entry = student_skills_by_name[req_lower]
+                multiplier = prof_map.get(entry['level'], 0.5)
+                if entry['cross_validated']:
+                    multiplier = min(multiplier * 1.2, 1.0)  # CV+LinkedIn verified → boost
+                matched += multiplier
             else:
-                missing.append(required_skill)
-        
+                # Try semantic partial match
+                similar_names = self.SKILL_SIMILARITY_GROUPS.get(req_lower, [])
+                found_similar = False
+                for sim_name in similar_names:
+                    if sim_name in student_skills_by_name:
+                        matched += self.PARTIAL_SEMANTIC_SCORE
+                        found_similar = True
+                        break
+                if not found_similar:
+                    missing.append(required_skill)
+
         return matched / len(required_skills), missing
     
     def calculate_cgpa_score(self, student, job):
@@ -227,17 +325,76 @@ class AIMatchingEngine:
         }
         return descriptions.get(group, 'Standard algorithm')
     
+    def _linkedin_trust_bonus(self, student):
+        """
+        Compute LinkedIn trust bonus (0–0.20) using linkedin_score when available,
+        falling back to flat URL bonus so existing profiles aren't penalised.
+        """
+        ls = getattr(student, 'linkedin_score', 0) or 0
+        if ls > 0:
+            # linkedin_score 0–100 → bonus 0–0.20 (proportional, richer profile = higher trust)
+            return (ls / 100.0) * 0.20
+        # Fallback: just having the URL gives a small flat bonus
+        return 0.07 if student.linkedin_url else 0.0
+
+    def calculate_trust_score_dept_aware(self, student):
+        """
+        Build a 0–1 trust score that accounts for the student's department.
+        LinkedIn score (from PDF verification) is now the primary LinkedIn signal,
+        replacing the old flat URL check. Cross-validated skills add a small bonus.
+        """
+        dept_cat = (
+            getattr(student, 'department_category', None)
+            or student.get_department_category()
+        )
+
+        # Base: profile trust score (always relevant)
+        base = float(student.trust_score) / 100.0 if student.trust_score else 0.0
+
+        # Cross-validation bonus: each verified skill adds a tiny trust signal
+        cv_count = StudentSkill.objects.filter(student=student, cross_validated=True).count()
+        cross_val_bonus = min(cv_count * 0.01, 0.05)  # max +5% from cross-validated skills
+        base = min(base + cross_val_bonus, 1.0)
+
+        if dept_cat == 'tech':
+            # GitHub score → up to +20% | LinkedIn PDF score → up to +10% for tech
+            github_bonus = (float(student.github_score) / 100.0) * 0.2 if student.github_score else 0.0
+            linkedin_bonus = self._linkedin_trust_bonus(student) * 0.5  # half weight for tech
+            return min(base + github_bonus + linkedin_bonus, 1.0)
+
+        if dept_cat == 'design':
+            # Behance/portfolio → +10% | LinkedIn PDF → up to +10%
+            portfolio_bonus = 0.10 if (getattr(student, 'behance_url', '') or student.portfolio_url) else 0.0
+            linkedin_bonus = self._linkedin_trust_bonus(student) * 0.5
+            return min(base + portfolio_bonus + linkedin_bonus, 1.0)
+
+        if dept_cat in ('business', 'humanities'):
+            # LinkedIn is the PRIMARY signal here → full weight (up to +20%)
+            linkedin_bonus = self._linkedin_trust_bonus(student)
+            eca_bonus = min(len(getattr(student, 'eca_activities', []) or []) * 0.02, 0.08)
+            return min(base + linkedin_bonus + eca_bonus, 1.0)
+
+        if dept_cat == 'science':
+            # Research papers → up to +15% | LinkedIn PDF → up to +10%
+            paper_bonus = min(len(getattr(student, 'research_papers', []) or []) * 0.05, 0.15)
+            linkedin_bonus = self._linkedin_trust_bonus(student) * 0.5
+            return min(base + paper_bonus + linkedin_bonus, 1.0)
+
+        # engineering / any: LinkedIn PDF at full weight
+        linkedin_bonus = self._linkedin_trust_bonus(student)
+        return min(base + linkedin_bonus, 1.0)
+
     def calculate_match(self, student, job, save_explanation=True):
-        """Main matching algorithm with A/B testing support"""
+        """Main matching algorithm with A/B testing and department-aware support"""
         # Get appropriate weights based on A/B test group
         weights = self.get_ab_test_weights(student)
-        
+
         # Base scores
         skill_score, missing_skills = self.calculate_skill_match(student, job)
         cgpa_score = self.calculate_cgpa_score(student, job)
         project_score = self.calculate_project_score(student)
         activity_score = self.calculate_activity_score(student)
-        trust_score = float(student.trust_score) / 100.0 if student.trust_score else 0.0
+        trust_score = self.calculate_trust_score_dept_aware(student)
         
         # Contextual adjustments
         factors = self.calculate_contextual_factors(student, job)
@@ -274,6 +431,78 @@ class AIMatchingEngine:
         
         return final_score, explanation_data
     
+    def generate_smart_recommendations(self, student, top_n=5):
+        """
+        Return top N jobs ranked by match score, each with:
+          - fit_percentage: current match %
+          - gap_skills: list of skills the student is missing
+          - potential_score: estimated score if gap skills were added
+          - is_reachable: True if potential_score >= 70 (worth pursuing)
+
+        Also returns career_guide: the most impactful skills to add across
+        all near-miss jobs (60–85% fit range).
+        """
+        active_jobs = Job.objects.filter(status='active').prefetch_related('required_skills', 'company')
+        results = []
+
+        for job in active_jobs:
+            engine = AIMatchingEngine(company=job.company, job=job)
+            score, explanation = engine.calculate_match(student, job, save_explanation=False)
+            missing = explanation.get('missing_skills', [])
+
+            # Estimate potential score: assume adding each missing skill at Intermediate
+            # gives the average contribution of that skill to the total weight
+            skills_weight = engine.weights.get('skills', 0.35)
+            req_count = job.required_skills.count()
+            if req_count > 0 and missing:
+                # Each missing skill contributes skills_weight * 0.8 / req_count (Intermediate)
+                gain_per_skill = (skills_weight * 0.8 / req_count) * 100
+                potential = min(score + gain_per_skill * len(missing), 100)
+            else:
+                potential = score
+
+            results.append({
+                'job_id': str(job.id),
+                'job_title': job.title,
+                'company_name': job.company.name,
+                'fit_percentage': round(score, 1),
+                'potential_score': round(potential, 1),
+                'gap_skills': missing,
+                'is_reachable': potential >= 70,
+                'department_category': job.department_category or 'any',
+            })
+
+        # Sort: prioritise reachable jobs closest to 80% fit
+        results.sort(key=lambda x: (
+            -x['is_reachable'],
+            -x['fit_percentage'],
+        ))
+        top_jobs = results[:top_n]
+
+        # Career guide: find the most commonly missing skills across 60–85% fit jobs
+        near_miss_jobs = [r for r in results if 55 <= r['fit_percentage'] <= 85]
+        skill_frequency: dict = {}
+        for r in near_miss_jobs:
+            for s in r['gap_skills']:
+                key = s['name']
+                skill_frequency[key] = skill_frequency.get(key, 0) + 1
+
+        # Top 5 highest-impact skills to learn
+        top_gap_skills = sorted(skill_frequency.items(), key=lambda x: -x[1])[:5]
+        career_guide = []
+        for skill_name, job_count in top_gap_skills:
+            career_guide.append({
+                'skill': skill_name,
+                'unlocks_jobs': job_count,
+                'message': f"Adding '{skill_name}' would improve your fit for {job_count} job{'s' if job_count > 1 else ''}",
+            })
+
+        return {
+            'top_jobs': top_jobs,
+            'career_guide': career_guide,
+            'total_active_jobs': len(results),
+        }
+
     def smart_apply(self, student, threshold=70, max_applications=5):
         """Auto-apply student to best matching jobs"""
         active_jobs = Job.objects.filter(status='active')

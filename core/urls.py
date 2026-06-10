@@ -21,6 +21,9 @@ urlpatterns = [
     path('student/<uuid:student_id>/experience/', views.AddExperienceView.as_view(), name='add_experience'),
     path('student/<uuid:student_id>/preferences/', views.UpdatePreferencesView.as_view(), name='update_preferences'),
     path('student/<uuid:student_id>/applications/', views.StudentApplicationsView.as_view(), name='student_applications'),
+    path('student/<uuid:student_id>/upload-resume/', views.UploadResumeView.as_view(), name='api_upload_resume'),
+    path('student/<uuid:student_id>/upload-linkedin/', views.LinkedInPDFUploadView.as_view(), name='api_upload_linkedin'),
+    path('student/<uuid:student_id>/recommendations/', views.SmartJobRecommendationsView.as_view(), name='smart_recommendations'),
     
     path('analyze-match/', views.AnalyzeMatchView.as_view(), name='analyze_match'),
     path('smart-apply/', views.SmartApplyView.as_view(), name='smart_apply'),

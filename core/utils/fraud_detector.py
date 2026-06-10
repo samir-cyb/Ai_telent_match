@@ -8,7 +8,7 @@ class FraudDetectionEngine:
     def __init__(self):
         self.flags = []
     
-    def analyze_student(self, student):
+    def analyze_student(self, student, cv_cgpa=None):
         """Run all fraud detection rules on a student"""
         self.flags = []
         
@@ -32,6 +32,10 @@ class FraudDetectionEngine:
         
         # Rule 7: CGPA Inflation Over Time
         self._check_cgpa_inflation(student)
+        
+        # Rule 8: CV CGPA Mismatch
+        if cv_cgpa is not None:
+            self._check_cv_mismatch(student, cv_cgpa)
         
         # Save flags
         for flag in self.flags:
@@ -211,6 +215,23 @@ class FraudDetectionEngine:
                     'reason': 'Multiple CGPA updates in 30 days - possible grade manipulation'
                 }
             })
+            
+    def _check_cv_mismatch(self, student, cv_cgpa):
+        """Flag: CGPA on uploaded resume doesn't match profile CGPA"""
+        if student.cgpa is not None and cv_cgpa is not None:
+            profile_cgpa = float(student.cgpa)
+            cv_cgpa_float = float(cv_cgpa)
+            
+            if abs(profile_cgpa - cv_cgpa_float) > 0.1:
+                self.flags.append({
+                    'type': 'resume_cgpa_mismatch',
+                    'severity': 'high',
+                    'details': {
+                        'profile_cgpa': profile_cgpa,
+                        'cv_cgpa': cv_cgpa_float,
+                        'reason': 'CGPA claimed on uploaded CV is significantly higher than profile CGPA'
+                    }
+                })
     
     def batch_analyze(self, students=None):
         """Run fraud detection on multiple students"""
