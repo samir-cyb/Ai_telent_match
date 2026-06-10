@@ -211,37 +211,187 @@ Pool{%endblock%} {% block content %}
   </div>
 </div>
 
-<!-- Create Challenge Modal -->
-<div id="challenge-modal" class="modal" style="display: none">
-  <div class="modal-content glass-card">
-    <h3><i class="fas fa-plus"></i> Create Technical Assessment</h3>
-    <p>Generate AI-powered coding challenge for this job</p>
+<!-- ═══════════════════════════════════════════════════════════════════
+     CREATE ASSESSMENT MODAL  (2-step: Configure → Preview & Edit → Save)
+     ═══════════════════════════════════════════════════════════════════ -->
+<div id="challenge-modal" class="modal" style="display:none; align-items:flex-start; padding-top:40px;">
+  <div class="modal-content glass-card" id="challenge-modal-box"
+       style="max-width:680px; width:95%; max-height:88vh; overflow-y:auto; border-radius:16px;">
 
-    <div class="form-group">
-      <label>Difficulty Level</label>
-      <select id="challenge-difficulty">
-        <option value="easy">Easy (30 min)</option>
-        <option value="medium" selected>Medium (45 min)</option>
-        <option value="hard">Hard (60 min)</option>
-      </select>
-    </div>
+    <!-- ── STEP 1: Configure ── -->
+    <div id="step-configure">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <h3 style="margin:0;"><i class="fas fa-sliders-h" style="color:#3b82f6;"></i> Configure Assessment</h3>
+        <button onclick="closeChallengeModal()" style="background:none;border:none;color:#64748b;font-size:1.3rem;cursor:pointer;">✕</button>
+      </div>
+      <p style="color:#64748b; font-size:0.85rem; margin-bottom:1.5rem;">
+        Fill in the details below — AI builds the entire question paper from your inputs.
+      </p>
 
-    <div class="form-group">
-      <label>Programming Language</label>
-      <select id="challenge-language">
-        <option value="python" selected>Python</option>
-        <option value="javascript">JavaScript</option>
-        <option value="java">Java</option>
-        <option value="cpp">C++</option>
-      </select>
-    </div>
+      <!-- Assessment Type -->
+      <div class="form-group">
+        <label style="font-weight:600; color:#e2e8f0; font-size:0.85rem; text-transform:uppercase; letter-spacing:.05em;">Assessment Type</label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px;">
+          <div id="type-coding" onclick="selectAssessmentType('coding')"
+            style="padding:14px; border-radius:10px; border:2px solid #3b82f6; background:rgba(59,130,246,0.12); cursor:pointer; text-align:center; transition:all .2s;">
+            <div style="font-size:1.6rem;">💻</div>
+            <div style="font-weight:700; color:#93c5fd; font-size:0.88rem; margin-top:4px;">Coding Challenge</div>
+            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">Tech / Engineering</div>
+          </div>
+          <div id="type-mcq_written" onclick="selectAssessmentType('mcq_written')"
+            style="padding:14px; border-radius:10px; border:2px solid #475569; background:rgba(71,85,105,0.12); cursor:pointer; text-align:center; transition:all .2s;">
+            <div style="font-size:1.6rem;">📝</div>
+            <div style="font-weight:700; color:#cbd5e1; font-size:0.88rem; margin-top:4px;">MCQ + Written</div>
+            <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">Business / Design / Arts</div>
+          </div>
+        </div>
+        <input type="hidden" id="challenge-assessment-type" value="coding">
+      </div>
 
-    <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeChallengeModal()">Cancel</button>
-      <button class="btn-primary" onclick="confirmCreateChallenge()">
-        <i class="fas fa-magic"></i> Generate Challenge
-      </button>
-    </div>
+      <!-- Topic (required) -->
+      <div class="form-group">
+        <label style="font-weight:600; color:#e2e8f0; font-size:0.85rem; text-transform:uppercase; letter-spacing:.05em;">
+          Topic <span style="color:#ef4444;">*</span>
+          <span style="font-weight:400; color:#64748b; font-size:0.8rem; text-transform:none; letter-spacing:0;"> — the entire paper is built around this</span>
+        </label>
+        <input type="text" id="challenge-topic" required
+          placeholder="e.g. Django REST APIs, Digital Marketing, Financial Modeling, UI/UX Design Principles…"
+          style="width:100%; background:#0f172a; border:2px solid #3b82f6; color:#f1f5f9; border-radius:8px; padding:10px 14px; font-size:0.95rem; margin-top:6px; box-sizing:border-box; outline:none;">
+      </div>
+
+      <!-- Keywords -->
+      <div class="form-group">
+        <label style="font-weight:600; color:#e2e8f0; font-size:0.85rem; text-transform:uppercase; letter-spacing:.05em;">
+          Keywords / Subtopics
+          <span style="font-weight:400; color:#64748b; font-size:0.8rem; text-transform:none; letter-spacing:0;"> (comma separated)</span>
+        </label>
+        <input type="text" id="challenge-keywords"
+          placeholder="e.g. serializers, JWT auth, pagination  OR  SEO, Google Ads, A/B testing"
+          style="width:100%; background:#1e293b; border:1px solid #334155; color:#f1f5f9; border-radius:8px; padding:10px 14px; font-size:0.9rem; margin-top:6px; box-sizing:border-box; outline:none;">
+        <p style="font-size:0.75rem; color:#64748b; margin-top:4px;">AI will ensure each keyword appears in at least one question.</p>
+      </div>
+
+      <!-- Custom Instructions -->
+      <div class="form-group">
+        <label style="font-weight:600; color:#e2e8f0; font-size:0.85rem; text-transform:uppercase; letter-spacing:.05em;">
+          Custom Instructions to AI
+          <span style="font-weight:400; color:#64748b; font-size:0.8rem; text-transform:none; letter-spacing:0;"> (optional)</span>
+        </label>
+        <textarea id="challenge-custom-instructions" rows="2"
+          placeholder="e.g. Focus on practical scenario questions, avoid pure theory. Use Bangladeshi market context."
+          style="width:100%; background:#1e293b; border:1px solid #334155; color:#f1f5f9; border-radius:8px; padding:10px 14px; font-size:0.88rem; margin-top:6px; box-sizing:border-box; resize:vertical; outline:none; font-family:inherit;"></textarea>
+      </div>
+
+      <!-- Row: Department + Seniority -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label style="font-weight:600; color:#e2e8f0; font-size:0.85rem; text-transform:uppercase; letter-spacing:.05em;">Department</label>
+          <select id="challenge-department" style="width:100%; background:#1e293b; border:1px solid #334155; color:#f1f5f9; border-radius:8px; padding:9px 12px; font-size:0.88rem; margin-top:6px;">
+            <option value="any">General / Any</option>
+            <option value="tech">Technology / Software</option>
+            <option value="engineering">Engineering (EEE/Mech)</option>
+            <option value="business">Business / MBA / Finance</option>
+            <option value="design">Design / UI-UX / Arts</option>
+            <option value="science">Science / Research / Math</option>
+            <option value="humanities">Humanities / Media / Econ</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="font-weight:600; color:#e2e8f0; font-size:0.85rem; text-transform:uppercase; letter-spacing:.05em;">Seniority Level</label>
+          <select id="challenge-seniority" style="width:100%; background:#1e293b; border:1px solid #334155; color:#f1f5f9; border-radius:8px; padding:9px 12px; font-size:0.88rem; margin-top:6px;">
+            <option value="any">Any / Not specified</option>
+            <option value="intern">Intern</option>
+            <option value="junior">Junior (0-1 yr)</option>
+            <option value="mid" selected>Mid-level (2-4 yrs)</option>
+            <option value="senior">Senior (5+ yrs)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Row: Difficulty + Time -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label style="font-weight:600; color:#e2e8f0; font-size:0.85rem; text-transform:uppercase; letter-spacing:.05em;">Difficulty</label>
+          <select id="challenge-difficulty" style="width:100%; background:#1e293b; border:1px solid #334155; color:#f1f5f9; border-radius:8px; padding:9px 12px; font-size:0.88rem; margin-top:6px;">
+            <option value="easy">Easy (~30 min)</option>
+            <option value="medium" selected>Medium (~45 min)</option>
+            <option value="hard">Hard (~60 min)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="font-weight:600; color:#e2e8f0; font-size:0.85rem; text-transform:uppercase; letter-spacing:.05em;">Time Limit</label>
+          <select id="challenge-timelimit" style="width:100%; background:#1e293b; border:1px solid #334155; color:#f1f5f9; border-radius:8px; padding:9px 12px; font-size:0.88rem; margin-top:6px;">
+            <option value="30">30 minutes</option>
+            <option value="45" selected>45 minutes</option>
+            <option value="60">60 minutes</option>
+            <option value="90">90 minutes</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- MCQ / Written count (only for mcq_written) -->
+      <div id="mcq-count-row" style="display:none; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label style="font-weight:600; color:#e2e8f0; font-size:0.85rem; text-transform:uppercase; letter-spacing:.05em;">Number of MCQs</label>
+          <select id="challenge-mcq-count" style="width:100%; background:#1e293b; border:1px solid #334155; color:#f1f5f9; border-radius:8px; padding:9px 12px; font-size:0.88rem; margin-top:6px;">
+            <option value="2">2 questions</option>
+            <option value="3">3 questions</option>
+            <option value="4" selected>4 questions</option>
+            <option value="5">5 questions</option>
+            <option value="6">6 questions</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="font-weight:600; color:#e2e8f0; font-size:0.85rem; text-transform:uppercase; letter-spacing:.05em;">Written Questions</label>
+          <select id="challenge-written-count" style="width:100%; background:#1e293b; border:1px solid #334155; color:#f1f5f9; border-radius:8px; padding:9px 12px; font-size:0.88rem; margin-top:6px;">
+            <option value="1">1 question</option>
+            <option value="2" selected>2 questions</option>
+            <option value="3">3 questions</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top:1.5rem;">
+        <button class="btn-secondary" onclick="closeChallengeModal()">Cancel</button>
+        <button class="btn-primary" id="generate-btn" onclick="previewChallenge()">
+          <i class="fas fa-eye"></i> Preview Questions
+        </button>
+      </div>
+    </div><!-- /step-configure -->
+
+    <!-- ── STEP 2: Preview & Edit ── -->
+    <div id="step-preview" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <h3 style="margin:0;"><i class="fas fa-edit" style="color:#8b5cf6;"></i> Review & Edit Questions</h3>
+        <button onclick="closeChallengeModal()" style="background:none;border:none;color:#64748b;font-size:1.3rem;cursor:pointer;">✕</button>
+      </div>
+      <p id="preview-subtitle" style="color:#64748b; font-size:0.85rem; margin-bottom:1rem;">
+        Edit any question before saving. Changes are reflected in the final assessment.
+      </p>
+
+      <!-- Editable title -->
+      <div class="form-group" style="margin-bottom:1rem;">
+        <label style="font-weight:600; color:#e2e8f0; font-size:0.85rem;">Assessment Title</label>
+        <input type="text" id="preview-title"
+          style="width:100%; background:#0f172a; border:1px solid #334155; color:#f1f5f9; border-radius:8px; padding:8px 12px; font-size:0.9rem; margin-top:4px; box-sizing:border-box; outline:none;">
+      </div>
+
+      <!-- Questions list (dynamically built) -->
+      <div id="preview-questions"></div>
+
+      <div class="modal-actions" style="margin-top:1.5rem;">
+        <button class="btn-secondary" onclick="backToConfigure()">
+          <i class="fas fa-arrow-left"></i> Back & Reconfigure
+        </button>
+        <button class="btn-secondary" onclick="regeneratePreview()" id="regen-btn" style="margin-left:8px;">
+          <i class="fas fa-sync"></i> Regenerate
+        </button>
+        <button class="btn-primary" id="save-btn" onclick="saveAssessment()">
+          <i class="fas fa-save"></i> Save Assessment
+        </button>
+      </div>
+    </div><!-- /step-preview -->
+
   </div>
 </div>
 
@@ -699,49 +849,254 @@ if (!companyId) {
     document.getElementById("code-modal").style.display = "none";
   }
 
+  // ── Assessment type toggle ──────────────────────────────────────────
+  function selectAssessmentType(type) {
+    document.getElementById('challenge-assessment-type').value = type;
+    const coding = document.getElementById('type-coding');
+    const mcq    = document.getElementById('type-mcq_written');
+    const mcqRow = document.getElementById('mcq-count-row');
+    if (type === 'coding') {
+      coding.style.border = '2px solid #3b82f6';
+      coding.style.background = 'rgba(59,130,246,0.12)';
+      mcq.style.border = '2px solid #475569';
+      mcq.style.background = 'rgba(71,85,105,0.12)';
+      mcqRow.style.display = 'none';
+    } else {
+      mcq.style.border = '2px solid #8b5cf6';
+      mcq.style.background = 'rgba(139,92,246,0.12)';
+      coding.style.border = '2px solid #475569';
+      coding.style.background = 'rgba(71,85,105,0.12)';
+      mcqRow.style.display = 'grid';
+    }
+  }
+
+  // ── Open / close ────────────────────────────────────────────────────
   function createVettingChallenge() {
     closeVettingModal();
-    document.getElementById("challenge-modal").style.display = "flex";
+    document.getElementById('challenge-modal').style.display = 'flex';
+    document.getElementById('step-configure').style.display = 'block';
+    document.getElementById('step-preview').style.display = 'none';
   }
 
   function closeChallengeModal() {
-    document.getElementById("challenge-modal").style.display = "none";
+    document.getElementById('challenge-modal').style.display = 'none';
   }
 
-  async function confirmCreateChallenge() {
-    const difficulty = document.getElementById("challenge-difficulty").value;
-    const language = document.getElementById("challenge-language").value;
-    
-    const btn = event.target;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+  function backToConfigure() {
+    document.getElementById('step-preview').style.display = 'none';
+    document.getElementById('step-configure').style.display = 'block';
+  }
+
+  // ── Collect form values ─────────────────────────────────────────────
+  function getFormValues() {
+    return {
+      job_id:               jobId,
+      assessment_type:      document.getElementById('challenge-assessment-type').value,
+      department_category:  document.getElementById('challenge-department').value,
+      topic:                document.getElementById('challenge-topic').value.trim(),
+      keywords:             document.getElementById('challenge-keywords').value.trim(),
+      custom_instructions:  document.getElementById('challenge-custom-instructions').value.trim(),
+      seniority:            document.getElementById('challenge-seniority').value,
+      difficulty:           document.getElementById('challenge-difficulty').value,
+      time_limit:           document.getElementById('challenge-timelimit').value,
+      mcq_count:            parseInt(document.getElementById('challenge-mcq-count').value) || 4,
+      written_count:        parseInt(document.getElementById('challenge-written-count').value) || 2,
+    };
+  }
+
+  // ── STEP 1: Preview (generate without saving) ───────────────────────
+  async function previewChallenge() {
+    const vals = getFormValues();
+    if (!vals.topic) {
+      document.getElementById('challenge-topic').focus();
+      document.getElementById('challenge-topic').style.borderColor = '#ef4444';
+      alert('⚠️ Topic is required — the AI builds the entire paper around it.');
+      return;
+    }
+    document.getElementById('challenge-topic').style.borderColor = '#3b82f6';
+
+    const btn = document.getElementById('generate-btn');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating…';
     btn.disabled = true;
 
     try {
-      const response = await fetch(`/vetting/api/challenge/create/`, {
+      const resp = await fetch('/vetting/api/challenge/preview/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          job_id: jobId,
-          difficulty: difficulty,
-          language: language
-        })
+        body: JSON.stringify(vals),
       });
-      
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        alert(`✅ Assessment created!\n\nTitle: ${data.data?.title || 'Technical Challenge'}\nTest Cases: ${data.data?.test_cases_count || 0}\n\nYou can now send this to shortlisted candidates.`);
-        closeChallengeModal();
-      } else {
-        alert('❌ Error: ' + (data.message || 'Failed to create'));
-      }
-    } catch (error) {
-      alert('❌ Network error. Please try again.');
+      const data = await resp.json();
+      if (data.status !== 'success') { alert('❌ ' + (data.message || 'Generation failed')); return; }
+
+      _previewData = data.challenge_data;
+      _previewVals = vals;
+      renderPreview(data.challenge_data, vals.assessment_type);
+      document.getElementById('step-configure').style.display = 'none';
+      document.getElementById('step-preview').style.display = 'block';
+    } catch (e) {
+      alert('❌ Network error: ' + e.message);
     } finally {
-      btn.innerHTML = '<i class="fas fa-magic"></i> Generate Challenge';
+      btn.innerHTML = '<i class="fas fa-eye"></i> Preview Questions';
       btn.disabled = false;
     }
   }
+
+  let _previewData = null;
+  let _previewVals = null;
+
+  // ── Render preview questions (editable) ────────────────────────────
+  function renderPreview(challengeData, assessmentType) {
+    document.getElementById('preview-title').value = challengeData.title || '';
+    document.getElementById('preview-subtitle').textContent =
+      assessmentType === 'mcq_written'
+        ? `${challengeData.questions?.length || 0} questions generated. Edit anything before saving.`
+        : `Coding challenge generated. You can edit the title and description.`;
+
+    const container = document.getElementById('preview-questions');
+    container.innerHTML = '';
+
+    if (assessmentType === 'mcq_written') {
+      (challengeData.questions || []).forEach((q, idx) => {
+        const isMcq = q.type === 'mcq';
+        const div = document.createElement('div');
+        div.style.cssText = 'background:#1e293b; border:1px solid #334155; border-radius:10px; padding:16px; margin-bottom:12px;';
+        const badge = isMcq
+          ? '<span style="background:#1d4ed8;color:#bfdbfe;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:700;">MCQ · ' + q.points + ' pts</span>'
+          : '<span style="background:#6d28d9;color:#ddd6fe;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:700;">Written · ' + q.points + ' pts</span>';
+
+        let body = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            ${badge}
+            <span style="color:#64748b;font-size:0.8rem;">Q${idx+1}</span>
+          </div>
+          <label style="color:#94a3b8;font-size:0.8rem;">Question</label>
+          <textarea id="q_text_${q.id}" rows="2" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:8px;font-size:0.88rem;box-sizing:border-box;resize:vertical;font-family:inherit;margin-top:3px;">${q.question}</textarea>`;
+
+        if (isMcq) {
+          body += `<div style="margin-top:8px;">`;
+          (q.options || []).forEach((opt, oi) => {
+            const letter = 'ABCD'[oi];
+            body += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="color:#64748b;font-size:0.8rem;width:16px;">${letter}.</span>
+              <input type="text" id="q_opt_${q.id}_${letter}" value="${opt.replace(/^[A-D]\.\s*/,'')}"
+                style="flex:1;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:6px 8px;font-size:0.85rem;">
+            </div>`;
+          });
+          body += `</div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+            <label style="color:#94a3b8;font-size:0.8rem;">Correct Answer:</label>
+            <select id="q_correct_${q.id}" style="background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:4px 8px;font-size:0.85rem;">
+              ${['A','B','C','D'].map(l => `<option value="${l}" ${q.correct_answer===l?'selected':''}>${l}</option>`).join('')}
+            </select>
+          </div>`;
+        } else {
+          body += `
+          <div style="margin-top:8px;">
+            <label style="color:#94a3b8;font-size:0.8rem;">Grading Rubric</label>
+            <input type="text" id="q_rubric_${q.id}" value="${q.grading_rubric || ''}"
+              style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:6px 10px;font-size:0.85rem;box-sizing:border-box;margin-top:3px;">
+          </div>`;
+        }
+
+        div.innerHTML = body;
+        container.appendChild(div);
+      });
+    } else {
+      // Coding: show editable description
+      const div = document.createElement('div');
+      div.style.cssText = 'background:#1e293b; border:1px solid #334155; border-radius:10px; padding:16px;';
+      div.innerHTML = `
+        <label style="color:#94a3b8;font-size:0.8rem;">Problem Description</label>
+        <textarea id="coding_description" rows="6"
+          style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:10px;font-size:0.88rem;box-sizing:border-box;resize:vertical;font-family:monospace;margin-top:4px;">${challengeData.description || ''}</textarea>
+        <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-top:10px;">Starter Code</label>
+        <textarea id="coding_starter" rows="6"
+          style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:10px;font-size:0.85rem;box-sizing:border-box;resize:vertical;font-family:monospace;margin-top:4px;">${challengeData.starter_code || ''}</textarea>`;
+      container.appendChild(div);
+    }
+  }
+
+  // ── Collect edited preview data ─────────────────────────────────────
+  function collectEditedData(assessmentType) {
+    const title = document.getElementById('preview-title').value.trim();
+    if (assessmentType === 'mcq_written') {
+      const questions = (_previewData.questions || []).map(q => {
+        const updated = { ...q, question: document.getElementById(`q_text_${q.id}`)?.value || q.question };
+        if (q.type === 'mcq') {
+          updated.options = ['A','B','C','D'].map((l, i) => {
+            const val = document.getElementById(`q_opt_${q.id}_${l}`)?.value || '';
+            return `${l}. ${val}`;
+          });
+          updated.correct_answer = document.getElementById(`q_correct_${q.id}`)?.value || q.correct_answer;
+        } else {
+          updated.grading_rubric = document.getElementById(`q_rubric_${q.id}`)?.value || q.grading_rubric;
+        }
+        return updated;
+      });
+      return { ..._previewData, title, questions };
+    } else {
+      return {
+        ..._previewData,
+        title,
+        description: document.getElementById('coding_description')?.value || _previewData.description,
+        starter_code: document.getElementById('coding_starter')?.value || _previewData.starter_code,
+      };
+    }
+  }
+
+  // ── Regenerate ──────────────────────────────────────────────────────
+  async function regeneratePreview() {
+    const btn = document.getElementById('regen-btn');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Regenerating…';
+    btn.disabled = true;
+    try {
+      const resp = await fetch('/vetting/api/challenge/preview/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(_previewVals),
+      });
+      const data = await resp.json();
+      if (data.status === 'success') {
+        _previewData = data.challenge_data;
+        renderPreview(data.challenge_data, _previewVals.assessment_type);
+      } else {
+        alert('❌ ' + (data.message || 'Regeneration failed'));
+      }
+    } catch (e) { alert('❌ ' + e.message); }
+    finally { btn.innerHTML = '<i class="fas fa-sync"></i> Regenerate'; btn.disabled = false; }
+  }
+
+  // ── STEP 2: Save ────────────────────────────────────────────────────
+  async function saveAssessment() {
+    const btn = document.getElementById('save-btn');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+    btn.disabled = true;
+
+    const editedData = collectEditedData(_previewVals.assessment_type);
+
+    try {
+      const resp = await fetch('/vetting/api/challenge/create/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ..._previewVals,
+          pre_generated_data: editedData,
+        }),
+      });
+      const data = await resp.json();
+      if (data.status === 'success') {
+        closeChallengeModal();
+        alert(`✅ Assessment saved!\n\nTitle: ${data.data?.title}\n\nYou can now send it to candidates.`);
+        loadVettingData();
+      } else {
+        alert('❌ ' + (data.message || 'Save failed'));
+      }
+    } catch (e) { alert('❌ ' + e.message); }
+    finally { btn.innerHTML = '<i class="fas fa-save"></i> Save Assessment'; btn.disabled = false; }
+  }
+
+  // legacy alias — kept so old code calling confirmCreateChallenge still works
+  function confirmCreateChallenge() { previewChallenge(); }
 
   function formatDate(timestamp) {
     const date = new Date(timestamp);

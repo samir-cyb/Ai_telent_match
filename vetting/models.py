@@ -28,10 +28,21 @@ class VettingChallenge(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
     
+    # Assessment type (routing)
+    assessment_type = models.CharField(max_length=20, choices=[
+        ('coding', 'Coding Challenge'),
+        ('mcq_written', 'MCQ + Written'),
+    ], default='coding')
+    department_category = models.CharField(max_length=20, blank=True, default='any')
+    topic_focus = models.TextField(blank=True)
+
+    # MCQ + Written questions storage (used when assessment_type='mcq_written')
+    mcq_questions = models.JSONField(default=list)
+
     # AI Generated metadata
     skill_tags = models.JSONField(default=list)  # ["django", "orm", "api"]
     ai_prompt_used = models.TextField(blank=True)
-    
+
     def __str__(self):
         return f"{self.title} ({self.job.title})"
 

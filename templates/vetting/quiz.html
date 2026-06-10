@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assessment | AI Talent Match</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #0f172a; color: #f1f5f9; font-family: 'Segoe UI', sans-serif; }
+        .anti-cheat-warning {
+            position: fixed; top: 0; left: 0; right: 0; background: #dc2626; color: white;
+            padding: 10px; text-align: center; z-index: 9999; display: none; font-weight: 600;
+        }
+        .q-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+        .q-card:focus-within { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+        .option-label {
+            display: flex; align-items: flex-start; gap: 12px;
+            padding: 10px 16px; border-radius: 8px; cursor: pointer;
+            border: 1px solid #334155; margin-bottom: 8px; transition: all 0.15s;
+            user-select: none; -webkit-user-select: none;
+        }
+        .option-label:hover { background: #1d4ed8; border-color: #3b82f6; }
+        .option-label input[type=radio]:checked ~ span { color: #60a5fa; font-weight: 600; }
+        input[type=radio]:checked + .option-label,
+        .option-label:has(input[type=radio]:checked) { background: #1e3a8a; border-color: #3b82f6; }
+        textarea.answer-box {
+            width: 100%; background: #0f172a; border: 1px solid #334155;
+            border-radius: 8px; color: #f1f5f9; padding: 12px; font-size: 14px;
+            resize: vertical; outline: none; font-family: inherit;
+        }
+        textarea.answer-box:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+        #timer { font-size: 1.3rem; font-weight: 700; color: #fbbf24; font-variant-numeric: tabular-nums; }
+        .progress-bar { height: 4px; background: #1e293b; border-radius: 2px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); transition: width 0.3s; }
+        .answered-badge { background: #065f46; color: #6ee7b7; border-radius: 4px; padding: 2px 8px; font-size: 11px; }
+        .unanswered-badge { background: #44403c; color: #a8a29e; border-radius: 4px; padding: 2px 8px; font-size: 11px; }
+        .q-number { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+        .q-mcq { background: #1d4ed8; color: white; }
+        .q-written { background: #7c3aed; color: white; }
+        /* Block selection on question text */
+        .q-text { user-select: none; -webkit-user-select: none; }
+    </style>
+</head>
+<body>
+    <div id="cheat-warning" class="anti-cheat-warning">
+        ⚠️ Warning: Suspicious activity detected. Further violations may result in automatic submission.
+    </div>
+
+    <!-- Header -->
+    <div class="bg-slate-900 border-b border-slate-700 px-6 py-3 flex justify-between items-center sticky top-0 z-50">
+        <div>
+            <h1 class="text-base font-bold text-blue-400">{{ challenge.title }}</h1>
+            <p class="text-xs text-slate-400">{{ student_name }} &nbsp;·&nbsp; MCQ + Written Assessment</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <div>
+                <span class="text-xs text-slate-400 mr-1">Time Left:</span>
+                <span id="timer" data-seconds="{{ time_remaining }}">45:00</span>
+            </div>
+            <button onclick="toggleFullscreen()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded text-sm">
+                ⛶ Fullscreen
+            </button>
+            <button onclick="submitQuiz()" id="submit-btn"
+                class="bg-green-600 hover:bg-green-500 px-5 py-1.5 rounded text-sm font-bold">
+                Submit →
+            </button>
+        </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="px-6 py-2 bg-slate-800 flex items-center gap-3 text-xs text-slate-400">
+        <span id="answered-count">0</span> / {{ questions|length }} answered
+        <div class="flex-1 progress-bar">
+            <div id="progress-fill" class="progress-fill" style="width:0%"></div>
+        </div>
+        <span id="answered-pct">0%</span>
+    </div>
+
+    <!-- Body -->
+    <div class="max-w-3xl mx-auto px-4 py-8">
+
+        <!-- Instructions -->
+        <div class="q-card mb-6" style="border-color: #1d4ed8; background: #0f1e3a;">
+            <h2 class="text-blue-300 font-bold mb-1">Instructions</h2>
+            <p class="text-slate-300 text-sm q-text">{{ challenge.description }}</p>
+            <div class="flex gap-4 mt-3 text-xs text-slate-400">
+                <span>📋 MCQ — auto graded instantly</span>
+                <span>✍️ Written — AI reviewed</span>
+                <span>⚠️ Anti-cheat active</span>
+            </div>
+        </div>
+
+        <!-- Questions injected by JS -->
+        <div id="questions-container"></div>
+
+        <!-- Anti-cheat monitor (bottom of sidebar on large screens) -->
+        <div class="q-card mt-6 text-xs" style="border-color: #44403c;">
+            <p class="font-bold text-yellow-400 mb-2">⚠️ Anti-Cheat Monitor</p>
+            <div class="flex gap-6 flex-wrap text-slate-300">
+                <span>Tab switches: <span id="tab-count" class="text-red-400 font-bold">0</span></span>
+                <span>Copy attempts: <span id="copy-count" class="text-red-400 font-bold">0</span></span>
+                <span>Paste attempts: <span id="paste-count" class="text-red-400 font-bold">0</span></span>
+                <span>Fullscreen exits: <span id="fullscreen-count" class="text-red-400 font-bold">0</span></span>
+            </div>
+            <p id="cheat-status" class="mt-2 text-green-400 font-semibold">✓ Activity Normal</p>
+        </div>
+
+        <div class="text-center mt-8 pb-12">
+            <button onclick="submitQuiz()" id="submit-btn-bottom"
+                class="bg-green-600 hover:bg-green-500 px-8 py-3 rounded-lg text-base font-bold">
+                Submit Assessment →
+            </button>
+            <p class="text-xs text-slate-500 mt-2">Submission is final. Ensure all questions are answered.</p>
+        </div>
+    </div>
+
+    <script>
+    const TOKEN = "{{ token }}";
+    const QUESTIONS = JSON.parse('{{ questions_json|escapejs }}');
+    const TOTAL = QUESTIONS.length;
+
+    // ── Anti-cheat state ─────────────────────────────────────────────────────
+    let tabSwitches = 0, copyCount = 0, pasteCount = 0, copyPastes = 0, fullscreenExits = 0, cheatScore = 0;
+
+    // ── Timer ─────────────────────────────────────────────────────────────────
+    let timeRemaining = parseInt(document.getElementById('timer').dataset.seconds);
+    const timerEl = document.getElementById('timer');
+
+    function updateTimer() {
+        if (timeRemaining <= 0) {
+            clearInterval(timerInterval);
+            alert('⏰ Time is up! Your answers will be submitted automatically.');
+            submitQuiz(true);
+            return;
+        }
+        const m = Math.floor(timeRemaining / 60), s = timeRemaining % 60;
+        timerEl.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        if (timeRemaining < 300) timerEl.style.color = '#ef4444';
+        timeRemaining--;
+    }
+    const timerInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+
+    // ── Render questions ──────────────────────────────────────────────────────
+    const container = document.getElementById('questions-container');
+
+    QUESTIONS.forEach((q, idx) => {
+        const num = idx + 1;
+        const isMcq = q.type === 'mcq';
+        const typeLabel = isMcq ? 'Multiple Choice' : 'Written Answer';
+        const typeBadge = isMcq
+            ? '<span class="text-xs bg-blue-900 text-blue-300 px-2 py-0.5 rounded">MCQ · ' + q.points + ' pts</span>'
+            : '<span class="text-xs bg-purple-900 text-purple-300 px-2 py-0.5 rounded">Written · ' + q.points + ' pts</span>';
+
+        let bodyHtml = '';
+        if (isMcq) {
+            const opts = (q.options || []).map(opt => {
+                const letter = opt.trim().charAt(0).toUpperCase();
+                return `
+                <label class="option-label" id="opt-${q.id}-${letter}">
+                    <input type="radio" name="q_${q.id}" value="${letter}" class="mt-0.5 flex-shrink-0 accent-blue-500"
+                        onchange="markAnswered(${q.id})">
+                    <span class="text-sm">${opt}</span>
+                </label>`;
+            }).join('');
+            bodyHtml = `<div class="mt-4 space-y-1">${opts}</div>`;
+        } else {
+            const wl = q.word_limit || 200;
+            bodyHtml = `
+            <div class="mt-4">
+                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                    <span>Write your answer below</span>
+                    <span>Max ${wl} words</span>
+                </div>
+                <textarea class="answer-box" id="written_${q.id}" rows="6"
+                    placeholder="Type your answer here... (aim for ${wl} words max)"
+                    oninput="countWords(${q.id}, this); markAnswered(${q.id})"></textarea>
+                <p class="text-xs text-slate-500 mt-1"><span id="wc_${q.id}">0</span> words</p>
+            </div>`;
+        }
+
+        const card = document.createElement('div');
+        card.className = 'q-card';
+        card.id = `q-card-${q.id}`;
+        card.innerHTML = `
+            <div class="flex items-start gap-3">
+                <div class="q-number ${isMcq ? 'q-mcq' : 'q-written'}">${num}</div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between mb-1">
+                        ${typeBadge}
+                        <span id="status-${q.id}" class="unanswered-badge">Unanswered</span>
+                    </div>
+                    <p class="text-slate-100 text-sm font-medium q-text">${q.question}</p>
+                    ${bodyHtml}
+                </div>
+            </div>`;
+        container.appendChild(card);
+    });
+
+    // ── Progress tracking ─────────────────────────────────────────────────────
+    const answeredSet = new Set();
+
+    function markAnswered(qid) {
+        answeredSet.add(qid);
+        document.getElementById(`status-${qid}`).className = 'answered-badge';
+        document.getElementById(`status-${qid}`).textContent = 'Answered ✓';
+        updateProgress();
+    }
+
+    function updateProgress() {
+        const n = answeredSet.size;
+        const pct = Math.round(n / TOTAL * 100);
+        document.getElementById('answered-count').textContent = n;
+        document.getElementById('answered-pct').textContent = pct + '%';
+        document.getElementById('progress-fill').style.width = pct + '%';
+    }
+
+    function countWords(qid, el) {
+        const words = el.value.trim().split(/\s+/).filter(Boolean).length;
+        document.getElementById(`wc_${qid}`).textContent = words;
+    }
+
+    // ── Collect answers ────────────────────────────────────────────────────────
+    function collectAnswers() {
+        const answers = {};
+        QUESTIONS.forEach(q => {
+            if (q.type === 'mcq') {
+                const sel = document.querySelector(`input[name="q_${q.id}"]:checked`);
+                answers[String(q.id)] = sel ? sel.value : '';
+            } else {
+                const ta = document.getElementById(`written_${q.id}`);
+                answers[String(q.id)] = ta ? ta.value.trim() : '';
+            }
+        });
+        return answers;
+    }
+
+    // ── Submit ────────────────────────────────────────────────────────────────
+    async function submitQuiz(autoSubmit = false) {
+        if (!autoSubmit) {
+            const unanswered = TOTAL - answeredSet.size;
+            const warn = unanswered > 0 ? `\n\n⚠️ ${unanswered} question(s) still unanswered.` : '';
+            const cheatWarn = cheatScore > 30
+                ? `\n\n⚠️ Suspicious activity detected: ${tabSwitches} tab switches, ${copyCount} copy, ${pasteCount} paste attempts. Will be flagged.`
+                : '';
+            if (!confirm(`Submit your assessment?${warn}${cheatWarn}\n\nThis cannot be undone.`)) return;
+        }
+
+        const btn = document.getElementById('submit-btn');
+        const btn2 = document.getElementById('submit-btn-bottom');
+        [btn, btn2].forEach(b => { if (b) { b.textContent = 'Submitting…'; b.disabled = true; } });
+
+        try {
+            const resp = await fetch(`/vetting/api/test/${TOKEN}/submit-quiz/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    answers: collectAnswers(),
+                    tab_switches: tabSwitches,
+                    copy_pastes: copyPastes,
+                    fullscreen_exits: fullscreenExits,
+                    auto_submitted: autoSubmit,
+                })
+            });
+            const data = await resp.json();
+
+            if (data.status === 'success') {
+                clearInterval(timerInterval);
+                // Build result summary
+                let msg = `✅ Assessment submitted!\n\nFinal Score: ${data.score}%\nResult: ${data.passed ? '✓ PASSED' : '✗ Not Passed'}\n`;
+                msg += `\nBreakdown:\n  MCQ Score: ${data.layer_breakdown?.mcq ?? 'N/A'}%\n  Written Score: ${data.layer_breakdown?.written ?? 'N/A'}%`;
+                if (cheatScore > 30) msg += `\n\n⚠️ Flagged for review due to suspicious activity.`;
+                alert(msg);
+                window.location.href = '/student/dashboard/';
+            } else {
+                alert('Submission failed: ' + data.message);
+                [btn, btn2].forEach(b => { if (b) { b.textContent = 'Submit Assessment →'; b.disabled = false; } });
+            }
+        } catch (err) {
+            alert('Network error. Please try again.\n' + err.message);
+            [btn, btn2].forEach(b => { if (b) { b.textContent = 'Submit Assessment →'; b.disabled = false; } });
+        }
+    }
+
+    // ── Anti-cheat ────────────────────────────────────────────────────────────
+    document.addEventListener('copy', e => {
+        e.preventDefault(); copyCount++; copyPastes++; cheatScore += 10;
+        updateCheatDisplay(); showCheatWarning('🚫 Copying is not allowed!');
+        alert('⚠️ Copying is not allowed in this assessment. Attempt recorded.');
+    }, true);
+
+    document.addEventListener('cut', e => {
+        e.preventDefault(); copyCount++; copyPastes++; cheatScore += 10;
+        updateCheatDisplay(); showCheatWarning('🚫 Cutting is not allowed!');
+    }, true);
+
+    // For written answers, allow normal paste but log it
+    document.addEventListener('paste', e => {
+        const inTextarea = e.target.tagName === 'TEXTAREA';
+        if (!inTextarea) { e.preventDefault(); }
+        pasteCount++; copyPastes++; cheatScore += (inTextarea ? 3 : 15);
+        updateCheatDisplay();
+        if (!inTextarea) { showCheatWarning('🚫 Pasting blocked outside text areas.'); }
+        else { showCheatWarning('ℹ️ Paste into answer area logged.'); }
+    }, true);
+
+    document.addEventListener('contextmenu', e => { e.preventDefault(); showCheatWarning('Right-click disabled.'); });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            tabSwitches++; cheatScore += 5;
+            updateCheatDisplay(); showCheatWarning('⚠️ Tab switch detected!');
+        }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) {
+            fullscreenExits++; cheatScore += 10;
+            updateCheatDisplay(); showCheatWarning('⚠️ Fullscreen exit detected!');
+            setTimeout(() => {
+                if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+            }, 1000);
+        }
+    });
+
+    document.addEventListener('keydown', e => {
+        const ctrl = e.ctrlKey || e.metaKey;
+        if (ctrl) {
+            if (e.key === 'c' || e.key === 'C') { e.preventDefault(); copyCount++; copyPastes++; cheatScore += 10; updateCheatDisplay(); alert('⚠️ Ctrl+C blocked!'); }
+            if (e.key === 'x' || e.key === 'X') { e.preventDefault(); copyCount++; copyPastes++; cheatScore += 10; updateCheatDisplay(); alert('⚠️ Ctrl+X blocked!'); }
+        }
+    }, true);
+
+    function updateCheatDisplay() {
+        document.getElementById('tab-count').textContent = tabSwitches;
+        document.getElementById('copy-count').textContent = copyCount;
+        document.getElementById('paste-count').textContent = pasteCount;
+        document.getElementById('fullscreen-count').textContent = fullscreenExits;
+        const el = document.getElementById('cheat-status');
+        if (cheatScore > 50) { el.textContent = '⚠️ HIGH RISK — will be flagged'; el.className = 'mt-2 text-red-500 font-semibold'; }
+        else if (cheatScore > 20) { el.textContent = '⚠️ Suspicious Activity'; el.className = 'mt-2 text-yellow-400 font-semibold'; }
+        else { el.textContent = '✓ Activity Normal'; el.className = 'mt-2 text-green-400 font-semibold'; }
+    }
+
+    function showCheatWarning(msg) {
+        const el = document.getElementById('cheat-warning');
+        el.textContent = msg;
+        el.style.display = 'block';
+        setTimeout(() => { el.style.display = 'none'; }, cheatScore > 30 ? 5000 : 3000);
+    }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+            if (confirm('Exit fullscreen? This will be flagged.')) document.exitFullscreen();
+        }
+    }
+
+    window.onbeforeunload = e => {
+        if (timeRemaining > 0) { e.preventDefault(); e.returnValue = ''; return ''; }
+    };
+
+    window.onload = () => {
+        updateCheatDisplay();
+        setTimeout(() => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+        }, 1000);
+    };
+    </script>
+</body>
+</html>

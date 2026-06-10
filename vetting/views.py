@@ -25,46 +25,141 @@ class CreateChallengeView(View):
             data = json.loads(request.body)
             job_id = data.get('job_id')
             difficulty = data.get('difficulty', 'medium')
-            
+            assessment_type = data.get('assessment_type', 'coding')
+            department_category = data.get('department_category', 'any')
+            topic = data.get('topic', data.get('topic_focus', ''))
+            keywords = data.get('keywords', '')
+            seniority = data.get('seniority', 'any')
+            custom_instructions = data.get('custom_instructions', '')
+            mcq_count = int(data.get('mcq_count', 4))
+            written_count = int(data.get('written_count', 2))
+
+            # pre_generated: company already previewed + edited — skip LLM call
+            pre_generated = data.get('pre_generated_data')
+
             job = get_object_or_404(Job, id=job_id)
             company_id = request.session.get('company_id')
-            
-            # Security check
             if str(job.company.id) != company_id:
                 return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
-            
-            # Generate challenge
-            generator = QuestionGenerator()
-            challenge_data = generator.generate_challenge(job, difficulty)
-            
-            # Save to database
-            challenge, created = VettingChallenge.objects.update_or_create(
-                job=job,
-                defaults={
+
+            if pre_generated:
+                # Use the already-generated (possibly edited) data directly
+                challenge_data = pre_generated
+            else:
+                generator = QuestionGenerator()
+                if assessment_type == 'mcq_written':
+                    challenge_data = generator.generate_mcq_written(
+                        job, difficulty, department_category,
+                        topic=topic, keywords=keywords,
+                        seniority=seniority, custom_instructions=custom_instructions,
+                        mcq_count=mcq_count, written_count=written_count,
+                    )
+                else:
+                    challenge_data = generator.generate_challenge(
+                        job, difficulty, department_category,
+                        topic=topic, keywords=keywords,
+                        seniority=seniority, custom_instructions=custom_instructions,
+                    )
+
+            if assessment_type == 'mcq_written':
+                defaults = {
+                    'title': challenge_data['title'],
+                    'description': challenge_data.get('instructions', ''),
+                    'starter_code': '',
+                    'test_cases': [],
+                    'language': 'none',
+                    'difficulty': difficulty,
+                    'assessment_type': 'mcq_written',
+                    'department_category': department_category,
+                    'topic_focus': topic,
+                    'mcq_questions': challenge_data.get('questions', []),
+                    'skill_tags': [],
+                    'ai_prompt_used': f'topic={topic} keywords={keywords} seniority={seniority}',
+                    'is_active': True,
+                }
+                questions_count = len(challenge_data.get('questions', []))
+            else:
+                defaults = {
                     'title': challenge_data['title'],
                     'description': challenge_data['description'],
                     'starter_code': challenge_data['starter_code'],
                     'test_cases': challenge_data['test_cases'],
                     'language': challenge_data.get('language', 'python'),
                     'difficulty': difficulty,
+                    'assessment_type': 'coding',
+                    'department_category': department_category,
+                    'topic_focus': topic,
+                    'mcq_questions': [],
                     'skill_tags': challenge_data.get('skill_tags', []),
-                    'ai_prompt_used': str(challenge_data),
-                    'is_active': True
+                    'ai_prompt_used': f'topic={topic} keywords={keywords} seniority={seniority}',
+                    'is_active': True,
                 }
+                questions_count = len(challenge_data.get('test_cases', []))
+
+            challenge, created = VettingChallenge.objects.update_or_create(
+                job=job, defaults=defaults,
             )
-            
+
             return JsonResponse({
                 'status': 'success',
                 'challenge_id': str(challenge.id),
-                'message': 'Assessment created successfully',
-                'data': {
-                    'title': challenge.title,
-                    'test_cases_count': len(challenge_data['test_cases'])
-                }
+                'assessment_type': assessment_type,
+                'message': 'Assessment saved successfully',
+                'data': {'title': challenge.title, 'questions_count': questions_count},
             })
-            
+
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class PreviewChallengeView(View):
+    """Generate questions with AI and return them WITHOUT saving to DB.
+    Company can review/edit in the frontend, then call CreateChallengeView
+    with pre_generated_data to save the final version."""
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            job_id = data.get('job_id')
+            difficulty = data.get('difficulty', 'medium')
+            assessment_type = data.get('assessment_type', 'coding')
+            department_category = data.get('department_category', 'any')
+            topic = data.get('topic', data.get('topic_focus', ''))
+            keywords = data.get('keywords', '')
+            seniority = data.get('seniority', 'any')
+            custom_instructions = data.get('custom_instructions', '')
+            mcq_count = int(data.get('mcq_count', 4))
+            written_count = int(data.get('written_count', 2))
+
+            job = get_object_or_404(Job, id=job_id)
+            company_id = request.session.get('company_id')
+            if str(job.company.id) != company_id:
+                return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+            generator = QuestionGenerator()
+            if assessment_type == 'mcq_written':
+                challenge_data = generator.generate_mcq_written(
+                    job, difficulty, department_category,
+                    topic=topic, keywords=keywords,
+                    seniority=seniority, custom_instructions=custom_instructions,
+                    mcq_count=mcq_count, written_count=written_count,
+                )
+            else:
+                challenge_data = generator.generate_challenge(
+                    job, difficulty, department_category,
+                    topic=topic, keywords=keywords,
+                    seniority=seniority, custom_instructions=custom_instructions,
+                )
+
+            return JsonResponse({
+                'status': 'success',
+                'assessment_type': assessment_type,
+                'challenge_data': challenge_data,
+            })
+
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
 
 class CompanyVettingDashboardView(View):
     """View all candidates and their vetting scores for a job"""
@@ -89,7 +184,11 @@ class CompanyVettingDashboardView(View):
                 'language': challenge.language,
                 'time_limit': challenge.time_limit_minutes,
                 'created_at': challenge.created_at.isoformat() if challenge.created_at else None,
-                'is_active': challenge.is_active
+                'is_active': challenge.is_active,
+                'assessment_type': challenge.assessment_type,
+                'department_category': challenge.department_category,
+                'topic_focus': challenge.topic_focus,
+                'mcq_questions_count': len(challenge.mcq_questions),
             }
         except VettingChallenge.DoesNotExist:
             challenge_data = None
@@ -324,7 +423,19 @@ class TestInterfaceView(View):
             return self._auto_submit(session)
         
         challenge = session.challenge
-        
+
+        # Route to appropriate interface based on assessment type
+        if challenge.assessment_type == 'mcq_written':
+            import json as _json
+            return render(request, 'vetting/quiz.html', {
+                'session': session,
+                'challenge': challenge,
+                'questions_json': _json.dumps(challenge.mcq_questions),
+                'time_remaining': time_remaining,
+                'student_name': session.student.name,
+                'token': token,
+            })
+
         return render(request, 'vetting/ide.html', {
             'session': session,
             'challenge': challenge,
@@ -608,3 +719,173 @@ class StudentPendingAssessmentsView(View):
             'student_name': student.name,
             'total_pending': len(assessments)
         })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class SubmitQuizView(View):
+    """Grade MCQ + written answers and create VettingResult."""
+
+    def post(self, request, token):
+        try:
+            with transaction.atomic():
+                session = get_object_or_404(
+                    VettingSession.objects.select_for_update(),
+                    access_token=token
+                )
+
+                if session.status != 'in_progress':
+                    return JsonResponse({'status': 'error', 'message': 'Invalid session state'}, status=400)
+
+                data = json.loads(request.body)
+                answers = data.get('answers', {})   # {question_id: answer_value}
+                tab_switches = data.get('tab_switches', 0)
+                copy_pastes = data.get('copy_pastes', 0)
+                fullscreen_exits = data.get('fullscreen_exits', 0)
+
+                # Anti-cheat check
+                if tab_switches > 10 or copy_pastes > 10:
+                    session.tab_switch_count = tab_switches
+                    session.copy_paste_attempts = copy_pastes
+                    session.fullscreen_exits = fullscreen_exits
+                    session.status = 'cheating_detected'
+                    session.save()
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': 'Assessment flagged for review due to suspicious activity.'
+                    }, status=403)
+
+                session.tab_switch_count = tab_switches
+                session.copy_paste_attempts = copy_pastes
+                session.fullscreen_exits = fullscreen_exits
+                session.save()
+
+                challenge = session.challenge
+                questions = challenge.mcq_questions
+
+                generator = QuestionGenerator()
+                total_points = 0
+                earned_points = 0
+                grading_details = []
+
+                for q in questions:
+                    qid = str(q.get('id'))
+                    q_type = q.get('type')
+                    max_pts = q.get('points', 10)
+                    total_points += max_pts
+                    student_answer = answers.get(qid, '')
+
+                    if q_type == 'mcq':
+                        correct = q.get('correct_answer', '').strip().upper()
+                        given = str(student_answer).strip().upper()
+                        # Accept just the letter or "A. text" format
+                        given_letter = given[0] if given else ''
+                        is_correct = given_letter == correct
+                        pts = max_pts if is_correct else 0
+                        earned_points += pts
+                        grading_details.append({
+                            'id': qid,
+                            'type': 'mcq',
+                            'correct': is_correct,
+                            'points_earned': pts,
+                            'points_max': max_pts,
+                            'correct_answer': correct,
+                            'student_answer': student_answer,
+                            'explanation': q.get('explanation', ''),
+                        })
+                    elif q_type == 'written':
+                        if student_answer and len(str(student_answer).strip()) > 10:
+                            grade_result = generator.grade_written_answer(
+                                question=q.get('question', ''),
+                                rubric=q.get('grading_rubric', ''),
+                                answer=student_answer,
+                                max_points=max_pts,
+                            )
+                        else:
+                            grade_result = {
+                                'score': 0,
+                                'feedback': 'No answer provided.',
+                                'strengths': [],
+                                'improvements': ['Please provide a full written answer.'],
+                            }
+                        pts = grade_result.get('score', 0)
+                        earned_points += pts
+                        grading_details.append({
+                            'id': qid,
+                            'type': 'written',
+                            'points_earned': pts,
+                            'points_max': max_pts,
+                            'student_answer': student_answer,
+                            'feedback': grade_result.get('feedback', ''),
+                            'strengths': grade_result.get('strengths', []),
+                            'improvements': grade_result.get('improvements', []),
+                        })
+
+                final_score = round((earned_points / total_points * 100), 2) if total_points > 0 else 0
+                passed = final_score >= 60  # 60% passing threshold for MCQ/written
+
+                # Create VettingResult — layer1=MCQ%, layer2=0, layer3=Written%
+                mcq_items = [d for d in grading_details if d['type'] == 'mcq']
+                written_items = [d for d in grading_details if d['type'] == 'written']
+                mcq_total = sum(d['points_max'] for d in mcq_items)
+                mcq_earned = sum(d['points_earned'] for d in mcq_items)
+                written_total = sum(d['points_max'] for d in written_items)
+                written_earned = sum(d['points_earned'] for d in written_items)
+
+                layer1 = round((mcq_earned / mcq_total * 100), 2) if mcq_total > 0 else 0
+                layer3 = round((written_earned / written_total * 100), 2) if written_total > 0 else 0
+
+                result = VettingResult.objects.create(
+                    session=session,
+                    application=session.application,
+                    layer1_test_score=layer1,
+                    layer2_static_score=0,
+                    layer3_ai_score=layer3,
+                    final_score=final_score,
+                    test_case_results=grading_details,
+                    static_analysis_report={},
+                    ai_feedback='; '.join(
+                        d.get('feedback', '') for d in written_items if d.get('feedback')
+                    ),
+                    code_quality_issues=[],
+                    passed=passed,
+                )
+
+                session.status = 'completed'
+                session.completed_at = timezone.now()
+                session.save()
+
+                app = session.application
+                app.vetting_score = final_score
+                app.save()
+
+                # Notify company
+                from core.models import Notification
+                Notification.objects.create(
+                    user_id=session.challenge.job.company.id,
+                    user_type='company',
+                    type='vetting_completed',
+                    title=f'Assessment Completed: {session.student.name}',
+                    message=f'{session.student.name} scored {final_score}% on the MCQ + Written assessment.',
+                    data={
+                        'application_id': str(app.id),
+                        'score': final_score,
+                        'passed': passed,
+                    }
+                )
+
+                return JsonResponse({
+                    'status': 'success',
+                    'score': final_score,
+                    'passed': passed,
+                    'layer_breakdown': {
+                        'mcq': layer1,
+                        'written': layer3,
+                    },
+                    'details': grading_details,
+                    'message': 'Assessment submitted successfully!',
+                })
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
