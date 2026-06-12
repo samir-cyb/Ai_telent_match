@@ -408,17 +408,30 @@ class Notification(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 class AIFeedbackLog(models.Model):
-    """Log of AI weight adjustments based on hiring feedback"""
+    """Log of AI weight adjustments — every hire, reject, and manual edit is recorded."""
+    TRIGGER_CHOICES = [
+        ('hire',   'Candidate Hired'),
+        ('reject', 'Shortlisted Candidate Rejected'),
+        ('manual', 'Company Manually Edited Weights'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='ai_feedback_logs')
-    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='ai_feedback')
+    application = models.ForeignKey(
+        Application, on_delete=models.SET_NULL, related_name='ai_feedback',
+        null=True, blank=True  # null for manual edits
+    )
+    trigger          = models.CharField(max_length=10, choices=TRIGGER_CHOICES, default='hire')
+    reward           = models.FloatField(default=1.0)          # +1 hire, -1 reject, 0 manual
+    candidate_features = models.JSONField(default=dict)         # normalised feature scores
     previous_weights = models.JSONField(default=dict)
     adjusted_weights = models.JSONField(default=dict)
+    weight_delta     = models.JSONField(default=dict)           # adjusted - previous per key
     adjustment_reason = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
-        return f"AI Feedback for {self.company.name} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+        return f"[{self.trigger.upper()}] {self.company.name} — {self.created_at.strftime('%Y-%m-%d %H:%M')}"
     
     
 class Admin(models.Model):

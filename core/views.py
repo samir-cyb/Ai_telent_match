@@ -72,6 +72,25 @@ def company_post_job(request):
 def company_applicants(request):
     return render(request, 'company/applicants.html')
 
+
+@company_login_required
+def applicant_documents(request, application_id):
+    """Show a student's CV and LinkedIn PDF to the company."""
+    company_id = request.session.get('company_id')
+    application = get_object_or_404(Application, id=application_id)
+
+    # Security: only the job's company can view this
+    if str(application.job.company.id) != company_id:
+        return render(request, 'vetting/error.html', {'message': 'You are not authorized to view this applicant.'})
+
+    student = application.student
+    return render(request, 'company/applicant_documents.html', {
+        'student': student,
+        'application': application,
+        'job': application.job,
+    })
+
+
 def admin_dashboard(request):
     return render(request, 'admin/dashboard.html')
 
@@ -1148,31 +1167,42 @@ class ApplicationsListView(View):
                 'applied_at': app.applied_at.isoformat()
             })
         return JsonResponse({'status': 'success', 'applications': data})
-@method_decorator(csrf_exempt, name='dispatch') 
+@method_decorator(csrf_exempt, name='dispatch')
 class UpdateApplicationView(View):
-    
+
     def post(self, request):
         """Update application status (shortlist, reject, etc.)"""
         data = json.loads(request.body)
         application = get_object_or_404(Application, id=data['application_id'])
-        
+
         old_status = application.status
-        application.status = data['status']
+        new_status = data['status']
+        application.status = new_status
         application.save()
-        
+
+        # ── RL signal: shortlisted → rejected  ────────────────────────────
+        if old_status == 'shortlisted' and new_status == 'rejected':
+            try:
+                engine = AIMatchingEngine(application.job.company)
+                engine.update_weights_from_feedback(
+                    application.job.company, application, trigger='reject'
+                )
+            except Exception as e:
+                print(f'[RL] reject signal failed: {e}')
+
         # Create notification for student
         Notification.objects.create(
             user_id=application.student.id,
             user_type='student',
-            type=f'status_{data["status"]}',
-            title=f'Application {data["status"].title()}',
-            message=f'Your application for {application.job.title} has been {data["status"]}',
+            type=f'status_{new_status}',
+            title=f'Application {new_status.title()}',
+            message=f'Your application for {application.job.title} has been {new_status}',
             data={'job_id': str(application.job.id)}
         )
-        
+
         return JsonResponse({
             'status': 'success',
-            'message': f'Application status updated to {data["status"]}'
+            'message': f'Application status updated to {new_status}'
         })
 @method_decorator(csrf_exempt, name='dispatch') 
 class ShortlistCandidatesView(View):
@@ -1227,11 +1257,10 @@ class HireCandidateView(View):
         application.status = 'hired'
         application.save()
         
-        # Trigger AI feedback loop
+        # Trigger RL weight agent (hire = +1 reward)
         engine = AIMatchingEngine(application.job.company)
         new_weights = engine.update_weights_from_feedback(
-            application.job.company,
-            application
+            application.job.company, application, trigger='hire'
         )
         
         return JsonResponse({
@@ -2329,22 +2358,94 @@ class CompanyWeightsView(View):
             data = json.loads(request.body)
             company = get_object_or_404(Company, id=company_id)
             
-            company.custom_weights = {
-                'skills': float(data.get('skills', 0.4)),
-                'cgpa': float(data.get('cgpa', 0.2)),
+            manual_weights = {
+                'skills':   float(data.get('skills',   0.4)),
+                'cgpa':     float(data.get('cgpa',     0.2)),
                 'projects': float(data.get('projects', 0.2)),
                 'activity': float(data.get('activity', 0.1)),
-                'trust': float(data.get('trust', 0.1))
+                'trust':    float(data.get('trust',    0.1)),
             }
+            # Save exact manual weights first
+            company.custom_weights = manual_weights
             company.save()
-            
+
+            # RL agent soft-learns from the human correction
+            try:
+                engine = AIMatchingEngine(company)
+                engine.learn_from_manual_edit(company, manual_weights)
+            except Exception as e:
+                print(f'[RL] manual learn failed: {e}')
+
             return JsonResponse({
                 'status': 'success',
-                'message': 'Weights updated successfully',
+                'message': 'Weights updated — agent has learned from your edit.',
                 'weights': company.get_weights()
             })
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+class WeightAgentDataView(View):
+    """Return full RL history for a company — used by the chart page."""
+
+    def get(self, request, company_id):
+        company_id_session = request.session.get('company_id')
+        if not company_id_session or str(company_id_session) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        company = get_object_or_404(Company, id=company_id)
+        logs    = AIFeedbackLog.objects.filter(company=company).order_by('created_at')
+
+        # Default starting weights
+        defaults = {'skills': 0.4, 'cgpa': 0.2, 'projects': 0.2, 'activity': 0.1, 'trust': 0.1}
+
+        # Build timeline: one entry per log event
+        timeline = []
+        for log in logs:
+            timeline.append({
+                'id':            str(log.id),
+                'date':          log.created_at.strftime('%Y-%m-%d %H:%M'),
+                'trigger':       log.trigger,
+                'reward':        log.reward,
+                'student_name':  log.application.student.name if log.application else '—',
+                'job_title':     log.application.job.title    if log.application else '—',
+                'prev_weights':  log.previous_weights,
+                'new_weights':   log.adjusted_weights,
+                'delta':         log.weight_delta,
+                'features':      log.candidate_features,
+                'reason':        log.adjustment_reason,
+            })
+
+        # Cumulative reward series
+        cum_reward, cum = [], 0
+        for log in logs:
+            cum += log.reward
+            cum_reward.append(round(cum, 2))
+
+        return JsonResponse({
+            'status':           'success',
+            'company_name':     company.name,
+            'initial_weights':  defaults,
+            'current_weights':  company.get_weights(),
+            'total_events':     logs.count(),
+            'hire_count':       logs.filter(trigger='hire').count(),
+            'reject_count':     logs.filter(trigger='reject').count(),
+            'manual_count':     logs.filter(trigger='manual').count(),
+            'timeline':         timeline,
+            'cumulative_reward': cum_reward,
+        })
+
+
+@company_login_required
+def company_ai_agent(request):
+    """Render the full RL Agent visualization page."""
+    company_id = request.session.get('company_id')
+    company    = get_object_or_404(Company, id=company_id)
+    return render(request, 'company/ai_agent.html', {
+        'company_id':   str(company_id),
+        'company_name': company.name,
+        'current_weights': company.get_weights(),
+    })
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class DeleteJobView(View):
     def delete(self, request, job_id):

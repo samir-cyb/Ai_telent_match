@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+{% block title %}RL Weight Agent | AI Talent Match{% endblock %}
+
+{% block content %}
+<div class="container" style="padding:2rem 0; max-width:1200px;">
+
+  <!-- ── HEADER ── -->
+  <div class="glass-card" style="padding:1.5rem 2rem; margin-bottom:1.5rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+    <div>
+      <a href="/company/dashboard/" style="color:#48bbff; font-size:0.9rem; text-decoration:none;">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+      </a>
+      <h1 style="margin:.4rem 0 .2rem; font-size:1.6rem; color:#f0f9ff;">
+        🤖 RL Weight Agent
+      </h1>
+      <p style="color:#94a3b8; margin:0; font-size:0.9rem;">
+        Self-learning AI that adapts matching weights from every hire, reject, and manual edit.
+      </p>
+    </div>
+    <div id="stat-badges" style="display:flex; gap:.8rem; flex-wrap:wrap;"></div>
+  </div>
+
+  <!-- ── LOADING ── -->
+  <div id="loading" style="text-align:center; padding:4rem; color:#64748b;">
+    <i class="fas fa-spinner fa-spin fa-2x"></i>
+    <p style="margin-top:1rem;">Loading agent data…</p>
+  </div>
+
+  <div id="agent-content" style="display:none;">
+
+    <!-- ── ROW 1: Current weights (5 gauges) ── -->
+    <div class="glass-card" style="padding:1.5rem; margin-bottom:1.5rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.2rem; flex-wrap:wrap; gap:.8rem;">
+        <h3 style="margin:0; color:#48bbff; font-size:1rem;"><i class="fas fa-sliders-h"></i> Current Weights (Live)</h3>
+        <button onclick="openEditModal()" style="background:#3b82f6; color:#fff; border:none; padding:.4rem 1rem; border-radius:8px; cursor:pointer; font-size:.85rem;">
+          <i class="fas fa-edit"></i> Edit Weights
+        </button>
+      </div>
+      <div id="weight-gauges" style="display:grid; grid-template-columns:repeat(5,1fr); gap:1rem;"></div>
+    </div>
+
+    <!-- ── ROW 2: Charts ── -->
+    <div style="display:grid; grid-template-columns:2fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+
+      <!-- Weight evolution line chart -->
+      <div class="glass-card" style="padding:1.5rem;">
+        <h3 style="margin:0 0 1rem; color:#48bbff; font-size:1rem;">
+          <i class="fas fa-chart-line"></i> Weight Evolution Over Time
+        </h3>
+        <canvas id="evolutionChart" height="200"></canvas>
+        <p style="color:#475569; font-size:.75rem; margin-top:.6rem;">
+          Each point = one agent update event (hire / reject / manual edit)
+        </p>
+      </div>
+
+      <!-- Reward accumulation -->
+      <div class="glass-card" style="padding:1.5rem;">
+        <h3 style="margin:0 0 1rem; color:#48bbff; font-size:1rem;">
+          <i class="fas fa-trophy"></i> Cumulative Reward
+        </h3>
+        <canvas id="rewardChart" height="200"></canvas>
+        <p style="color:#475569; font-size:.75rem; margin-top:.6rem;">
+          Goes up on hire (+1), down on reject (−1)
+        </p>
+      </div>
+    </div>
+
+    <!-- ── ROW 3: Before vs After bar chart ── -->
+    <div class="glass-card" style="padding:1.5rem; margin-bottom:1.5rem;">
+      <h3 style="margin:0 0 1rem; color:#48bbff; font-size:1rem;">
+        <i class="fas fa-balance-scale"></i> Initial Weights vs Current Weights
+      </h3>
+      <canvas id="compareChart" height="100"></canvas>
+    </div>
+
+    <!-- ── ROW 4: Events table ── -->
+    <div class="glass-card" style="padding:1.5rem;">
+      <h3 style="margin:0 0 1rem; color:#48bbff; font-size:1rem;">
+        <i class="fas fa-history"></i> Agent Event Log
+      </h3>
+      <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:.83rem;">
+          <thead>
+            <tr style="background:#1e293b;">
+              <th style="padding:.6rem .8rem; text-align:left; color:#64748b; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;">#</th>
+              <th style="padding:.6rem .8rem; text-align:left; color:#64748b; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;">Date</th>
+              <th style="padding:.6rem .8rem; text-align:left; color:#64748b; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;">Event</th>
+              <th style="padding:.6rem .8rem; text-align:left; color:#64748b; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;">Candidate</th>
+              <th style="padding:.6rem .8rem; text-align:left; color:#64748b; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;">Job</th>
+              <th style="padding:.6rem .8rem; text-align:center; color:#64748b; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;">Reward</th>
+              <th style="padding:.6rem .8rem; text-align:left; color:#64748b; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;">Weight Δ (biggest move)</th>
+            </tr>
+          </thead>
+          <tbody id="events-tbody"></tbody>
+        </table>
+        <p id="no-events" style="text-align:center; color:#475569; padding:2rem; display:none;">
+          No agent events yet. Hire or reject a shortlisted candidate to see the agent learn.
+        </p>
+      </div>
+    </div>
+
+  </div><!-- /agent-content -->
+</div>
+
+<!-- ── EDIT WEIGHTS MODAL ── -->
+<div id="edit-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:1000; align-items:center; justify-content:center;">
+  <div class="glass-card" style="width:440px; max-width:95%; padding:2rem; border-radius:16px;">
+    <h3 style="margin:0 0 .4rem; color:#f1f5f9;"><i class="fas fa-sliders-h" style="color:#3b82f6;"></i> Edit Weights Manually</h3>
+    <p style="color:#64748b; font-size:.82rem; margin-bottom:1.5rem;">
+      The agent will soft-learn from your edits and log this correction in the event history.
+    </p>
+    <div id="edit-sliders" style="display:flex; flex-direction:column; gap:1.2rem;"></div>
+    <p id="sum-warning" style="color:#f59e0b; font-size:.8rem; margin-top:.8rem; display:none;">
+      ⚠ Weights must sum to 1.0
+    </p>
+    <div style="display:flex; gap:.8rem; margin-top:1.5rem; justify-content:flex-end;">
+      <button onclick="closeEditModal()" style="background:#334155; color:#cbd5e1; border:none; padding:.5rem 1.2rem; border-radius:8px; cursor:pointer;">Cancel</button>
+      <button onclick="saveWeights()" style="background:#3b82f6; color:#fff; border:none; padding:.5rem 1.2rem; border-radius:8px; cursor:pointer; font-weight:600;">
+        <i class="fas fa-save"></i> Save &amp; Train Agent
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+
+<script>
+const COMPANY_ID   = "{{ company_id }}";
+const API_BASE     = "/api";
+const WEIGHT_KEYS  = ['skills','cgpa','projects','activity','trust'];
+const WEIGHT_LABELS= {skills:'Skills',cgpa:'CGPA',projects:'Projects',activity:'GitHub / Activity',trust:'LinkedIn Trust'};
+const COLORS       = ['#3b82f6','#22c55e','#f59e0b','#a78bfa','#f472b6'];
+const TRIGGER_META = {
+  hire:   {label:'HIRE',   bg:'#14532d', color:'#86efac', icon:'✓'},
+  reject: {label:'REJECT', bg:'#7f1d1d', color:'#fca5a5', icon:'✗'},
+  manual: {label:'MANUAL', bg:'#1e3a5f', color:'#93c5fd', icon:'✎'},
+};
+
+let agentData = null;
+let evolutionChart, rewardChart, compareChart;
+
+// ── Load data ───────────────────────────────────────────────────────────────
+async function loadAgentData() {
+  try {
+    const r = await fetch(`${API_BASE}/company/${COMPANY_ID}/weight-agent-data/`);
+    agentData = await r.json();
+    if (agentData.status !== 'success') { alert('Error loading agent data'); return; }
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('agent-content').style.display = 'block';
+
+    renderStatBadges();
+    renderWeightGauges();
+    renderEvolutionChart();
+    renderRewardChart();
+    renderCompareChart();
+    renderEventsTable();
+  } catch(e) {
+    document.getElementById('loading').innerHTML =
+      `<p style="color:#ef4444;">Failed to load: ${e.message}</p>`;
+  }
+}
+
+// ── Stat badges ──────────────────────────────────────────────────────────────
+function renderStatBadges() {
+  const d = agentData;
+  const badges = [
+    {v: d.total_events,  label:'Total Events', color:'#48bbff'},
+    {v: d.hire_count,    label:'Hires',        color:'#22c55e'},
+    {v: d.reject_count,  label:'Rejects',      color:'#ef4444'},
+    {v: d.manual_count,  label:'Manual Edits', color:'#a78bfa'},
+  ];
+  document.getElementById('stat-badges').innerHTML = badges.map(b => `
+    <div style="text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:.6rem 1.1rem;">
+      <div style="font-size:1.4rem; font-weight:800; color:${b.color};">${b.v}</div>
+      <div style="font-size:.7rem; color:#64748b; text-transform:uppercase; letter-spacing:.05em;">${b.label}</div>
+    </div>`).join('');
+}
+
+// ── Weight gauges ─────────────────────────────────────────────────────────────
+function renderWeightGauges() {
+  const cw = agentData.current_weights;
+  const iw = agentData.initial_weights;
+  document.getElementById('weight-gauges').innerHTML = WEIGHT_KEYS.map((k,i) => {
+    const pct = Math.round(cw[k] * 100);
+    const init = Math.round(iw[k] * 100);
+    const diff = pct - init;
+    const diffStr = diff > 0 ? `+${diff}%` : `${diff}%`;
+    const diffColor = diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : '#64748b';
+    return `
+      <div style="text-align:center; background:rgba(0,0,0,.25); border-radius:12px; padding:1rem; border:1px solid rgba(255,255,255,.07);">
+        <div style="position:relative; display:inline-flex; align-items:center; justify-content:center; width:80px; height:80px;">
+          <svg width="80" height="80" viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="30" fill="none" stroke="#1e293b" stroke-width="8"/>
+            <circle cx="40" cy="40" r="30" fill="none" stroke="${COLORS[i]}" stroke-width="8"
+              stroke-linecap="round"
+              stroke-dasharray="${2*Math.PI*30}"
+              stroke-dashoffset="${2*Math.PI*30*(1-pct/100)}"
+              transform="rotate(-90 40 40)"
+              style="transition:stroke-dashoffset 1s ease;"/>
+          </svg>
+          <div style="position:absolute; font-size:1rem; font-weight:800; color:${COLORS[i]};">${pct}%</div>
+        </div>
+        <div style="font-size:.8rem; font-weight:600; color:#e2e8f0; margin-top:.5rem;">${WEIGHT_LABELS[k]}</div>
+        <div style="font-size:.72rem; color:${diffColor}; margin-top:.2rem;">${diffStr} from start</div>
+      </div>`;
+  }).join('');
+}
+
+// ── Weight evolution line chart ───────────────────────────────────────────────
+function renderEvolutionChart() {
+  const tl = agentData.timeline;
+  if (!tl.length) return;
+
+  // Labels: event index (1,2,3…) with date tooltip
+  const labels = tl.map((_,i) => `Event ${i+1}`);
+  const datasets = WEIGHT_KEYS.map((k,i) => ({
+    label: WEIGHT_LABELS[k],
+    data:  tl.map(e => Math.round((e.new_weights[k]||0)*1000)/10),
+    borderColor: COLORS[i],
+    backgroundColor: COLORS[i]+'22',
+    tension: 0.4,
+    pointRadius: 4,
+    borderWidth: 2,
+    fill: false,
+  }));
+
+  // Add initial point
+  const iw = agentData.initial_weights;
+  datasets.forEach((ds,i) => {
+    ds.data.unshift(Math.round((iw[WEIGHT_KEYS[i]]||0)*1000)/10);
+  });
+  labels.unshift('Initial');
+
+  const ctx = document.getElementById('evolutionChart').getContext('2d');
+  if (evolutionChart) evolutionChart.destroy();
+  evolutionChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive:true,
+      plugins:{
+        legend:{ labels:{color:'#94a3b8', font:{size:11}} },
+        tooltip:{
+          callbacks:{
+            afterTitle: (items) => {
+              const idx = items[0].dataIndex - 1;
+              if (idx >= 0 && tl[idx]) return tl[idx].date;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ticks:{color:'#64748b'}, grid:{color:'#1e293b'}},
+        y:{ticks:{color:'#64748b', callback:v=>v+'%'}, grid:{color:'#1e293b'}, min:0, max:70}
+      }
+    }
+  });
+}
+
+// ── Cumulative reward chart ───────────────────────────────────────────────────
+function renderRewardChart() {
+  const cr = agentData.cumulative_reward;
+  if (!cr.length) return;
+  const labels = cr.map((_,i)=>`E${i+1}`);
+  const ctx = document.getElementById('rewardChart').getContext('2d');
+  if (rewardChart) rewardChart.destroy();
+  rewardChart = new Chart(ctx, {
+    type: 'line',
+    data:{
+      labels,
+      datasets:[{
+        label:'Cumulative Reward',
+        data: cr,
+        borderColor:'#22c55e',
+        backgroundColor:'rgba(34,197,94,.15)',
+        fill:true,
+        tension:0.4,
+        pointRadius:3,
+        borderWidth:2,
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#64748b', font:{size:10}}, grid:{color:'#1e293b'}},
+        y:{ticks:{color:'#64748b'}, grid:{color:'#1e293b'}}
+      }
+    }
+  });
+}
+
+// ── Initial vs Current bar chart ─────────────────────────────────────────────
+function renderCompareChart() {
+  const iw = agentData.initial_weights;
+  const cw = agentData.current_weights;
+  const ctx = document.getElementById('compareChart').getContext('2d');
+  if (compareChart) compareChart.destroy();
+  compareChart = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: WEIGHT_KEYS.map(k=>WEIGHT_LABELS[k]),
+      datasets:[
+        {
+          label:'Initial',
+          data: WEIGHT_KEYS.map(k=>Math.round((iw[k]||0)*1000)/10),
+          backgroundColor:'rgba(100,116,139,.5)',
+          borderColor:'#475569', borderWidth:1,
+        },
+        {
+          label:'Current (Agent Learned)',
+          data: WEIGHT_KEYS.map(k=>Math.round((cw[k]||0)*1000)/10),
+          backgroundColor: COLORS.map(c=>c+'bb'),
+          borderColor: COLORS, borderWidth:1,
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:'#94a3b8'}, grid:{color:'#1e293b'}},
+        y:{ticks:{color:'#64748b', callback:v=>v+'%'}, grid:{color:'#1e293b'}, min:0, max:70}
+      }
+    }
+  });
+}
+
+// ── Events table ──────────────────────────────────────────────────────────────
+function renderEventsTable() {
+  const tl = agentData.timeline;
+  const tbody = document.getElementById('events-tbody');
+
+  if (!tl.length) {
+    document.getElementById('no-events').style.display = 'block';
+    return;
+  }
+
+  tbody.innerHTML = [...tl].reverse().map((e, revIdx) => {
+    const idx = tl.length - revIdx;
+    const m   = TRIGGER_META[e.trigger] || TRIGGER_META.manual;
+    // Biggest weight delta
+    const deltas = e.delta || {};
+    let bigKey='', bigVal=0;
+    for (const [k,v] of Object.entries(deltas)) {
+      if (Math.abs(v) > Math.abs(bigVal)) { bigKey=k; bigVal=v; }
+    }
+    const deltaStr = bigKey
+      ? `${WEIGHT_LABELS[bigKey]}: ${bigVal>0?'+':''}${(bigVal*100).toFixed(1)}%`
+      : '—';
+    const deltaColor = bigVal>0?'#22c55e': bigVal<0?'#ef4444':'#64748b';
+
+    return `
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:.55rem .8rem; color:#475569;">${idx}</td>
+        <td style="padding:.55rem .8rem; color:#94a3b8; font-size:.8rem;">${e.date}</td>
+        <td style="padding:.55rem .8rem;">
+          <span style="padding:.2rem .6rem; border-radius:6px; font-size:.72rem; font-weight:700;
+            background:${m.bg}; color:${m.color};">
+            ${m.icon} ${m.label}
+          </span>
+        </td>
+        <td style="padding:.55rem .8rem; color:#e2e8f0;">${e.student_name}</td>
+        <td style="padding:.55rem .8rem; color:#94a3b8; font-size:.8rem;">${e.job_title}</td>
+        <td style="padding:.55rem .8rem; text-align:center; font-weight:700;
+          color:${e.reward>0?'#22c55e':e.reward<0?'#ef4444':'#94a3b8'};">
+          ${e.reward>0?'+':''}${e.reward}
+        </td>
+        <td style="padding:.55rem .8rem; color:${deltaColor}; font-size:.8rem; font-weight:600;">${deltaStr}</td>
+      </tr>`;
+  }).join('');
+}
+
+// ── Edit weights modal ────────────────────────────────────────────────────────
+function openEditModal() {
+  const cw = agentData.current_weights;
+  const sliders = document.getElementById('edit-sliders');
+  sliders.innerHTML = WEIGHT_KEYS.map((k,i) => `
+    <div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:.3rem;">
+        <label style="color:#e2e8f0; font-size:.85rem; font-weight:600;">${WEIGHT_LABELS[k]}</label>
+        <span id="lbl-${k}" style="color:${COLORS[i]}; font-weight:700; font-size:.9rem;">
+          ${Math.round((cw[k]||0)*100)}%
+        </span>
+      </div>
+      <input type="range" id="slider-${k}" min="5" max="60" step="1"
+        value="${Math.round((cw[k]||0)*100)}"
+        oninput="onSliderChange()"
+        style="width:100%; accent-color:${COLORS[i]};">
+    </div>`).join('');
+  document.getElementById('edit-modal').style.display = 'flex';
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').style.display = 'none';
+}
+
+function onSliderChange() {
+  let total = 0;
+  WEIGHT_KEYS.forEach(k => {
+    const v = parseInt(document.getElementById(`slider-${k}`).value);
+    document.getElementById(`lbl-${k}`).textContent = v + '%';
+    total += v;
+  });
+  const warn = document.getElementById('sum-warning');
+  warn.style.display = (total < 90 || total > 110) ? 'block' : 'none';
+}
+
+async function saveWeights() {
+  const weights = {};
+  let total = 0;
+  WEIGHT_KEYS.forEach(k => {
+    const v = parseInt(document.getElementById(`slider-${k}`).value) / 100;
+    weights[k] = v;
+    total += v;
+  });
+
+  // Normalise to exactly 1.0
+  const norm = {};
+  WEIGHT_KEYS.forEach(k => norm[k] = Math.round(weights[k] / total * 10000) / 10000);
+
+  try {
+    const r = await fetch(`${API_BASE}/company/${COMPANY_ID}/weights/`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(norm),
+    });
+    const d = await r.json();
+    if (d.status === 'success') {
+      closeEditModal();
+      await loadAgentData();   // refresh all charts
+    } else {
+      alert('Error: ' + d.message);
+    }
+  } catch(e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadAgentData();
+</script>
+{% endblock %}

@@ -1,189 +1,410 @@
 import ast
 import re
-from typing import Dict, List, Any
+import json
+from typing import Dict, List, Any, Optional
 
-class CodeGrader:
-    """3-Layer grading system for code evaluation"""
-    
-    def __init__(self):
+# Gemini client reused from question_generator
+from google import genai
+
+_MODEL = 'gemini-2.5-flash-lite'
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# SECURITY PATTERNS
+# ──────────────────────────────────────────────────────────────────────────────
+_DANGEROUS_CALLS = [
+    ('eval',        'HIGH',   'eval() executes arbitrary code — major security risk'),
+    ('exec',        'HIGH',   'exec() executes arbitrary code — major security risk'),
+    ('compile',     'MEDIUM', 'compile() with exec/eval is dangerous'),
+    ('__import__',  'HIGH',   'Dynamic import can bypass restrictions'),
+    ('os.system',   'HIGH',   'Shell command execution'),
+    ('os.popen',    'HIGH',   'Shell command execution'),
+    ('subprocess',  'MEDIUM', 'Subprocess spawning — use with care'),
+    ('open(',       'LOW',    'File I/O — ensure path is safe'),
+    ('socket',      'MEDIUM', 'Network access'),
+    ('pickle',      'MEDIUM', 'Pickle deserialization can execute arbitrary code'),
+    ('globals()',   'LOW',    'Accessing global namespace'),
+    ('locals()',    'LOW',    'Accessing local namespace'),
+    ('getattr',     'LOW',    'Dynamic attribute access — verify inputs'),
+    ('setattr',     'LOW',    'Dynamic attribute setting — verify inputs'),
+    ('delattr',     'LOW',    'Dynamic attribute deletion'),
+    ('__builtins__','HIGH',   'Accessing builtins directly'),
+]
+
+_RISK_SCORE = {'HIGH': 30, 'MEDIUM': 15, 'LOW': 5}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# SMART PARTIAL MATCHING
+# ──────────────────────────────────────────────────────────────────────────────
+def _normalize(s: str) -> str:
+    return s.strip().lower().replace('\r\n', '\n').replace('\r', '\n')
+
+
+def _smart_match_score(actual: str, expected: str) -> float:
+    """
+    Returns 0.0 – 1.0 credit for this test case.
+    1.0  = exact match (after normalization)
+    0.5  = numeric near-match (within 1% relative tolerance)
+    0.0  = no match
+    """
+    a = _normalize(actual)
+    e = _normalize(expected)
+
+    if a == e:
+        return 1.0
+
+    # Try numeric comparison
+    try:
+        av = float(a)
+        ev = float(e)
+        rel = abs(av - ev) / (abs(ev) + 1e-9)
+        if rel < 0.01:       # within 1%
+            return 1.0
+        if rel < 0.10:       # within 10%
+            return 0.5
+    except ValueError:
         pass
-    
-    def grade(self, code: str, test_results: Dict, language: str = 'python') -> Dict:
-        """
-        Execute full 3-layer grading
-        Returns: {
-            'layer1_score': float,
-            'layer2_score': float,
-            'layer3_score': float or None,
-            'final_score': float,
-            'details': dict
-        }
-        """
-        # Layer 1: Correctness (already computed in test_results)
-        layer1_score = test_results.get('score', 0)
-        
-        # Layer 2: Static Analysis
-        layer2_result = self._static_analysis(code, language)
-        layer2_score = layer2_result['score']
-        
-        # Layer 3: AI Evaluation (only if Layer 1 > 60 to save costs)
-        layer3_score = None
-        if layer1_score > 60:
-            layer3_score = self._ai_evaluation(code, test_results)
-        
-        # Calculate weighted final score
-        final_score = (layer1_score * 0.50) + (layer2_score * 0.30)
-        if layer3_score is not None:
-            final_score += (layer3_score * 0.20)
+
+    # Partial string overlap (student forgot trailing newline, etc.)
+    if e and a.replace(' ', '') == e.replace(' ', ''):
+        return 0.9  # only whitespace difference
+
+    if e and (a in e or e in a):
+        return 0.3
+
+    return 0.0
+
+
+def smart_run_test_cases(executor, code: str, language: str, test_cases: list) -> Dict:
+    """Run test cases with smart partial credit scoring."""
+    results = []
+    total_credit = 0.0
+
+    for i, test in enumerate(test_cases):
+        execution = executor.execute(code, language, test.get('input', ''))
+        actual = (execution.get('stdout') or '').strip()
+        expected = str(test.get('expected', '')).strip()
+
+        credit = _smart_match_score(actual, expected)
+        passed = credit == 1.0
+        if passed:
+            total_credit += 1.0
         else:
-            # Redistribute weights if no AI layer
-            final_score = (layer1_score * 0.625) + (layer2_score * 0.375)
-        
+            total_credit += credit
+
+        results.append({
+            'test_number': i + 1,
+            'input': test.get('input', ''),
+            'expected': expected,
+            'actual': actual,
+            'passed': passed,
+            'credit': round(credit, 2),
+            'error': execution.get('stderr') or execution.get('compile_output', ''),
+            'execution_time': execution.get('time', 0),
+            'is_public': test.get('is_public', True),
+        })
+
+    total = len(test_cases)
+    score = (total_credit / total * 100) if total > 0 else 0
+
+    return {
+        'total': total,
+        'passed': sum(1 for r in results if r['passed']),
+        'failed': sum(1 for r in results if not r['passed']),
+        'score': round(score, 2),
+        'details': results,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# MAIN GRADER
+# ──────────────────────────────────────────────────────────────────────────────
+class CodeGrader:
+    """
+    4-Layer grading:
+      Layer 1 — Correctness (test cases, 50%)
+      Layer 2 — Static quality analysis (20%)
+      Layer 3 — Complexity & security scan (10%)
+      Layer 4 — Gemini AI detailed review (20%)
+    """
+
+    def grade(self, code: str, test_results: Dict, language: str = 'python') -> Dict:
+        layer1_score = test_results.get('score', 0)
+
+        # Layer 2: static quality
+        l2 = self._static_analysis(code, language)
+        layer2_score = l2['score']
+
+        # Layer 3: complexity + security
+        l3 = self._complexity_security(code, language)
+        layer3_score = l3['score']
+
+        # Layer 4: AI review (always run — gives most value)
+        l4 = self._ai_review(code, test_results, language)
+        layer4_score = l4['score']
+
+        # Weighted final
+        final_score = (
+            layer1_score  * 0.50 +
+            layer2_score  * 0.20 +
+            layer3_score  * 0.10 +
+            layer4_score  * 0.20
+        )
+
         return {
-            'layer1_test_score': round(layer1_score, 2),
-            'layer2_static_score': round(layer2_score, 2),
-            'layer3_ai_score': round(layer3_score, 2) if layer3_score else None,
-            'final_score': round(final_score, 2),
-            'passed': final_score >= 70,
+            'layer1_test_score':    round(layer1_score, 2),
+            'layer2_static_score':  round(layer2_score, 2),
+            'layer3_ai_score':      round(layer4_score, 2),   # kept field name for DB compat
+            'final_score':          round(final_score, 2),
+            'passed':               final_score >= 60,
             'details': {
-                'test_cases': test_results,
-                'static_analysis': layer2_result,
-                'quality_issues': layer2_result.get('issues', [])
-            }
+                'test_cases':        test_results,
+                'static_analysis':   l2,
+                'quality_issues':    l2.get('issues', []),
+                'complexity':        l3.get('complexity', {}),
+                'security':          l3.get('security', {}),
+                'ai_review':         l4,
+            },
         }
-    
+
+    # ── LAYER 2: Static quality ───────────────────────────────────────────────
     def _static_analysis(self, code: str, language: str) -> Dict:
-        """Analyze code quality for Python"""
         if language != 'python':
-            return {'score': 50, 'issues': ['Static analysis only available for Python in MVP']}
-        
+            return {'score': 50, 'issues': ['Static analysis only available for Python'],
+                    'metrics': {}}
+
         score = 100
         issues = []
-        
-        # Initialize variables to avoid undefined errors in exception handlers
-        functions = []
-        comment_lines = []
-        lines = code.split('\n')
-        
+        suggestions = []
+        metrics = {'line_count': len(code.splitlines()),
+                   'function_count': 0, 'comment_count': 0, 'has_docstring': False}
+
         try:
             tree = ast.parse(code)
-            
-            # Check 1: Function exists and has docstring
-            functions = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)]
+            lines = code.splitlines()
+            metrics['comment_count'] = sum(1 for l in lines if l.strip().startswith('#'))
+
+            functions = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+            metrics['function_count'] = len(functions)
+
+            # 1. Function check
             if not functions:
                 score -= 20
-                issues.append("No function defined")
+                issues.append('No function defined — wrap your solution in a function')
             else:
-                main_func = functions[0]
-                if not ast.get_docstring(main_func):
+                fn = functions[0]
+                if not ast.get_docstring(fn):
                     score -= 10
-                    issues.append("Missing docstring")
-            
-            # Check 2: Function length (not too long)
+                    issues.append('Missing docstring on main function')
+                else:
+                    metrics['has_docstring'] = True
+
+                fn_len = (fn.end_lineno or fn.lineno) - fn.lineno
+                metrics['function_length'] = fn_len
+                if fn_len > 40:
+                    score -= 10
+                    issues.append(f'Function is {fn_len} lines — consider splitting into helpers')
+
+            # 2. Type hints
             if functions:
-                func = functions[0]
-                lines = func.end_lineno - func.lineno if func.end_lineno else 50
-                if lines > 30:
-                    score -= 10
-                    issues.append(f"Function too long ({lines} lines, max 30 recommended)")
-            
-            # Check 3: Variable naming (snake_case)
-            names = [node.id for node in ast.walk(tree) if isinstance(node, ast.Name)]
-            bad_names = [n for n in names if len(n) == 1 and n not in ['i', 'j', 'k', 'n', 'x', 'y']]
-            if bad_names:
-                score -= 5
-                issues.append(f"Single letter variable names: {bad_names}")
-            
-            # Check 4: Imports used
-            imports = [node.names[0].name for node in ast.walk(tree) if isinstance(node, ast.Import)]
-            from_imports = [node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)]
-            
-            # Check 5: List comprehensions (Pythonic)
-            list_comps = [node for node in ast.walk(tree) if isinstance(node, ast.ListComp)]
-            if not list_comps and any('list' in str(type(node)) for node in ast.walk(tree)):
-                # Only penalize if they used loops instead of comprehensions where appropriate
-                loops = [node for node in ast.walk(tree) if isinstance(node, (ast.For, ast.While))]
-                if len(loops) > 0:
+                fn = functions[0]
+                if not fn.returns and not fn.args.annotations:
                     score -= 5
-                    issues.append("Consider using list comprehensions instead of loops")
-            
-            # Check 6: Comments
-            comment_lines = [l for l in lines if l.strip().startswith('#')]
-            if len(comment_lines) < 1 and len(lines) > 10:
+                    suggestions.append('Add type hints: def solve(data: list) -> dict')
+
+            # 3. Variable naming
+            names = [n.id for n in ast.walk(tree) if isinstance(n, ast.Name)]
+            bad = [n for n in set(names)
+                   if len(n) == 1 and n not in ('i', 'j', 'k', 'n', 'x', 'y', 'e')]
+            if bad:
                 score -= 5
-                issues.append("Add comments to explain complex logic")
-            
-            # Check 7: Error handling
-            try_blocks = [node for node in ast.walk(tree) if isinstance(node, ast.Try)]
-            if not try_blocks and 'input' in code.lower():
+                issues.append(f'Non-descriptive variable names: {bad[:4]}')
+
+            # 4. Comments
+            if metrics['comment_count'] < 1 and metrics['line_count'] > 8:
                 score -= 5
-                issues.append("Consider adding error handling for input validation")
-            
+                suggestions.append('Add inline comments explaining your logic')
+
+            # 5. Error handling
+            try_blocks = [n for n in ast.walk(tree) if isinstance(n, ast.Try)]
+            if not try_blocks:
+                suggestions.append('Consider adding try/except for robustness')
+
+            # 6. Pythonic bonus
+            list_comps = [n for n in ast.walk(tree) if isinstance(n, ast.ListComp)]
+            gen_exps   = [n for n in ast.walk(tree) if isinstance(n, ast.GeneratorExp)]
+            if list_comps or gen_exps:
+                pass  # no penalty — using comprehensions is good
+
         except SyntaxError as e:
             score = 0
-            issues.append(f"Syntax error: {str(e)}")
+            issues.append(f'Syntax error: {e}')
         except Exception as e:
             score -= 10
-            issues.append(f"Analysis error: {str(e)}")
-        
+            issues.append(f'Analysis error: {e}')
+
         return {
             'score': max(0, score),
             'issues': issues,
-            'metrics': {
-                'function_count': len(functions),
-                'line_count': len(code.split('\n')),
-                'comment_count': len(comment_lines)
-            }
+            'suggestions': suggestions,
+            'metrics': metrics,
         }
-    
-    def _ai_evaluation(self, code: str, test_results: Dict) -> float:
-        """
-        AI Layer - Use Gemini for elegance evaluation
-        Returns score 0-100
-        """
-        # For MVP, we'll use a heuristic-based approach instead of API call
-        # to save costs. In production, replace with actual Gemini call.
-        
-        score = 50  # Base score
-        
-        # Check for Pythonic patterns
-        if 'import' in code and 'from' in code:
-            score += 10  # Proper imports
-        
-        if any(pattern in code for pattern in ['list comprehension', 'generator', 'map(', 'filter(']):
-            score += 15  # Functional programming
-        
-        if 'class ' in code and 'def __init__' in code:
-            score += 10  # OOP approach
-        
-        if test_results.get('score', 0) == 100:
-            score += 20  # All tests passed bonus
-        
-        return min(100, score)
-        
-        # PRODUCTION VERSION (uncomment when ready to use Gemini):
-        """
+
+    # ── LAYER 3: Complexity + Security ───────────────────────────────────────
+    def _complexity_security(self, code: str, language: str) -> Dict:
+        score = 100
+        complexity = {}
+        security = {'risks': [], 'risk_level': 'SAFE'}
+        issues = []
+
+        if language != 'python':
+            return {'score': 70, 'complexity': {}, 'security': {'risks': [], 'risk_level': 'N/A'},
+                    'issues': []}
+
+        # ── Security scan ────────────────────────────────────────────────────
+        total_risk_deduction = 0
+        for pattern, level, msg in _DANGEROUS_CALLS:
+            if pattern in code:
+                security['risks'].append({'pattern': pattern, 'level': level, 'message': msg})
+                total_risk_deduction += _RISK_SCORE[level]
+
+        if total_risk_deduction >= 30:
+            security['risk_level'] = 'HIGH'
+        elif total_risk_deduction >= 15:
+            security['risk_level'] = 'MEDIUM'
+        elif total_risk_deduction > 0:
+            security['risk_level'] = 'LOW'
+        else:
+            security['risk_level'] = 'SAFE'
+
+        score -= min(total_risk_deduction, 50)
+
+        # ── Complexity analysis ──────────────────────────────────────────────
         try:
-            prompt = f\"\"\"
-            Evaluate this Python code for elegance and best practices (0-100):
-            
-            ```python
-            {code}
-            ```
-            
-            Consider:
-            - Readability and clarity
-            - Pythonic idioms
-            - Algorithm efficiency
-            - Code organization
-            
-            Return only a number between 0 and 100.
-            \"\"\"
-            
-            # Call Gemini API here
-            # response = model.generate_content(prompt)
-            # return float(response.text.strip())
-            
-        except:
-            return 50
-        """
+            tree = ast.parse(code)
+
+            # Count nesting depth of loops
+            def max_loop_depth(node, depth=0):
+                if isinstance(node, (ast.For, ast.While)):
+                    depth += 1
+                children = [max_loop_depth(c, depth) for c in ast.iter_child_nodes(node)]
+                return max([depth] + children) if children else depth
+
+            loop_depth = max_loop_depth(tree)
+
+            # Estimate Big-O
+            if loop_depth == 0:
+                big_o = 'O(1) or O(log n)'
+                complexity_rating = 'Excellent'
+            elif loop_depth == 1:
+                big_o = 'O(n)'
+                complexity_rating = 'Good'
+            elif loop_depth == 2:
+                big_o = 'O(n²)'
+                complexity_rating = 'Acceptable'
+                score -= 5
+                issues.append('Nested loops detected — O(n²) — consider optimising')
+            else:
+                big_o = f'O(n^{loop_depth}) or worse'
+                complexity_rating = 'Poor'
+                score -= 15
+                issues.append(f'{loop_depth}-level nested loops detected — high complexity')
+
+            # Recursion check
+            has_recursion = False
+            functions = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+            for fn in functions:
+                calls = [n.func.id for n in ast.walk(fn)
+                         if isinstance(n, ast.Call) and hasattr(n.func, 'id')]
+                if fn.name in calls:
+                    has_recursion = True
+
+            complexity = {
+                'big_o': big_o,
+                'loop_depth': loop_depth,
+                'has_recursion': has_recursion,
+                'rating': complexity_rating,
+            }
+
+        except SyntaxError:
+            complexity = {'big_o': 'N/A', 'rating': 'Syntax Error', 'loop_depth': 0,
+                          'has_recursion': False}
+        except Exception as e:
+            complexity = {'big_o': 'N/A', 'rating': 'Analysis Error', 'loop_depth': 0,
+                          'has_recursion': False}
+
+        return {
+            'score': max(0, score),
+            'complexity': complexity,
+            'security': security,
+            'issues': issues,
+        }
+
+    # ── LAYER 4: Gemini AI Review ─────────────────────────────────────────────
+    def _ai_review(self, code: str, test_results: Dict, language: str = 'python') -> Dict:
+        passed_pct = test_results.get('score', 0)
+        test_details = test_results.get('details', [])
+        failed_tests = [t for t in test_details if not t.get('passed')]
+
+        prompt = f"""
+You are a senior {language} engineer conducting a code review for a hiring assessment.
+
+=== SUBMITTED CODE ===
+```{language}
+{code}
+```
+
+=== TEST RESULTS ===
+Score: {passed_pct}%
+Failed tests: {len(failed_tests)} / {len(test_details)}
+{chr(10).join(f"- Input: {t['input']!r} | Expected: {t['expected']!r} | Got: {t['actual']!r}" for t in failed_tests[:3]) if failed_tests else "All public tests passed!"}
+
+=== YOUR TASK ===
+Write a concise but insightful code review. Return ONLY raw JSON:
+{{
+  "score": <integer 0-100>,
+  "summary": "2-3 sentence overall assessment of the candidate's solution",
+  "strengths": ["specific strength 1", "specific strength 2"],
+  "weaknesses": ["specific weakness 1"],
+  "suggestions": ["actionable improvement 1", "actionable improvement 2"],
+  "verdict": "Hire" | "Consider" | "Reject"
+}}
+
+Scoring guide:
+- 80-100: Elegant, efficient, well-structured, passes tests
+- 60-79: Correct approach with minor issues
+- 40-59: Partially correct or poor code quality
+- 0-39: Incorrect logic or very poor code
+"""
+
+        try:
+            resp = _client.models.generate_content(model=_MODEL, contents=prompt)
+            text = resp.text
+            if '```json' in text:
+                text = text.split('```json')[1].split('```')[0]
+            elif '```' in text:
+                text = text.split('```')[1].split('```')[0]
+            result = json.loads(text.strip())
+            return {
+                'score':       max(0, min(int(result.get('score', 50)), 100)),
+                'summary':     result.get('summary', ''),
+                'strengths':   result.get('strengths', []),
+                'weaknesses':  result.get('weaknesses', []),
+                'suggestions': result.get('suggestions', []),
+                'verdict':     result.get('verdict', 'Consider'),
+            }
+        except Exception as e:
+            print(f'[Grader] AI review failed: {e}')
+            # Heuristic fallback
+            score = 40
+            if passed_pct == 100: score = 80
+            elif passed_pct >= 60: score = 60
+            return {
+                'score': score,
+                'summary': 'AI review unavailable — score based on test results and code structure.',
+                'strengths': ['Code submitted successfully'],
+                'weaknesses': ['Could not run AI analysis'],
+                'suggestions': ['Ensure code handles edge cases', 'Add comments and docstrings'],
+                'verdict': 'Consider' if passed_pct >= 50 else 'Reject',
+            }

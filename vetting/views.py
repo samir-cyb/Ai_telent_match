@@ -589,6 +589,17 @@ class SubmitTestView(View):
                     session.challenge.language
                 )
                 
+                # Build full analysis report for storage
+                ai_review = grading['details'].get('ai_review', {})
+                full_report = {
+                    'static_analysis':  grading['details'].get('static_analysis', {}),
+                    'complexity':       grading['details'].get('complexity', {}),
+                    'security':         grading['details'].get('security', {}),
+                    'ai_review':        ai_review,
+                    'submitted_code':   final_code,
+                    'language':         session.challenge.language,
+                }
+
                 # Create result
                 result = VettingResult.objects.create(
                     session=session,
@@ -598,21 +609,22 @@ class SubmitTestView(View):
                     layer3_ai_score=grading['layer3_ai_score'],
                     final_score=grading['final_score'],
                     test_case_results=test_results,
-                    static_analysis_report=grading['details']['static_analysis'],
-                    code_quality_issues=grading['details']['quality_issues'],
+                    static_analysis_report=full_report,
+                    ai_feedback=ai_review.get('summary', ''),
+                    code_quality_issues=grading['details'].get('quality_issues', []),
                     passed=grading['passed']
                 )
-                
+
                 # Update session
                 session.status = 'completed'
                 session.completed_at = timezone.now()
                 session.save()
-                
+
                 # Update Application with vetting score
                 app = session.application
                 app.vetting_score = grading['final_score']
                 app.save()
-                
+
                 # Notify company
                 from core.models import Notification
                 Notification.objects.create(
@@ -627,16 +639,18 @@ class SubmitTestView(View):
                         'passed': grading['passed']
                     }
                 )
-                
+
+                result_url = f'/vetting/result/{result.id}/'
                 return JsonResponse({
                     'status': 'success',
                     'score': grading['final_score'],
                     'passed': grading['passed'],
                     'layer_breakdown': {
-                        'tests': grading['layer1_test_score'],
+                        'tests':   grading['layer1_test_score'],
                         'quality': grading['layer2_static_score'],
-                        'ai': grading['layer3_ai_score']
+                        'ai':      grading['layer3_ai_score']
                     },
+                    'result_url': result_url,
                     'message': 'Assessment submitted successfully!'
                 })
                 
@@ -719,6 +733,54 @@ class StudentPendingAssessmentsView(View):
             'student_name': student.name,
             'total_pending': len(assessments)
         })
+
+
+class VettingResultDetailView(View):
+    """Full result page — score breakdown, test cases, complexity, security, AI review."""
+
+    def get(self, request, result_id):
+        result = get_object_or_404(VettingResult, id=result_id)
+        session = result.session
+        challenge = session.challenge
+        report = result.static_analysis_report or {}
+
+        # Pull structured sub-sections
+        static     = report.get('static_analysis', {})
+        complexity = report.get('complexity', {})
+        security   = report.get('security', {})
+        ai_review  = report.get('ai_review', {})
+        submitted_code = report.get('submitted_code', '')
+        language   = report.get('language', challenge.language)
+
+        test_results = result.test_case_results or {}
+        test_details = test_results.get('details', []) if isinstance(test_results, dict) else test_results
+
+        ctx = {
+            'result':           result,
+            'session':          session,
+            'challenge':        challenge,
+            'final_score':      float(result.final_score),
+            'layer1':           float(result.layer1_test_score),
+            'layer2':           float(result.layer2_static_score),
+            'layer3':           float(result.layer3_ai_score or 0),
+            'passed':           result.passed,
+            'test_details':     test_details,
+            'test_total':       test_results.get('total', 0) if isinstance(test_results, dict) else len(test_details),
+            'test_passed':      test_results.get('passed', 0) if isinstance(test_results, dict) else sum(1 for t in test_details if t.get('passed')),
+            'static':           static,
+            'complexity':       complexity,
+            'security':         security,
+            'ai_review':        ai_review,
+            'submitted_code':   submitted_code,
+            'language':         language,
+            'quality_issues':   result.code_quality_issues or [],
+            'anti_cheat': {
+                'tab_switches':     session.tab_switch_count,
+                'copy_pastes':      session.copy_paste_attempts,
+                'fullscreen_exits': session.fullscreen_exits,
+            },
+        }
+        return render(request, 'vetting/result.html', ctx)
 
 
 @method_decorator(csrf_exempt, name='dispatch')

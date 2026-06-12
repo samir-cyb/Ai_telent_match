@@ -558,62 +558,108 @@ class AIMatchingEngine:
         
         return applied
     
-    def update_weights_from_feedback(self, company, hired_application):
-        """Reinforcement learning: adjust weights based on successful hire"""
-        student = hired_application.student
-        job = hired_application.job
-        
-        # Get the hired student's profile vector
-        successful_vector = {
-            'skills': self.calculate_skill_match(student, job)[0],
-            'cgpa': self.calculate_cgpa_score(student, job),
-            'projects': self.calculate_project_score(student),
-            'activity': self.calculate_activity_score(student),
-            'trust': student.trust_score / 100.0 if student.trust_score else 0.0
+    # ──────────────────────────────────────────────────────────────────────
+    # RL WEIGHT AGENT
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _get_candidate_features(self, student, job):
+        """Return normalised 0-1 feature scores for a student/job pair."""
+        return {
+            'skills':   round(self.calculate_skill_match(student, job)[0], 4),
+            'cgpa':     round(self.calculate_cgpa_score(student, job), 4),
+            'projects': round(self.calculate_project_score(student), 4),
+            'activity': round(self.calculate_activity_score(student), 4),
+            'trust':    round((student.trust_score or 0) / 100.0, 4),
         }
-        
-        # Current weights
-        current_weights = company.get_weights()
-        
-        # Learning rate (small adjustments)
-        learning_rate = 0.05
-        
-        # Shift weights toward successful features
-        total = sum(successful_vector.values())
-        if total > 0:
-            ideal_weights = {k: v/total for k, v in successful_vector.items()}
-            
-            new_weights = {}
-            for key in current_weights:
-                # Move 5% toward ideal
-                new_weights[key] = current_weights[key] + learning_rate * (ideal_weights[key] - current_weights[key])
-            
-            # Normalize to ensure sum = 1
-            weight_sum = sum(new_weights.values())
-            new_weights = {k: v/weight_sum for k, v in new_weights.items()}
-            
-            # Save to company
-            company.custom_weights = new_weights
+
+    @staticmethod
+    def _normalise_weights(raw):
+        """Clip to min 0.05 per key, then normalise to sum=1."""
+        clipped = {k: max(0.05, v) for k, v in raw.items()}
+        total   = sum(clipped.values())
+        return {k: round(v / total, 6) for k, v in clipped.items()}
+
+    def update_weights_from_feedback(self, company, application, trigger='hire'):
+        """
+        RL update called on:
+          trigger='hire'   → reward +1.0  (learning_rate 0.07)
+          trigger='reject' → reward -1.0  (learning_rate 0.04, weaker signal)
+        """
+        student  = application.student
+        job      = application.job
+        reward   = 1.0 if trigger == 'hire' else -1.0
+        lr       = 0.07 if trigger == 'hire' else 0.04
+
+        features       = self._get_candidate_features(student, job)
+        current        = company.get_weights()
+
+        # Core RL update:
+        # reward=+1 → push weights TOWARD high-feature dimensions
+        # reward=-1 → push weights AWAY from high-feature dimensions
+        new_weights = {}
+        for key in current:
+            # centre feature around 0.5 so neutral features produce zero delta
+            delta = lr * reward * (features[key] - 0.5)
+            new_weights[key] = current[key] + delta
+
+        new_weights = self._normalise_weights(new_weights)
+        weight_delta = {k: round(new_weights[k] - current[k], 6) for k in current}
+
+        # Persist
+        company.custom_weights = new_weights
+        if trigger == 'hire':
             company.successful_hire_patterns.append({
-                'date': datetime.now().isoformat(),
+                'date':       datetime.now().isoformat(),
                 'student_id': str(student.id),
-                'job_id': str(job.id),
-                'profile_vector': successful_vector
+                'job_id':     str(job.id),
+                'features':   features,
             })
-            company.save()
-            
-            # Log the adjustment
-            AIFeedbackLog.objects.create(
-                company=company,
-                application=hired_application,
-                previous_weights=current_weights,
-                adjusted_weights=new_weights,
-                adjustment_reason=f"Successful hire of {student.name} for {job.title}"
-            )
-            
-            return new_weights
-        
-        return current_weights
+        company.save()
+
+        from core.models import AIFeedbackLog
+        AIFeedbackLog.objects.create(
+            company=company,
+            application=application,
+            trigger=trigger,
+            reward=reward,
+            candidate_features=features,
+            previous_weights=current,
+            adjusted_weights=new_weights,
+            weight_delta=weight_delta,
+            adjustment_reason=(
+                f"{'Hired' if trigger == 'hire' else 'Rejected shortlisted'} "
+                f"{student.name} for {job.title}"
+            ),
+        )
+        return new_weights
+
+    def learn_from_manual_edit(self, company, manual_weights):
+        """
+        Called when a company manually overrides weights.
+        We record the event so the chart shows human corrections,
+        and we do a soft-learn: move 30% toward the manual values
+        (agent respects company intent without blindly overwriting its own learning).
+        """
+        current = company.get_weights()
+
+        # Soft-pull: blend current + manual
+        blended = {k: current[k] + 0.30 * (manual_weights[k] - current[k]) for k in current}
+        new_weights  = self._normalise_weights(blended)
+        weight_delta = {k: round(new_weights[k] - current[k], 6) for k in current}
+
+        from core.models import AIFeedbackLog
+        AIFeedbackLog.objects.create(
+            company=company,
+            application=None,
+            trigger='manual',
+            reward=0.0,
+            candidate_features={},
+            previous_weights=current,
+            adjusted_weights=new_weights,
+            weight_delta=weight_delta,
+            adjustment_reason='Company manually edited weights — agent soft-learned.',
+        )
+        return new_weights
 
 
 class ABTestFramework:

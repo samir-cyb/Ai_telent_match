@@ -5,9 +5,10 @@ from django.urls import path, include
 from vetting.views import SubmissionDetailView
 from core.views import (
     InterviewSlotAvailabilityView, landing_page, about_us, services,
-    student_login, student_register, student_dashboard, student_profile, student_job_detail, student_jobs,  # ADD student_jobs HERE
+    student_login, student_register, student_dashboard, student_profile, student_job_detail, student_jobs,
     company_login, company_register, company_dashboard, company_post_job, company_applicants,
-    admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView ,admin_login_page, ApplicationsListView
+    applicant_documents, company_ai_agent,
+    admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView, admin_login_page, ApplicationsListView
 )
 
 urlpatterns = [
@@ -32,6 +33,8 @@ urlpatterns = [
     path('company/dashboard/', company_dashboard, name='company_dashboard'),
     path('company/post-job/', company_post_job, name='company_post_job'),
     path('company/applicants/', company_applicants, name='company_applicants'),
+    path('company/applicant/<uuid:application_id>/documents/', applicant_documents, name='applicant_documents'),
+    path('company/ai-agent/', company_ai_agent, name='company_ai_agent'),
     path('api/auth/company/logout/', CompanyLogoutView.as_view(), name='company_logout'),
     
     # Admin

@@ -14,4 +14,5 @@ urlpatterns = [
     path('api/test/<str:token>/submit/', views.SubmitTestView.as_view(), name='submit_test'),
     path('api/test/<str:token>/submit-quiz/', views.SubmitQuizView.as_view(), name='submit_quiz'),
     path('pending/', views.StudentPendingAssessmentsView.as_view(), name='pending_assessments'),
+    path('result/<uuid:result_id>/', views.VettingResultDetailView.as_view(), name='vetting_result'),
 ]

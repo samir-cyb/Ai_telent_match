@@ -1109,7 +1109,7 @@ if (!companyId) {
   }
 
   function viewDetails(applicationId) {
-    alert("Details view coming soon!");
+    window.location.href = `/company/applicant/${applicationId}/documents/`;
   }
 
   async function updateStatus(applicationId, status) {
