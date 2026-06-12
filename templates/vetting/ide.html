@@ -518,19 +518,12 @@
             const data = await response.json();
             
             if (data.status === 'success') {
-                let msg = `Assessment submitted!\n\nScore: ${data.score}%\nPassed: ${data.passed ? 'Yes ✓' : 'No ✗'}`;
-                if (data.layer_breakdown) {
-                    msg += `\n\nBreakdown:\n- Tests: ${data.layer_breakdown.tests}%\n- Quality: ${data.layer_breakdown.quality}%\n- AI: ${data.layer_breakdown.ai || 'N/A'}%`;
+                // Redirect to the full result page
+                if (data.result_url) {
+                    window.location.href = data.result_url;
+                } else {
+                    window.location.href = '/student/dashboard/';
                 }
-                if (cheatScore > 30) {
-                    msg += `\n\n⚠️ Your submission was flagged for suspicious activity:\n`;
-                    msg += `- ${tabSwitches} tab switches\n`;
-                    msg += `- ${copyCount} copy attempts (BLOCKED)\n`;
-                    msg += `- ${pasteCount} paste attempts (BLOCKED)\n`;
-                    msg += `- ${fullscreenExits} fullscreen exits`;
-                }
-                alert(msg);
-                window.location.href = '/student/dashboard/';
             } else {
                 alert('Error: ' + data.message);
                 if (btn) {

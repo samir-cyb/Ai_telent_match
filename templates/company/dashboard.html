@@ -138,9 +138,22 @@ Match{%endblock %} {% block content %}
         </div>
       </div>
 
-      <!-- Weight Evolution -->
-      <div class="glass-card evolution-card">
-        <h3><i class="fas fa-chart-line"></i> AI Learning History</h3>
+      <!-- Weight Evolution / RL Agent mini card -->
+      <div class="glass-card evolution-card" style="display:flex; flex-direction:column; gap:.8rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.5rem;">
+          <h3 style="margin:0;"><i class="fas fa-chart-line"></i> AI Learning History</h3>
+          <a href="/company/ai-agent/" style="font-size:.82rem; color:#48bbff; text-decoration:none; font-weight:600; white-space:nowrap;">
+            View Full AI Agent →
+          </a>
+        </div>
+        <!-- Mini Chart.js weight evolution -->
+        <div style="position:relative; height:150px;">
+          <canvas id="mini-weight-chart"></canvas>
+          <p id="mini-no-data" style="display:none; color:#475569; text-align:center; padding:2rem 0; font-size:.85rem;">
+            No weight updates yet — hire or reject a candidate to see learning.
+          </p>
+        </div>
+        <!-- Last 3 events as text log -->
         <div id="evolution-list" class="evolution-list">
           <p class="no-data">No adjustments yet</p>
         </div>
@@ -511,9 +524,81 @@ Match{%endblock %} {% block content %}
     }
   }
 
+  // ── Mini weight evolution chart ───────────────────────────────────────────
+  let miniChart = null;
+  const WEIGHT_KEYS   = ['skills','cgpa','projects','activity','trust'];
+  const WEIGHT_LABELS = {skills:'Skills',cgpa:'CGPA',projects:'Projects',activity:'Activity',trust:'Trust'};
+  const CHART_COLORS  = ['#3b82f6','#22c55e','#f59e0b','#a78bfa','#f472b6'];
+
+  async function loadMiniAgentChart() {
+    const cid = localStorage.getItem('company_id');
+    if (!cid) return;
+    try {
+      const r = await fetch(`/api/company/${cid}/weight-agent-data/`);
+      const d = await r.json();
+      if (d.status !== 'success') return;
+
+      const tl = d.timeline || [];
+      const noDataEl = document.getElementById('mini-no-data');
+      const canvasEl = document.getElementById('mini-weight-chart');
+
+      if (!tl.length) {
+        noDataEl.style.display = 'block';
+        canvasEl.style.display = 'none';
+        return;
+      }
+
+      noDataEl.style.display = 'none';
+      canvasEl.style.display = 'block';
+
+      const labels = ['Initial', ...tl.map((_,i) => `E${i+1}`)];
+      const iw = d.initial_weights;
+      const datasets = WEIGHT_KEYS.map((k,i) => ({
+        label: WEIGHT_LABELS[k],
+        data:  [Math.round((iw[k]||0)*1000)/10, ...tl.map(e => Math.round((e.new_weights[k]||0)*1000)/10)],
+        borderColor: CHART_COLORS[i],
+        backgroundColor: 'transparent',
+        tension: 0.4,
+        pointRadius: 2,
+        borderWidth: 1.5,
+      }));
+
+      const ctx = canvasEl.getContext('2d');
+      if (miniChart) miniChart.destroy();
+      miniChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color:'#94a3b8', font:{size:9}, boxWidth:10 } },
+          },
+          scales: {
+            x: { ticks:{color:'#475569', font:{size:9}}, grid:{color:'#1e293b'} },
+            y: { ticks:{color:'#475569', font:{size:9}, callback:v=>v+'%'}, grid:{color:'#1e293b'}, min:0, max:70 },
+          },
+        },
+      });
+
+      // Show last 3 events as text log
+      updateEvolution(tl.slice(-3).reverse().map(e => ({
+        trigger: e.trigger,
+        student_name: e.student_name,
+        job_title: e.job_title,
+        date: e.date,
+        adjusted: e.new_weights,
+        previous: e.prev_weights,
+      })));
+
+    } catch(e) { console.warn('Mini chart load failed:', e); }
+  }
+
   // Load on page load
   loadDashboard();
+  loadMiniAgentChart();
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 
 <style>
   .dashboard-container {

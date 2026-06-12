@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assessment Result | AI Talent Match</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Prism for syntax highlight -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+  <style>
+    body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
+
+    /* Gauge */
+    .gauge-wrap { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+    .gauge-svg circle { transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1); }
+    .gauge-label { position: absolute; text-align: center; }
+
+    /* Score bar */
+    .score-bar-fill { transition: width 1s ease; }
+
+    /* Verdict badge */
+    .verdict-hire    { background: #16a34a; color: #fff; }
+    .verdict-consider{ background: #d97706; color: #fff; }
+    .verdict-reject  { background: #dc2626; color: #fff; }
+
+    /* Code block */
+    pre[class*="language-"] { border-radius: 8px; font-size: 0.82rem; max-height: 420px; overflow: auto; }
+
+    /* Card */
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; }
+    .card-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; margin-bottom: 1rem; }
+
+    /* Table */
+    table { border-collapse: collapse; width: 100%; }
+    th { background: #1e293b; color: #94a3b8; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; padding: .6rem .8rem; }
+    td { padding: .55rem .8rem; font-size: .85rem; border-bottom: 1px solid #1e293b; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.03); }
+
+    /* Risk badge */
+    .risk-high   { background:#7f1d1d; color:#fca5a5; }
+    .risk-medium { background:#78350f; color:#fcd34d; }
+    .risk-low    { background:#1e3a5f; color:#93c5fd; }
+    .risk-safe   { background:#14532d; color:#86efac; }
+
+    /* Print */
+    @media print { .no-print { display: none !important; } }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- Top bar -->
+<header class="bg-slate-900 border-b border-slate-700 px-6 py-3 flex items-center justify-between no-print sticky top-0 z-20">
+  <div class="flex items-center gap-3">
+    <span class="text-blue-400 font-bold text-lg">AI Talent Match</span>
+    <span class="text-slate-500">|</span>
+    <span class="text-slate-300 text-sm">Assessment Result</span>
+  </div>
+  <div class="flex gap-3">
+    <a href="/student/dashboard/" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-sm text-white rounded-lg transition">
+      ← Back to Home
+    </a>
+    <button onclick="window.print()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-sm rounded-lg transition">
+      🖨 Print / Save PDF
+    </button>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 py-8 space-y-6">
+
+  <!-- ── HEADER: job + student ── -->
+  <div class="card flex flex-col sm:flex-row items-start sm:items-center gap-4">
+    <div class="flex-1">
+      <p class="text-slate-400 text-sm mb-1">{{ challenge.job.title }} · {{ challenge.job.company.name }}</p>
+      <h1 class="text-xl font-bold text-white">{{ challenge.title }}</h1>
+      <p class="text-slate-400 text-sm mt-1">
+        Submitted by <span class="text-slate-200 font-medium">{{ session.student.name }}</span>
+        &nbsp;·&nbsp; {{ session.completed_at|date:"M d, Y H:i" }}
+        &nbsp;·&nbsp; {{ challenge.get_difficulty_display }} difficulty
+      </p>
+    </div>
+    <div>
+      {% if passed %}
+        <span class="px-4 py-2 bg-emerald-700 text-emerald-100 rounded-full font-semibold text-sm">✓ PASSED</span>
+      {% else %}
+        <span class="px-4 py-2 bg-red-800 text-red-100 rounded-full font-semibold text-sm">✗ FAILED</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── SCORE OVERVIEW ── -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+    <!-- Gauge -->
+    <div class="card flex flex-col items-center justify-center py-8">
+      <p class="card-title text-center">Final Score</p>
+      <div class="gauge-wrap" style="width:160px;height:160px;">
+        <svg width="160" height="160" viewBox="0 0 160 160" class="gauge-svg">
+          <circle cx="80" cy="80" r="64" fill="none" stroke="#1e293b" stroke-width="14"/>
+          <circle id="gauge-arc" cx="80" cy="80" r="64" fill="none"
+            stroke="{% if final_score >= 70 %}#22c55e{% elif final_score >= 50 %}#f59e0b{% else %}#ef4444{% endif %}"
+            stroke-width="14" stroke-linecap="round"
+            stroke-dasharray="402.1" stroke-dashoffset="402.1"
+            transform="rotate(-90 80 80)"/>
+        </svg>
+        <div class="gauge-label">
+          <div id="gauge-num" class="text-4xl font-black {% if final_score >= 70 %}text-emerald-400{% elif final_score >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">0</div>
+          <div class="text-slate-400 text-xs">out of 100</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layer breakdown -->
+    <div class="card space-y-5">
+      <p class="card-title">Score Breakdown</p>
+      {% with layer1=layer1 layer2=layer2 layer3=layer3 %}
+
+      <div>
+        <div class="flex justify-between text-sm mb-1">
+          <span class="text-slate-300">Test Cases <span class="text-slate-500 text-xs">(50%)</span></span>
+          <span class="font-bold {% if layer1 >= 70 %}text-emerald-400{% elif layer1 >= 40 %}text-amber-400{% else %}text-red-400{% endif %}">{{ layer1|floatformat:1 }}%</span>
+        </div>
+        <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+          <div class="h-full score-bar-fill rounded-full {% if layer1 >= 70 %}bg-emerald-500{% elif layer1 >= 40 %}bg-amber-500{% else %}bg-red-500{% endif %}"
+               data-width="{{ layer1 }}" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="flex justify-between text-sm mb-1">
+          <span class="text-slate-300">Code Quality <span class="text-slate-500 text-xs">(20%)</span></span>
+          <span class="font-bold {% if layer2 >= 70 %}text-emerald-400{% elif layer2 >= 40 %}text-amber-400{% else %}text-red-400{% endif %}">{{ layer2|floatformat:1 }}%</span>
+        </div>
+        <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+          <div class="h-full score-bar-fill rounded-full {% if layer2 >= 70 %}bg-emerald-500{% elif layer2 >= 40 %}bg-amber-500{% else %}bg-red-500{% endif %}"
+               data-width="{{ layer2 }}" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="flex justify-between text-sm mb-1">
+          <span class="text-slate-300">Complexity + Security <span class="text-slate-500 text-xs">(10%)</span></span>
+          <span class="font-bold text-slate-300">—</span>
+        </div>
+        <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+          <div class="h-full score-bar-fill rounded-full bg-violet-500" data-width="0" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="flex justify-between text-sm mb-1">
+          <span class="text-slate-300">AI Review <span class="text-slate-500 text-xs">(20%)</span></span>
+          <span class="font-bold {% if layer3 >= 70 %}text-emerald-400{% elif layer3 >= 40 %}text-amber-400{% else %}text-red-400{% endif %}">{{ layer3|floatformat:1 }}%</span>
+        </div>
+        <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+          <div class="h-full score-bar-fill rounded-full {% if layer3 >= 70 %}bg-emerald-500{% elif layer3 >= 40 %}bg-amber-500{% else %}bg-red-500{% endif %}"
+               data-width="{{ layer3 }}" style="width:0%"></div>
+        </div>
+      </div>
+
+      {% endwith %}
+    </div>
+  </div>
+
+  <!-- ── TEST CASES ── -->
+  <div class="card">
+    <p class="card-title">Test Cases — {{ test_passed }} / {{ test_total }} passed</p>
+    <div class="overflow-x-auto rounded-lg border border-slate-700">
+      <table>
+        <thead>
+          <tr>
+            <th class="text-left">#</th>
+            <th class="text-left">Input</th>
+            <th class="text-left">Expected</th>
+            <th class="text-left">Got</th>
+            <th class="text-center">Credit</th>
+            <th class="text-center">Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in test_details %}
+          <tr>
+            <td class="text-slate-400">{{ t.test_number }}</td>
+            <td><code class="text-xs text-blue-300">{{ t.input|default:"(empty)" }}</code></td>
+            <td><code class="text-xs text-slate-300">{{ t.expected }}</code></td>
+            <td>
+              {% if t.is_public %}
+                <code class="text-xs {% if t.passed %}text-emerald-300{% else %}text-red-300{% endif %}">{{ t.actual|default:"(no output)" }}</code>
+              {% else %}
+                <span class="text-slate-500 text-xs italic">hidden</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if t.credit is not None %}
+                <span class="font-mono text-xs {% if t.credit == 1.0 %}text-emerald-400{% elif t.credit > 0 %}text-amber-400{% else %}text-red-400{% endif %}">
+                  {{ t.credit }}
+                </span>
+              {% else %}
+                <span class="text-slate-500">—</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if t.passed %}
+                <span class="px-2 py-0.5 bg-emerald-900 text-emerald-300 rounded text-xs font-bold">PASS</span>
+              {% else %}
+                <span class="px-2 py-0.5 bg-red-900 text-red-300 rounded text-xs font-bold">FAIL</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-slate-500 py-6">No test case data available</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if quality_issues %}
+    <div class="mt-4 space-y-1">
+      <p class="text-xs text-slate-500 font-semibold uppercase mb-2">Quality Issues</p>
+      {% for issue in quality_issues %}
+        <div class="flex items-start gap-2 text-sm text-amber-300">
+          <span>⚠</span><span>{{ issue }}</span>
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── COMPLEXITY + SECURITY (side by side) ── -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+    <!-- Complexity -->
+    <div class="card">
+      <p class="card-title">Complexity Analysis</p>
+      {% if complexity %}
+      <div class="space-y-3">
+        <div class="flex justify-between items-center py-2 border-b border-slate-700">
+          <span class="text-slate-400 text-sm">Big-O Estimate</span>
+          <span class="font-mono font-bold text-violet-300 text-sm">{{ complexity.big_o|default:"N/A" }}</span>
+        </div>
+        <div class="flex justify-between items-center py-2 border-b border-slate-700">
+          <span class="text-slate-400 text-sm">Loop Nesting Depth</span>
+          <span class="font-bold text-slate-200 text-sm">{{ complexity.loop_depth|default:0 }}</span>
+        </div>
+        <div class="flex justify-between items-center py-2 border-b border-slate-700">
+          <span class="text-slate-400 text-sm">Recursion Used</span>
+          {% if complexity.has_recursion %}
+            <span class="text-amber-400 text-sm font-semibold">Yes</span>
+          {% else %}
+            <span class="text-slate-400 text-sm">No</span>
+          {% endif %}
+        </div>
+        <div class="flex justify-between items-center py-2">
+          <span class="text-slate-400 text-sm">Rating</span>
+          <span class="px-3 py-0.5 rounded-full text-xs font-bold
+            {% if complexity.rating == 'Excellent' or complexity.rating == 'Good' %}bg-emerald-900 text-emerald-300
+            {% elif complexity.rating == 'Acceptable' %}bg-amber-900 text-amber-300
+            {% else %}bg-red-900 text-red-300{% endif %}">
+            {{ complexity.rating|default:"N/A" }}
+          </span>
+        </div>
+      </div>
+      {% else %}
+      <p class="text-slate-500 text-sm">Complexity analysis not available for this language.</p>
+      {% endif %}
+    </div>
+
+    <!-- Security -->
+    <div class="card">
+      <p class="card-title">Security Scan</p>
+      {% if security %}
+        <div class="flex items-center gap-3 mb-4">
+          <span class="px-3 py-1 rounded-full font-bold text-sm
+            {% if security.risk_level == 'SAFE' %}risk-safe
+            {% elif security.risk_level == 'LOW' %}risk-low
+            {% elif security.risk_level == 'MEDIUM' %}risk-medium
+            {% else %}risk-high{% endif %}">
+            {{ security.risk_level|default:"SAFE" }}
+          </span>
+          <span class="text-slate-400 text-sm">Overall Risk Level</span>
+        </div>
+        {% if security.risks %}
+        <div class="space-y-2">
+          {% for risk in security.risks %}
+          <div class="flex items-start gap-2 p-2 rounded-lg
+            {% if risk.level == 'HIGH' %}bg-red-950 border border-red-800
+            {% elif risk.level == 'MEDIUM' %}bg-amber-950 border border-amber-800
+            {% else %}bg-slate-800 border border-slate-600{% endif %}">
+            <span class="px-1.5 py-0.5 rounded text-xs font-bold shrink-0
+              {% if risk.level == 'HIGH' %}risk-high
+              {% elif risk.level == 'MEDIUM' %}risk-medium
+              {% else %}risk-low{% endif %}">
+              {{ risk.level }}
+            </span>
+            <div>
+              <code class="text-xs text-slate-300">{{ risk.pattern }}</code>
+              <p class="text-xs text-slate-400 mt-0.5">{{ risk.message }}</p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-emerald-400 text-sm">✓ No dangerous patterns detected</p>
+        {% endif %}
+      {% else %}
+        <p class="text-slate-500 text-sm">Security scan not available.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── AI REVIEW ── -->
+  {% if ai_review %}
+  <div class="card">
+    <div class="flex items-center justify-between mb-4">
+      <p class="card-title mb-0">AI Code Review</p>
+      {% if ai_review.verdict %}
+      <span class="px-4 py-1 rounded-full font-bold text-sm
+        {% if ai_review.verdict == 'Hire' %}verdict-hire
+        {% elif ai_review.verdict == 'Consider' %}verdict-consider
+        {% else %}verdict-reject{% endif %}">
+        {{ ai_review.verdict }}
+      </span>
+      {% endif %}
+    </div>
+
+    {% if ai_review.summary %}
+    <p class="text-slate-300 text-sm leading-relaxed mb-5 bg-slate-800 rounded-lg p-4 border-l-4 border-blue-500">
+      {{ ai_review.summary }}
+    </p>
+    {% endif %}
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {% if ai_review.strengths %}
+      <div class="bg-emerald-950 border border-emerald-800 rounded-lg p-4">
+        <p class="text-emerald-400 font-semibold text-xs uppercase mb-3">✓ Strengths</p>
+        <ul class="space-y-2">
+          {% for s in ai_review.strengths %}
+          <li class="text-emerald-200 text-sm">• {{ s }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      {% if ai_review.weaknesses %}
+      <div class="bg-red-950 border border-red-800 rounded-lg p-4">
+        <p class="text-red-400 font-semibold text-xs uppercase mb-3">✗ Weaknesses</p>
+        <ul class="space-y-2">
+          {% for w in ai_review.weaknesses %}
+          <li class="text-red-200 text-sm">• {{ w }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      {% if ai_review.suggestions %}
+      <div class="bg-blue-950 border border-blue-800 rounded-lg p-4">
+        <p class="text-blue-400 font-semibold text-xs uppercase mb-3">💡 Suggestions</p>
+        <ul class="space-y-2">
+          {% for sg in ai_review.suggestions %}
+          <li class="text-blue-200 text-sm">• {{ sg }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if ai_review.score is not None %}
+    <div class="mt-4 flex items-center gap-3">
+      <span class="text-slate-400 text-sm">AI Score:</span>
+      <div class="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
+        <div class="h-full rounded-full bg-blue-500 score-bar-fill" data-width="{{ ai_review.score }}" style="width:0%"></div>
+      </div>
+      <span class="font-bold text-blue-300 text-sm w-10">{{ ai_review.score }}%</span>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ── SUBMITTED CODE ── -->
+  {% if submitted_code %}
+  <div class="card">
+    <div class="flex items-center justify-between mb-3">
+      <p class="card-title mb-0">Submitted Code</p>
+      <span class="px-2 py-0.5 bg-slate-700 text-slate-300 rounded text-xs font-mono">{{ language }}</span>
+    </div>
+    <pre class="language-python rounded-lg"><code class="language-python">{{ submitted_code }}</code></pre>
+  </div>
+  {% endif %}
+
+  <!-- ── ANTI-CHEAT LOG ── -->
+  {% if anti_cheat.tab_switches or anti_cheat.copy_pastes or anti_cheat.fullscreen_exits %}
+  <div class="card border-amber-700">
+    <p class="card-title text-amber-400">Anti-Cheat Log</p>
+    <div class="grid grid-cols-3 gap-4 text-center">
+      <div class="bg-slate-800 rounded-lg p-4">
+        <div class="text-2xl font-black {% if anti_cheat.tab_switches > 3 %}text-red-400{% else %}text-slate-200{% endif %}">
+          {{ anti_cheat.tab_switches }}
+        </div>
+        <div class="text-xs text-slate-400 mt-1">Tab Switches</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg p-4">
+        <div class="text-2xl font-black {% if anti_cheat.copy_pastes > 5 %}text-red-400{% else %}text-slate-200{% endif %}">
+          {{ anti_cheat.copy_pastes }}
+        </div>
+        <div class="text-xs text-slate-400 mt-1">Copy/Paste Attempts</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg p-4">
+        <div class="text-2xl font-black {% if anti_cheat.fullscreen_exits > 0 %}text-amber-400{% else %}text-slate-200{% endif %}">
+          {{ anti_cheat.fullscreen_exits }}
+        </div>
+        <div class="text-xs text-slate-400 mt-1">Fullscreen Exits</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</main>
+
+<script>
+const FINAL_SCORE = {{ final_score|floatformat:2 }};
+
+// Animate gauge
+window.addEventListener('DOMContentLoaded', () => {
+  const circ = 2 * Math.PI * 64; // ≈ 402.1
+  const arc = document.getElementById('gauge-arc');
+  const num = document.getElementById('gauge-num');
+  const offset = circ * (1 - FINAL_SCORE / 100);
+  arc.style.strokeDashoffset = offset;
+
+  // Count-up number
+  let start = 0;
+  const duration = 1200;
+  const step = (timestamp) => {
+    if (!start) start = timestamp;
+    const progress = Math.min((timestamp - start) / duration, 1);
+    num.textContent = Math.round(progress * FINAL_SCORE);
+    if (progress < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+
+  // Animate score bars
+  document.querySelectorAll('.score-bar-fill').forEach(bar => {
+    const w = parseFloat(bar.dataset.width) || 0;
+    setTimeout(() => { bar.style.width = w + '%'; }, 100);
+  });
+});
+</script>
+
+</body>
+</html>

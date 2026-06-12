@@ -159,35 +159,6 @@ class CodeExecutor:
     # Test case runner
     # ------------------------------------------------------------------
     def run_test_cases(self, code, language, test_cases):
-        """Run multiple test cases; return pass/fail breakdown."""
-        results = []
-        passed = 0
-
-        for i, test in enumerate(test_cases):
-            execution = self.execute(code, language, test.get('input', ''))
-
-            actual = (execution['stdout'] or '').strip()
-            expected = str(test.get('expected', '')).strip()
-
-            test_passed = (actual == expected) and execution['success']
-            if test_passed:
-                passed += 1
-
-            results.append({
-                'test_number': i + 1,
-                'input': test.get('input', ''),
-                'expected': expected,
-                'actual': actual,
-                'passed': test_passed,
-                'error': execution.get('stderr') or execution.get('compile_output', ''),
-                'execution_time': execution.get('time', 0),
-                'is_public': test.get('is_public', True),
-            })
-
-        return {
-            'total': len(test_cases),
-            'passed': passed,
-            'failed': len(test_cases) - passed,
-            'score': (passed / len(test_cases) * 100) if test_cases else 0,
-            'details': results,
-        }
+        """Run test cases with smart partial credit scoring."""
+        from .code_grader import smart_run_test_cases
+        return smart_run_test_cases(self, code, language, test_cases)

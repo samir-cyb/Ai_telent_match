@@ -38,6 +38,7 @@ urlpatterns = [
     path('applications/', views.ApplicationsListView.as_view(), name='applications_list'),
     path('application/update/', views.UpdateApplicationView.as_view(), name='update_application'),
     path('company/<uuid:company_id>/weights/', views.CompanyWeightsView.as_view(), name='company_weights'),
+    path('company/<uuid:company_id>/weight-agent-data/', views.WeightAgentDataView.as_view(), name='weight_agent_data'),
     path('job/<uuid:job_id>/delete/', views.DeleteJobView.as_view(), name='delete_job'),
     # Admin endpoints
     path('admin/analytics/', views.AdminAnalyticsView.as_view(), name='admin_analytics'),
