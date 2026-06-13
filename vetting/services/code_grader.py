@@ -5,7 +5,6 @@ from typing import Dict, List, Any, Optional
 
 # Gemini client reused from question_generator
 from google import genai
-
 _MODEL = 'gemini-2.5-flash-lite'
 
 

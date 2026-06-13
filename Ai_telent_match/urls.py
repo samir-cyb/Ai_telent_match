@@ -7,7 +7,7 @@ from core.views import (
     InterviewSlotAvailabilityView, landing_page, about_us, services,
     student_login, student_register, student_dashboard, student_profile, student_job_detail, student_jobs,
     company_login, company_register, company_dashboard, company_post_job, company_applicants,
-    applicant_documents, company_ai_agent,
+    applicant_documents, company_ai_agent, company_agent_run_detail,
     admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView, admin_login_page, ApplicationsListView
 )
 
@@ -35,6 +35,7 @@ urlpatterns = [
     path('company/applicants/', company_applicants, name='company_applicants'),
     path('company/applicant/<uuid:application_id>/documents/', applicant_documents, name='applicant_documents'),
     path('company/ai-agent/', company_ai_agent, name='company_ai_agent'),
+    path('company/agent-run/<uuid:run_id>/', company_agent_run_detail, name='company_agent_run_detail'),
     path('api/auth/company/logout/', CompanyLogoutView.as_view(), name='company_logout'),
     
     # Admin

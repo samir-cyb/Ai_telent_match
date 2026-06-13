@@ -583,6 +583,45 @@ def vetting_status(self):
         return self.vetting_session.status
     return 'not_required'
 
+class RecruitmentAgentRun(models.Model):
+    """One run of the Recruitment Agent for a single application."""
+    TRIGGERED_BY_CHOICES = [
+        ('auto',   'Auto — triggered on apply'),
+        ('manual', 'Manual — company re-run'),
+    ]
+    DECISION_CHOICES = [
+        ('shortlist', 'Shortlist'),
+        ('reject',    'Reject'),
+        ('review',    'Manual Review'),
+    ]
+    STATUS_CHOICES = [
+        ('running',   'Running'),
+        ('completed', 'Completed'),
+        ('failed',    'Failed'),
+    ]
+
+    id              = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    application     = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='agent_runs')
+    triggered_by    = models.CharField(max_length=10, choices=TRIGGERED_BY_CHOICES, default='auto')
+    status          = models.CharField(max_length=10, choices=STATUS_CHOICES, default='running')
+    score           = models.FloatField(default=0.0)
+    decision        = models.CharField(max_length=10, choices=DECISION_CHOICES, default='review')
+    confidence      = models.CharField(max_length=10, default='LOW')  # HIGH / MEDIUM / LOW
+    reasoning_steps = models.JSONField(default=list)    # [{step, action, thought, result, data, timestamp}]
+    fit_report      = models.JSONField(default=dict)    # {strengths, gaps, recommendation, feature_breakdown}
+    weights_used    = models.JSONField(default=dict)    # snapshot of company weights at run time
+    created_at      = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return (
+            f"[{self.decision.upper()}] {self.application.student.name} "
+            f"@ {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+        )
+
+
 class InterviewNotification(models.Model):
     """Track interview notifications"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

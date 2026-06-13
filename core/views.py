@@ -18,6 +18,7 @@ from .utils.ai_engine import AIMatchingEngine
 from .utils.github_scraper import GitHubValidator
 from .utils.fraud_detector import FraudDetectionEngine
 from .utils.resume_parser import ResumeParser
+from .utils.recruitment_agent import RecruitmentAgent
 from datetime import datetime, date, time
 from django.db import transaction
 # ==================== PAGE RENDERING VIEWS ====================
@@ -996,6 +997,15 @@ class ApplyJobView(View):
         job.total_applicants += 1
         job.save()
         
+        # ── Auto-trigger Recruitment Agent ──────────────────────────────────
+        try:
+            agent = RecruitmentAgent(company=job.company)
+            agent.run(application, triggered_by='auto')
+        except Exception as agent_err:
+            # Agent failure must never break the apply flow
+            import logging
+            logging.getLogger(__name__).warning(f"RecruitmentAgent auto-run failed: {agent_err}")
+
         return JsonResponse({
             'status': 'success',
             'application_id': str(application.id),
@@ -1156,6 +1166,8 @@ class ApplicationsListView(View):
         applications = Application.objects.filter(job_id=job_id).select_related('student', 'job')
         data = []
         for app in applications:
+            # Latest agent run for this application
+            latest_run = app.agent_runs.filter(status='completed').first()
             data.append({
                 'id': str(app.id),
                 'student_id': str(app.student.id),
@@ -1164,7 +1176,13 @@ class ApplicationsListView(View):
                 'job_title': app.job.title,
                 'match_score': float(app.match_score) if app.match_score else 0,
                 'status': app.status,
-                'applied_at': app.applied_at.isoformat()
+                'applied_at': app.applied_at.isoformat(),
+                # Agent data
+                'agent_decision': latest_run.decision if latest_run else None,
+                'agent_score':    round(latest_run.score * 100, 1) if latest_run else None,
+                'agent_confidence': latest_run.confidence if latest_run else None,
+                'agent_run_url': f'/company/agent-run/{latest_run.id}/' if latest_run else None,
+                'agent_run_count': app.agent_runs.count(),
             })
         return JsonResponse({'status': 'success', 'applications': data})
 @method_decorator(csrf_exempt, name='dispatch')
@@ -2440,9 +2458,128 @@ def company_ai_agent(request):
     company_id = request.session.get('company_id')
     company    = get_object_or_404(Company, id=company_id)
     return render(request, 'company/ai_agent.html', {
+        'company_id':      str(company_id),
+        'company_name':    company.name,
+        'current_weights': company.get_weights(),
+    })
+
+
+# ==================== RECRUITMENT AGENT VIEWS ====================
+
+@method_decorator(csrf_exempt, name='dispatch')
+class RunRecruitmentAgentView(View):
+    """Manual trigger: re-run the Recruitment Agent for a specific application."""
+
+    def post(self, request, application_id):
+        company_id = request.session.get('company_id')
+        if not company_id:
+            return JsonResponse({'status': 'error', 'message': 'Not logged in'}, status=403)
+
+        application = get_object_or_404(Application, id=application_id)
+
+        # Security check
+        if str(application.job.company.id) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        agent = RecruitmentAgent(company=application.job.company)
+        run   = agent.run(application, triggered_by='manual')
+
+        return JsonResponse({
+            'status':    'success',
+            'run_id':    str(run.id),
+            'decision':  run.decision,
+            'score':     round(run.score * 100, 1),
+            'confidence': run.confidence,
+            'run_url':   f'/company/agent-run/{run.id}/',
+        })
+
+
+class AgentRunsListView(View):
+    """Return all agent runs for a given application (for before/after comparison)."""
+
+    def get(self, request, application_id):
+        company_id = request.session.get('company_id')
+        if not company_id:
+            return JsonResponse({'status': 'error', 'message': 'Not logged in'}, status=403)
+
+        application = get_object_or_404(Application, id=application_id)
+        if str(application.job.company.id) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        runs = RecruitmentAgentRun.objects.filter(application=application)
+        data = []
+        for r in runs:
+            data.append({
+                'run_id':      str(r.id),
+                'triggered_by': r.triggered_by,
+                'status':      r.status,
+                'score':       round(r.score * 100, 1),
+                'decision':    r.decision,
+                'confidence':  r.confidence,
+                'weights_used': r.weights_used,
+                'created_at':  r.created_at.strftime('%Y-%m-%d %H:%M'),
+                'run_url':     f'/company/agent-run/{r.id}/',
+            })
+        return JsonResponse({'status': 'success', 'runs': data, 'count': len(data)})
+
+
+class AgentRunDetailAPIView(View):
+    """Return full JSON of one agent run (used by the detail page JS)."""
+
+    def get(self, request, run_id):
+        company_id = request.session.get('company_id')
+        if not company_id:
+            return JsonResponse({'status': 'error', 'message': 'Not logged in'}, status=403)
+
+        run = get_object_or_404(RecruitmentAgentRun, id=run_id)
+        if str(run.application.job.company.id) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        # Sibling runs for before/after comparison
+        siblings = list(
+            RecruitmentAgentRun.objects
+            .filter(application=run.application)
+            .exclude(id=run.id)
+            .values('id', 'score', 'decision', 'confidence', 'weights_used', 'triggered_by', 'created_at')
+        )
+        for s in siblings:
+            s['id']         = str(s['id'])
+            s['score']      = round(s['score'] * 100, 1)
+            s['created_at'] = s['created_at'].strftime('%Y-%m-%d %H:%M')
+
+        return JsonResponse({
+            'status':          'success',
+            'run_id':          str(run.id),
+            'triggered_by':    run.triggered_by,
+            'run_status':      run.status,
+            'score':           round(run.score * 100, 1),
+            'decision':        run.decision,
+            'confidence':      run.confidence,
+            'weights_used':    run.weights_used,
+            'reasoning_steps': run.reasoning_steps,
+            'fit_report':      run.fit_report,
+            'created_at':      run.created_at.strftime('%Y-%m-%d %H:%M'),
+            'student_name':    run.application.student.name,
+            'job_title':       run.application.job.title,
+            'application_id':  str(run.application.id),
+            'sibling_runs':    siblings,
+        })
+
+
+@company_login_required
+def company_agent_run_detail(request, run_id):
+    """Render the agent run detail / debug page."""
+    company_id  = request.session.get('company_id')
+    company     = get_object_or_404(Company, id=company_id)
+    run         = get_object_or_404(RecruitmentAgentRun, id=run_id)
+
+    if str(run.application.job.company.id) != str(company_id):
+        return render(request, 'vetting/error.html', {'message': 'Unauthorized'})
+
+    return render(request, 'company/agent_run_detail.html', {
+        'run':          run,
         'company_id':   str(company_id),
         'company_name': company.name,
-        'current_weights': company.get_weights(),
     })
 
 

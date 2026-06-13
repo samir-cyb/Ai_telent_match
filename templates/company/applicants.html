@@ -612,6 +612,33 @@ if (!companyId) {
         </button>`);
     }
 
+    // ── Agent buttons (always visible except closed statuses) ─────────────
+    if (app.status !== "hired") {
+      // Agent decision badge
+      if (app.agent_decision) {
+        const dc = {shortlist:'#22c55e', reject:'#ef4444', review:'#f59e0b'};
+        const di = {shortlist:'✓', reject:'✗', review:'⚠'};
+        const color = dc[app.agent_decision] || '#64748b';
+        const icon  = di[app.agent_decision] || '?';
+        buttons.push(`<span style="padding:.2rem .55rem; border-radius:6px; font-size:.72rem; font-weight:700;
+          background:${color}22; color:${color}; border:1px solid ${color}44;">
+          ${icon} AGENT: ${app.agent_decision.toUpperCase()}
+          ${app.agent_score ? `(${app.agent_score}%)` : ''}
+        </span>`);
+        if (app.agent_run_url) {
+          buttons.push(`<a href="${app.agent_run_url}"
+            style="font-size:.78rem; color:#48bbff; text-decoration:none; padding:.3rem .6rem; border:1px solid #48bbff44; border-radius:6px;">
+            <i class="fas fa-chart-bar"></i> Report
+          </a>`);
+        }
+      }
+      // Re-run / Run button
+      buttons.push(`<button class="btn-sm" onclick="runAgent(this, '${app.id}')"
+        style="background:#7c3aed; color:#fff; border:none; cursor:pointer; padding:.3rem .7rem; border-radius:6px; font-size:.78rem;">
+        <i class="fas fa-robot"></i> ${app.agent_decision ? 'Re-run' : 'Run'} Agent
+      </button>`);
+    }
+
     return buttons.join("");
   }
 
@@ -1110,6 +1137,49 @@ if (!companyId) {
 
   function viewDetails(applicationId) {
     window.location.href = `/company/applicant/${applicationId}/documents/`;
+  }
+
+  // ── Recruitment Agent: run / re-run ───────────────────────────────────────
+  async function runAgent(btn, applicationId) {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running…';
+    btn.disabled = true;
+
+    try {
+      const r = await fetch(`${API_BASE}/application/${applicationId}/run-agent/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+      });
+      const d = await r.json();
+
+      if (d.status === 'success') {
+        const dc = {shortlist:'#22c55e', reject:'#ef4444', review:'#f59e0b'};
+        const di = {shortlist:'✓', reject:'✗', review:'⚠'};
+        const color = dc[d.decision] || '#94a3b8';
+        const icon  = di[d.decision] || '?';
+
+        // Toast notification
+        const toast = document.createElement('div');
+        toast.style.cssText = `position:fixed;bottom:2rem;right:2rem;z-index:9999;
+          background:#1e293b;border:1px solid ${color};color:#f1f5f9;
+          padding:1rem 1.5rem;border-radius:12px;font-size:.9rem;box-shadow:0 4px 24px rgba(0,0,0,.4);`;
+        toast.innerHTML = `
+          <div style="font-weight:700; color:${color};">${icon} Agent Decision: ${d.decision.toUpperCase()}</div>
+          <div style="color:#94a3b8; font-size:.82rem;">Score: ${d.score}% · Confidence: ${d.confidence}</div>
+          <a href="${d.run_url}" style="color:#48bbff; font-size:.82rem;">View full report →</a>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+
+        // Reload applicants to show updated badge
+        await loadApplicants();
+      } else {
+        alert('Agent failed: ' + d.message);
+      }
+    } catch(e) {
+      alert('Network error: ' + e.message);
+    }
+    btn.innerHTML = orig;
+    btn.disabled = false;
   }
 
   async function updateStatus(applicationId, status) {

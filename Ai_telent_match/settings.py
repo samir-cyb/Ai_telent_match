@@ -82,7 +82,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 #API_key=os.getenv('API_KEY')
 
 LANGUAGE_CODE = 'en-us'
