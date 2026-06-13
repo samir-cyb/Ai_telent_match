@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+{% block title %}Agent Run — {{ run.application.student.name }}{% endblock %}
+
+{% block content %}
+<div class="container" style="padding:2rem 0; max-width:1100px;">
+
+  <!-- ── HEADER ── -->
+  <div class="glass-card" style="padding:1.5rem 2rem; margin-bottom:1.5rem;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+      <div>
+        <a href="/company/applicants/" style="color:#48bbff; font-size:.85rem; text-decoration:none;">
+          <i class="fas fa-arrow-left"></i> Back to Applicants
+        </a>
+        <h1 style="margin:.5rem 0 .3rem; font-size:1.5rem; color:#f0f9ff;">
+          🤖 Recruitment Agent Report
+        </h1>
+        <p style="color:#94a3b8; margin:0; font-size:.9rem;">
+          <strong style="color:#e2e8f0;">{{ run.application.student.name }}</strong>
+          applied for <strong style="color:#e2e8f0;">{{ run.application.job.title }}</strong>
+          &nbsp;·&nbsp; Run: {{ run.created_at|date:"Y-m-d H:i" }}
+          &nbsp;·&nbsp;
+          {% if run.triggered_by == 'auto' %}
+            <span style="color:#a78bfa;">⚡ Auto-triggered on apply</span>
+          {% else %}
+            <span style="color:#48bbff;">🔁 Manual re-run</span>
+          {% endif %}
+        </p>
+      </div>
+
+      <!-- Decision badge + Re-run button -->
+      <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+        <div id="decision-badge" style="text-align:center;">
+          {% if run.decision == 'shortlist' %}
+            <div style="background:#14532d; color:#86efac; padding:.6rem 1.4rem; border-radius:10px; font-weight:800; font-size:1rem;">
+              ✓ SHORTLIST
+            </div>
+          {% elif run.decision == 'reject' %}
+            <div style="background:#7f1d1d; color:#fca5a5; padding:.6rem 1.4rem; border-radius:10px; font-weight:800; font-size:1rem;">
+              ✗ REJECT
+            </div>
+          {% else %}
+            <div style="background:#1e3a5f; color:#93c5fd; padding:.6rem 1.4rem; border-radius:10px; font-weight:800; font-size:1rem;">
+              ⚠ MANUAL REVIEW
+            </div>
+          {% endif %}
+          <div style="font-size:.75rem; color:#64748b; margin-top:.3rem;">
+            {{ run.confidence }} confidence · {{ run.score|floatformat:1 }}% overall fit
+          </div>
+        </div>
+        <button onclick="rerunAgent()" id="rerun-btn"
+          style="background:#3b82f6; color:#fff; border:none; padding:.6rem 1.2rem; border-radius:10px; cursor:pointer; font-weight:600;">
+          <i class="fas fa-redo"></i> Re-run Agent
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SCORE BAR ── -->
+  <div class="glass-card" style="padding:1.2rem 2rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:2rem; flex-wrap:wrap;">
+    <div style="font-size:2.4rem; font-weight:900; color:
+      {% if run.score >= 0.60 %}#22c55e{% elif run.score >= 0.45 %}#f59e0b{% else %}#ef4444{% endif %};">
+      {{ run.score|floatformat:1 }}%
+    </div>
+    <div style="flex:1; min-width:200px;">
+      <div style="background:#1e293b; border-radius:999px; height:12px; overflow:hidden;">
+        <div style="height:100%; border-radius:999px; width:{{ run.score|floatformat:0 }}%;
+          background:{% if run.score >= 0.60 %}linear-gradient(90deg,#22c55e,#86efac){% elif run.score >= 0.45 %}linear-gradient(90deg,#f59e0b,#fcd34d){% else %}linear-gradient(90deg,#ef4444,#fca5a5){% endif %};
+          transition:width 1.2s ease;"></div>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:.7rem; color:#475569; margin-top:.3rem;">
+        <span>0%</span>
+        <span style="color:#ef4444;">Reject &lt; 45%</span>
+        <span style="color:#f59e0b;">Review 45–60%</span>
+        <span style="color:#22c55e;">Shortlist ≥ 60%</span>
+        <span>100%</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+
+    <!-- ── THOUGHT LOG ── -->
+    <div class="glass-card" style="padding:1.5rem;">
+      <h3 style="margin:0 0 1.2rem; color:#48bbff; font-size:1rem;">
+        <i class="fas fa-brain"></i> Agent Thought Log
+      </h3>
+      <div style="display:flex; flex-direction:column; gap:.8rem;">
+        {% for step in run.reasoning_steps %}
+        <div style="background:rgba(0,0,0,.25); border-radius:10px; padding:.9rem 1rem;
+          border-left:3px solid
+          {% if step.step == 'ERROR' %}#ef4444{% elif step.step <= 3 %}#3b82f6{% elif step.step <= 5 %}#a78bfa{% else %}#22c55e{% endif %};">
+          <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:.4rem;">
+            <span style="font-size:1rem;">{{ step.action }}</span>
+            <span style="font-size:.7rem; color:#475569; margin-left:auto;">{{ step.timestamp }}</span>
+          </div>
+          <div style="font-size:.78rem; color:#64748b; font-style:italic; margin-bottom:.35rem;">
+            💭 {{ step.thought }}
+          </div>
+          <div style="font-size:.82rem; color:#cbd5e1; line-height:1.5;">
+            {{ step.result }}
+          </div>
+
+          {% if step.data.scores %}
+          <div style="margin-top:.6rem; display:flex; flex-wrap:wrap; gap:.4rem;">
+            {% for k, v in step.data.scores.items %}
+            <span style="background:#1e293b; border-radius:6px; padding:.2rem .5rem; font-size:.72rem; color:#94a3b8;">
+              {{ k }}: <strong style="color:#e2e8f0;">{{ v.score|floatformat:0 }}%</strong>
+            </span>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          {% if step.data.decision %}
+          <div style="margin-top:.5rem; font-size:.8rem; font-weight:700;
+            color:{% if step.data.decision == 'shortlist' %}#22c55e{% elif step.data.decision == 'reject' %}#ef4444{% else %}#f59e0b{% endif %};">
+            Decision: {{ step.data.decision|upper }} ({{ step.data.confidence }})
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- ── FIT REPORT ── -->
+    <div style="display:flex; flex-direction:column; gap:1.5rem;">
+
+      <!-- Feature breakdown bars -->
+      <div class="glass-card" style="padding:1.5rem;">
+        <h3 style="margin:0 0 1rem; color:#48bbff; font-size:1rem;">
+          <i class="fas fa-chart-bar"></i> Feature Breakdown
+        </h3>
+        {% with breakdown=run.fit_report.feature_breakdown %}
+        {% if breakdown %}
+          {% for key, v in breakdown.items %}
+          <div style="margin-bottom:.8rem;">
+            <div style="display:flex; justify-content:space-between; font-size:.8rem; color:#94a3b8; margin-bottom:.3rem;">
+              <span style="text-transform:capitalize; color:#e2e8f0;">{{ key }}</span>
+              <span>
+                <span style="color:#48bbff;">{{ v.score|floatformat:0 }}%</span>
+                <span style="color:#475569; font-size:.72rem;"> × {{ v.weight|floatformat:0 }}% wt</span>
+                <span style="color:#22c55e; font-weight:700;"> = {{ v.contribution|floatformat:0 }}%</span>
+              </span>
+            </div>
+            <div style="background:#1e293b; border-radius:999px; height:7px; overflow:hidden;">
+              <div style="height:100%; border-radius:999px; background:#3b82f6; width:{{ v.score|floatformat:0 }}%;"></div>
+            </div>
+            <div style="font-size:.7rem; color:#475569; margin-top:.2rem;">{{ v.detail }}</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p style="color:#475569; font-size:.85rem;">No breakdown data.</p>
+        {% endif %}
+        {% endwith %}
+      </div>
+
+      <!-- Strengths & Gaps -->
+      <div class="glass-card" style="padding:1.5rem;">
+        <h3 style="margin:0 0 1rem; color:#48bbff; font-size:1rem;">
+          <i class="fas fa-clipboard-list"></i> Strengths & Gaps
+        </h3>
+        <div style="margin-bottom:1rem;">
+          <div style="font-size:.78rem; font-weight:700; color:#22c55e; margin-bottom:.5rem; text-transform:uppercase; letter-spacing:.05em;">
+            ✅ Strengths
+          </div>
+          {% for s in run.fit_report.strengths %}
+          <div style="font-size:.8rem; color:#a3e635; margin-bottom:.35rem; padding-left:.8rem; border-left:2px solid #22c55e;">
+            {{ s }}
+          </div>
+          {% empty %}
+          <div style="color:#475569; font-size:.8rem;">None highlighted.</div>
+          {% endfor %}
+        </div>
+        <div>
+          <div style="font-size:.78rem; font-weight:700; color:#f87171; margin-bottom:.5rem; text-transform:uppercase; letter-spacing:.05em;">
+            ⚠ Gaps
+          </div>
+          {% for g in run.fit_report.gaps %}
+          <div style="font-size:.8rem; color:#fca5a5; margin-bottom:.35rem; padding-left:.8rem; border-left:2px solid #ef4444;">
+            {{ g }}
+          </div>
+          {% empty %}
+          <div style="color:#475569; font-size:.8rem;">No critical gaps.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Recommendation -->
+      <div class="glass-card" style="padding:1.5rem;">
+        <h3 style="margin:0 0 .8rem; color:#48bbff; font-size:1rem;">
+          <i class="fas fa-lightbulb"></i> Agent Recommendation
+        </h3>
+        <p style="color:#e2e8f0; font-size:.88rem; line-height:1.7; margin:0;">
+          {{ run.fit_report.recommendation }}
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BEFORE / AFTER COMPARISON ── -->
+  <div class="glass-card" style="padding:1.5rem; margin-bottom:1.5rem;" id="comparison-section">
+    <h3 style="margin:0 0 1rem; color:#48bbff; font-size:1rem;">
+      <i class="fas fa-exchange-alt"></i> Run History — Before / After Comparison
+    </h3>
+    <div id="comparison-content">
+      <p style="color:#475569; font-size:.85rem;">Loading run history…</p>
+    </div>
+  </div>
+
+  <!-- ── WEIGHTS USED ── -->
+  <div class="glass-card" style="padding:1.5rem;">
+    <h3 style="margin:0 0 1rem; color:#48bbff; font-size:1rem;">
+      <i class="fas fa-sliders-h"></i> Weights Used in This Run
+    </h3>
+    <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+      {% for k, v in run.weights_used.items %}
+      <div style="text-align:center; background:rgba(0,0,0,.25); border-radius:10px; padding:.8rem 1.2rem; min-width:90px;">
+        <div style="font-size:1.1rem; font-weight:800; color:#48bbff;">{{ v|floatformat:0 }}%</div>
+        <div style="font-size:.75rem; color:#64748b; text-transform:capitalize;">{{ k }}</div>
+      </div>
+      {% empty %}
+      <p style="color:#475569; font-size:.85rem;">No weights recorded.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<script>
+const APP_ID    = "{{ run.application.id }}";
+const RUN_ID    = "{{ run.id }}";
+const API_BASE  = "/api";
+const COMPANY_ID = "{{ company_id }}";
+
+// ── Re-run agent ─────────────────────────────────────────────────────────────
+async function rerunAgent() {
+  const btn = document.getElementById('rerun-btn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running…';
+  btn.disabled = true;
+
+  try {
+    const r = await fetch(`${API_BASE}/application/${APP_ID}/run-agent/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+    });
+    const d = await r.json();
+    if (d.status === 'success') {
+      window.location.href = d.run_url;
+    } else {
+      alert('Agent error: ' + d.message);
+      btn.innerHTML = '<i class="fas fa-redo"></i> Re-run Agent';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    alert('Network error: ' + e.message);
+    btn.innerHTML = '<i class="fas fa-redo"></i> Re-run Agent';
+    btn.disabled = false;
+  }
+}
+
+// ── Load run history for comparison ─────────────────────────────────────────
+async function loadComparison() {
+  try {
+    const r = await fetch(`${API_BASE}/application/${APP_ID}/agent-runs/`);
+    const d = await r.json();
+    if (d.status !== 'success') return;
+
+    const runs  = d.runs;
+    const cont  = document.getElementById('comparison-content');
+
+    if (runs.length < 2) {
+      cont.innerHTML = '<p style="color:#475569; font-size:.85rem;">Only one run so far — re-run the agent after editing weights to see before/after comparison.</p>';
+      return;
+    }
+
+    const DECISION_COLOR = {shortlist:'#22c55e', reject:'#ef4444', review:'#f59e0b'};
+    const DECISION_ICON  = {shortlist:'✓', reject:'✗', review:'⚠'};
+
+    let html = `
+      <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:.82rem;">
+          <thead>
+            <tr style="background:#1e293b;">
+              <th style="padding:.5rem .8rem; text-align:left; color:#64748b;">#</th>
+              <th style="padding:.5rem .8rem; text-align:left; color:#64748b;">Date</th>
+              <th style="padding:.5rem .8rem; text-align:left; color:#64748b;">Trigger</th>
+              <th style="padding:.5rem .8rem; text-align:center; color:#64748b;">Score</th>
+              <th style="padding:.5rem .8rem; text-align:center; color:#64748b;">Decision</th>
+              <th style="padding:.5rem .8rem; text-align:center; color:#64748b;">Confidence</th>
+              <th style="padding:.5rem .8rem; text-align:left; color:#64748b;">Weights Snapshot</th>
+              <th style="padding:.5rem .8rem; text-align:center; color:#64748b;">Action</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+    runs.forEach((run, idx) => {
+      const isThis = run.run_id === RUN_ID;
+      const dc     = DECISION_COLOR[run.decision] || '#94a3b8';
+      const di     = DECISION_ICON[run.decision]  || '?';
+      const wSnap  = Object.entries(run.weights_used || {})
+        .map(([k,v]) => `${k}:${Math.round(v*100)}%`).join(' | ');
+
+      html += `
+        <tr style="border-bottom:1px solid #1e293b; ${isThis ? 'background:rgba(59,130,246,.1);' : ''}">
+          <td style="padding:.5rem .8rem; color:#475569;">${runs.length - idx}</td>
+          <td style="padding:.5rem .8rem; color:#94a3b8;">${run.created_at}</td>
+          <td style="padding:.5rem .8rem; color:#e2e8f0;">
+            ${run.triggered_by === 'auto' ? '⚡ Auto' : '🔁 Manual'}
+          </td>
+          <td style="padding:.5rem .8rem; text-align:center; font-weight:700; color:${dc};">${run.score}%</td>
+          <td style="padding:.5rem .8rem; text-align:center;">
+            <span style="background:${dc}22; color:${dc}; padding:.15rem .5rem; border-radius:6px; font-weight:700; font-size:.75rem;">
+              ${di} ${run.decision.toUpperCase()}
+            </span>
+          </td>
+          <td style="padding:.5rem .8rem; text-align:center; color:#94a3b8;">${run.confidence}</td>
+          <td style="padding:.5rem .8rem; color:#64748b; font-size:.75rem;">${wSnap}</td>
+          <td style="padding:.5rem .8rem; text-align:center;">
+            ${isThis
+              ? '<span style="color:#3b82f6; font-size:.75rem; font-weight:600;">← Current</span>'
+              : `<a href="${run.run_url}" style="color:#48bbff; font-size:.78rem;">View →</a>`}
+          </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    cont.innerHTML = html;
+
+  } catch(e) {
+    document.getElementById('comparison-content').innerHTML =
+      `<p style="color:#475569;">Could not load history: ${e.message}</p>`;
+  }
+}
+
+loadComparison();
+</script>
+{% endblock %}

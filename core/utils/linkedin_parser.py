@@ -6,7 +6,6 @@ from google.genai import types
 # Reuse the same client as resume_parser
 
 
-
 class LinkedInParser:
     """
     Parses a LinkedIn PDF export and returns structured data.
