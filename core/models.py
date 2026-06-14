@@ -577,11 +577,41 @@ class ScheduledInterview(models.Model):
     def __str__(self):
         return f"Interview: {self.application.student.name} for {self.application.job.title}"
 
-@property
-def vetting_status(self):
-    if hasattr(self, 'vetting_session'):
-        return self.vetting_session.status
-    return 'not_required'
+class AIInterview(models.Model):
+    """AI-powered interview: company generates questions, candidate answers, Gemini scores."""
+    STATUS_CHOICES = [
+        ('pending',     'Pending — link sent, not started'),
+        ('in_progress', 'In Progress'),
+        ('completed',   'Completed'),
+    ]
+
+    id              = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    application     = models.ForeignKey('Application', on_delete=models.CASCADE, related_name='ai_interviews')
+    agent_run       = models.ForeignKey('RecruitmentAgentRun', on_delete=models.SET_NULL,
+                                         null=True, blank=True, related_name='interviews')
+    questions       = models.JSONField(default=list)   # [{question, type, target, good_answer_includes}]
+    answers         = models.JSONField(default=list)   # [{q_index, answer, score, feedback, answered_at}]
+    interview_score = models.FloatField(null=True, blank=True)   # 0–100 avg of answer scores
+    combined_score  = models.FloatField(null=True, blank=True)   # 40% agent + 60% interview
+    status          = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
+    token           = models.CharField(max_length=64, unique=True)   # URL access token
+    email_sent      = models.BooleanField(default=False)
+    created_at      = models.DateTimeField(auto_now_add=True)
+    completed_at    = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Interview: {self.application.student.name} — {self.status}"
+
+    def get_next_question_index(self):
+        """Return index of next unanswered question."""
+        return len(self.answers)
+
+    def is_complete(self):
+        return len(self.answers) >= len(self.questions) and len(self.questions) > 0
+
 
 class RecruitmentAgentRun(models.Model):
     """One run of the Recruitment Agent for a single application."""
