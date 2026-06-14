@@ -993,9 +993,6 @@ class ApplyJobView(View):
         # Update job applicant count
         job.total_applicants += 1
         job.save()
-        # Update job applicant count
-        job.total_applicants += 1
-        job.save()
         
         # ── Auto-trigger Recruitment Agent ──────────────────────────────────
         try:
@@ -2240,7 +2237,7 @@ def ensure_super_admin_exists():
                 email=SUPER_ADMIN_EMAIL,
                 is_super_admin=True
             )
-            admin.set_password(SER_ADMIN_PASSWORD)
+            admin.set_password(SUPER_ADMIN_PASSWORD)
             admin.save()
             print(f"✅ Super admin created: {SUPER_ADMIN_EMAIL}")
     except Exception as e:
@@ -2576,10 +2573,325 @@ def company_agent_run_detail(request, run_id):
     if str(run.application.job.company.id) != str(company_id):
         return render(request, 'vetting/error.html', {'message': 'Unauthorized'})
 
+    # Check if interview already exists for this run
+    existing_interview = AIInterview.objects.filter(agent_run=run).first()
+
+    # Pre-compute percentage values for template (run.score is stored as 0.0-1.0)
+    score_pct = round(run.score * 100, 1)
+
+    # Pre-process feature_breakdown to convert decimals to percentages for display
+    breakdown_pct = {}
+    for key, v in (run.fit_report.get('feature_breakdown') or {}).items():
+        breakdown_pct[key] = {
+            'score_pct':        round(v.get('score', 0) * 100, 1),
+            'weight_pct':       round(v.get('weight', 0) * 100, 1),
+            'contribution_pct': round(v.get('contribution', 0) * 100, 1),
+            'detail':           v.get('detail', ''),
+        }
+
+    # Pre-process weights_used to percentages
+    weights_pct = {k: round(v * 100, 1) for k, v in (run.weights_used or {}).items()}
+
     return render(request, 'company/agent_run_detail.html', {
-        'run':          run,
-        'company_id':   str(company_id),
-        'company_name': company.name,
+        'run':                run,
+        'score_pct':          score_pct,
+        'breakdown_pct':      breakdown_pct,
+        'weights_pct':        weights_pct,
+        'company_id':         str(company_id),
+        'company_name':       company.name,
+        'existing_interview': existing_interview,
+    })
+
+
+# ==================== AI INTERVIEW VIEWS ====================
+
+@method_decorator(csrf_exempt, name='dispatch')
+class GenerateInterviewView(View):
+    """Company triggers: generate questions via Gemini, create AIInterview, send email."""
+
+    def post(self, request, run_id):
+        from django.core.mail import send_mail
+        from django.conf import settings as django_settings
+        from .utils.interview_generator import generate_questions
+        import uuid as _uuid
+
+        company_id = request.session.get('company_id')
+        if not company_id:
+            return JsonResponse({'status': 'error', 'message': 'Not logged in'}, status=403)
+
+        run = get_object_or_404(RecruitmentAgentRun, id=run_id)
+        if str(run.application.job.company.id) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        # Don't regenerate if already exists
+        existing = AIInterview.objects.filter(agent_run=run).first()
+        if existing:
+            return JsonResponse({
+                'status':       'exists',
+                'interview_id': str(existing.id),
+                'interview_url': f'/interview/{existing.token}/',
+                'result_url':   f'/company/interview/{existing.id}/result/',
+                'message':      'Interview already generated',
+            })
+
+        # Generate questions
+        try:
+            questions = generate_questions(
+                student=run.application.student,
+                job=run.application.job,
+                agent_run=run,
+            )
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': f'Question generation failed: {e}'}, status=500)
+
+        # Create interview record
+        token = _uuid.uuid4().hex  # 32-char random token
+        interview = AIInterview.objects.create(
+            application=run.application,
+            agent_run=run,
+            questions=questions,
+            token=token,
+            status='pending',
+        )
+
+        # Build interview URL
+        site_url      = getattr(django_settings, 'SITE_URL', 'http://127.0.0.1:8000')
+        interview_url = f'{site_url}/interview/{token}/'
+        student       = run.application.student
+        job           = run.application.job
+
+        # Send email (prints to console in dev mode)
+        email_body = f"""Dear {student.name},
+
+Congratulations! You have been shortlisted for the position of {job.title} at {job.company.name}.
+
+As the next step in our recruitment process, please complete your AI-powered interview.
+
+🔗 Interview Link: {interview_url}
+
+Instructions:
+• You will be asked 6 questions
+• Type your answers carefully — an AI will evaluate your responses
+• Complete all questions in one session
+• There is no time limit
+
+Good luck!
+
+Best regards,
+{job.company.name} Recruitment Team
+Powered by AI Talent Match"""
+
+        try:
+            send_mail(
+                subject=f'Interview Invitation — {job.title} at {job.company.name}',
+                message=email_body,
+                from_email=django_settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[student.email],
+                fail_silently=False,
+            )
+            interview.email_sent = True
+            interview.save()
+            email_status = 'sent'
+        except Exception as e:
+            email_status = f'failed: {e}'
+
+        return JsonResponse({
+            'status':         'success',
+            'interview_id':   str(interview.id),
+            'interview_url':  interview_url,
+            'result_url':     f'/company/interview/{interview.id}/result/',
+            'email_status':   email_status,
+            'question_count': len(questions),
+        })
+
+
+class CandidateInterviewPageView(View):
+    """Candidate-facing interview page. Student must be logged in."""
+
+    def get(self, request, token):
+        student_id = request.session.get('student_id')
+        if not student_id:
+            # Redirect to login, preserve token in next param
+            return redirect(f'/student/login/?next=/interview/{token}/')
+
+        interview = get_object_or_404(AIInterview, token=token)
+
+        # Security: only the candidate whose application this belongs to
+        if str(interview.application.student.id) != str(student_id):
+            return render(request, 'vetting/error.html',
+                          {'message': 'This interview link is not for your account.'})
+
+        if interview.is_complete():
+            return redirect(f'/interview/{token}/done/')
+
+        next_idx = interview.get_next_question_index()
+        question = interview.questions[next_idx]
+
+        return render(request, 'interviews/candidate_interview.html', {
+            'interview':   interview,
+            'question':    question,
+            'q_index':     next_idx,
+            'q_number':    next_idx + 1,
+            'total':       len(interview.questions),
+            'progress_pct': int((next_idx / len(interview.questions)) * 100),
+            'token':       token,
+        })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class SubmitAnswerView(View):
+    """Candidate submits one answer → Gemini scores it → return score."""
+
+    def post(self, request, token):
+        from .utils.interview_generator import score_answer
+        from django.utils import timezone as tz
+
+        student_id = request.session.get('student_id')
+        if not student_id:
+            return JsonResponse({'status': 'error', 'message': 'Not logged in'}, status=403)
+
+        interview = get_object_or_404(AIInterview, token=token)
+        if str(interview.application.student.id) != str(student_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        data   = json.loads(request.body)
+        answer_text = data.get('answer', '').strip()
+        q_index     = interview.get_next_question_index()
+
+        if q_index >= len(interview.questions):
+            return JsonResponse({'status': 'error', 'message': 'All questions answered'}, status=400)
+
+        question_obj = interview.questions[q_index]
+
+        # Score with Gemini
+        result = score_answer(
+            question=question_obj['question'],
+            good_answer_includes=question_obj.get('good_answer_includes', ''),
+            answer=answer_text,
+        )
+
+        # Save answer
+        answers = list(interview.answers)
+        answers.append({
+            'q_index':     q_index,
+            'question':    question_obj['question'],
+            'answer':      answer_text,
+            'score':       result['score'],
+            'feedback':    result['feedback'],
+            'answered_at': tz.now().isoformat(),
+        })
+        interview.answers = answers
+
+        # Check if complete
+        if len(answers) >= len(interview.questions):
+            avg_score = sum(a['score'] for a in answers) / len(answers)
+            interview.interview_score = round(avg_score * 10, 1)   # 0-100
+
+            # Combined: 40% agent score + 60% interview score
+            agent_score_pct = (interview.agent_run.score * 100) if interview.agent_run else 50
+            interview.combined_score = round(
+                0.40 * agent_score_pct + 0.60 * interview.interview_score, 1
+            )
+            interview.status       = 'completed'
+            interview.completed_at = tz.now()
+        elif interview.status == 'pending':
+            interview.status = 'in_progress'
+
+        interview.save()
+
+        return JsonResponse({
+            'status':      'success',
+            'score':       result['score'],
+            'feedback':    result['feedback'],
+            'is_complete': interview.is_complete(),
+            'next_url':    f'/interview/{token}/' if not interview.is_complete() else f'/interview/{token}/done/',
+        })
+
+
+class InterviewDonePageView(View):
+    """Final screen shown to candidate after completing all questions."""
+
+    def get(self, request, token):
+        student_id = request.session.get('student_id')
+        if not student_id:
+            return redirect(f'/student/login/?next=/interview/{token}/done/')
+
+        interview = get_object_or_404(AIInterview, token=token)
+        if str(interview.application.student.id) != str(student_id):
+            return render(request, 'vetting/error.html', {'message': 'Unauthorized'})
+
+        # Build per-question score list for done page
+        questions = interview.questions
+        answers   = interview.answers
+        per_q = []
+        for i, q in enumerate(questions):
+            ans_obj = answers[i] if i < len(answers) else None
+            if isinstance(ans_obj, dict):
+                score_val = ans_obj.get('score', 0) or 0
+            else:
+                score_val = 0
+            per_q.append({
+                'question': q.get('question', '') if isinstance(q, dict) else str(q),
+                'score':    score_val,
+                'pct':      score_val * 10,
+            })
+
+        combined_pct = interview.combined_score  # already stored as percentage
+        return render(request, 'interviews/interview_done.html', {
+            'interview':          interview,
+            'total_questions':    len(questions),
+            'company_name':       interview.application.job.company.name,
+            'per_question_scores': per_q,
+            'interview_score':    round(interview.interview_score, 1) if interview.interview_score else None,
+            'combined_score':     combined_pct,
+            'combined_pct':       combined_pct,
+        })
+
+
+@company_login_required
+def company_interview_result(request, interview_id):
+    """Company views full interview transcript + scores."""
+    company_id = request.session.get('company_id')
+    interview  = get_object_or_404(AIInterview, id=interview_id)
+
+    if str(interview.application.job.company.id) != str(company_id):
+        return render(request, 'vetting/error.html', {'message': 'Unauthorized'})
+
+    # Build qa_pairs with per-question score info
+    questions = interview.questions
+    answers   = interview.answers
+    answer_scores = interview.answers  # list of {answer, score, feedback} or bare strings
+
+    qa_pairs = []
+    for i, q in enumerate(questions):
+        ans_obj = answers[i] if i < len(answers) else None
+        if isinstance(ans_obj, dict):
+            ans_text  = ans_obj.get('answer', '')
+            score_val = ans_obj.get('score')
+            feedback  = ans_obj.get('feedback', '')
+        else:
+            ans_text  = ans_obj or ''
+            score_val = None
+            feedback  = ''
+        qa_pairs.append({
+            'question': q.get('question', '') if isinstance(q, dict) else str(q),
+            'type':     q.get('type', 'Question') if isinstance(q, dict) else 'Question',
+            'target':   q.get('target', '') if isinstance(q, dict) else '',
+            'answer':   ans_text,
+            'score':    score_val,
+            'score_pct': (score_val or 0) * 10,
+            'feedback': feedback,
+        })
+
+    # Agent score as percentage (score is stored 0.0-1.0, convert to 0-100)
+    agent_run = interview.agent_run
+    agent_score_pct = round(agent_run.score * 100, 1) if agent_run else 0
+
+    return render(request, 'company/interview_result.html', {
+        'interview':      interview,
+        'company_id':     str(company_id),
+        'qa_pairs':       qa_pairs,
+        'agent_score_pct': agent_score_pct,
     })
 
 

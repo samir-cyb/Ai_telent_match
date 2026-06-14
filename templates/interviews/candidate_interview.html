@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}AI Interview — Question {{ q_number }} of {{ total }}{% endblock %}
+
+{% block content %}
+<div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:2rem;">
+<div style="width:100%; max-width:720px;">
+
+  <!-- ── Header ── -->
+  <div style="text-align:center; margin-bottom:2rem;">
+    <div style="font-size:2rem; margin-bottom:.5rem;">🎤</div>
+    <h1 style="font-size:1.4rem; color:#f0f9ff; margin:0;">AI Interview</h1>
+    <p style="color:#64748b; margin:.3rem 0 0; font-size:.9rem;">
+      {{ interview.application.job.title }} — {{ interview.application.job.company.name }}
+    </p>
+  </div>
+
+  <!-- ── Progress bar ── -->
+  <div style="margin-bottom:2rem;">
+    <div style="display:flex; justify-content:space-between; font-size:.8rem; color:#64748b; margin-bottom:.5rem;">
+      <span>Question {{ q_number }} of {{ total }}</span>
+      <span>{{ progress_pct }}% complete</span>
+    </div>
+    <div style="background:#1e293b; border-radius:999px; height:8px; overflow:hidden;">
+      <div id="progress-fill" style="height:100%; border-radius:999px; width:{{ progress_pct }}%;
+        background:linear-gradient(90deg,#3b82f6,#a78bfa); transition:width .6s ease;"></div>
+    </div>
+    <!-- Step dots -->
+    <div style="display:flex; gap:.5rem; margin-top:.8rem; justify-content:center;">
+      {% for i in interview.questions %}
+      <div style="width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+        font-size:.72rem; font-weight:700;
+        {% if forloop.counter < q_number %}background:#22c55e; color:#fff;
+        {% elif forloop.counter == q_number %}background:#3b82f6; color:#fff;
+        {% else %}background:#1e293b; color:#475569;{% endif %}">
+        {% if forloop.counter < q_number %}✓{% else %}{{ forloop.counter }}{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── Question card ── -->
+  <div class="glass-card" style="padding:2rem; margin-bottom:1.5rem;" id="question-card">
+    <div style="display:flex; align-items:center; gap:.8rem; margin-bottom:1.2rem;">
+      <span style="background:#3b82f633; color:#93c5fd; padding:.3rem .8rem; border-radius:8px; font-size:.75rem; font-weight:700; text-transform:uppercase;">
+        {{ question.type|default:"question" }}
+      </span>
+      <span style="font-size:.75rem; color:#475569;">{{ question.target }}</span>
+    </div>
+    <p style="color:#f1f5f9; font-size:1.05rem; line-height:1.7; margin:0; font-weight:500;">
+      {{ question.question }}
+    </p>
+  </div>
+
+  <!-- ── Answer area ── -->
+  <div class="glass-card" style="padding:1.5rem; margin-bottom:1rem;" id="answer-card">
+    <label style="display:block; font-size:.85rem; color:#64748b; margin-bottom:.8rem; font-weight:600;">
+      YOUR ANSWER
+    </label>
+    <textarea id="answer-input"
+      placeholder="Type your answer here. Be specific and use examples where possible…"
+      style="width:100%; min-height:160px; background:#0f172a; border:1px solid #334155;
+        border-radius:10px; color:#e2e8f0; padding:1rem; font-size:.9rem; line-height:1.6;
+        resize:vertical; font-family:inherit; outline:none; box-sizing:border-box;"
+      oninput="updateWordCount(this)"></textarea>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:.8rem;">
+      <span id="word-count" style="font-size:.75rem; color:#475569;">0 words</span>
+      <span style="font-size:.75rem; color:#475569;">Aim for 50–200 words</span>
+    </div>
+  </div>
+
+  <!-- ── Score reveal (hidden until answer submitted) ── -->
+  <div id="score-reveal" style="display:none; margin-bottom:1.5rem;">
+    <div class="glass-card" style="padding:1.5rem; border-left:4px solid #22c55e;">
+      <div style="display:flex; align-items:center; gap:1rem; margin-bottom:.8rem;">
+        <div style="font-size:2rem; font-weight:900;" id="score-display">—</div>
+        <div>
+          <div style="font-size:.75rem; color:#64748b; text-transform:uppercase; letter-spacing:.05em;">AI Score</div>
+          <div style="height:6px; width:200px; background:#1e293b; border-radius:999px; margin-top:.3rem; overflow:hidden;">
+            <div id="score-bar" style="height:100%; border-radius:999px; background:#22c55e; width:0%; transition:width 1s ease;"></div>
+          </div>
+        </div>
+      </div>
+      <p id="score-feedback" style="color:#94a3b8; font-size:.88rem; line-height:1.6; margin:0;"></p>
+    </div>
+  </div>
+
+  <!-- ── Buttons ── -->
+  <div style="display:flex; gap:1rem; justify-content:flex-end;">
+    <div id="submit-area">
+      <button id="submit-btn" onclick="submitAnswer()"
+        style="background:linear-gradient(135deg,#3b82f6,#6366f1); color:#fff; border:none;
+          padding:.85rem 2rem; border-radius:12px; cursor:pointer; font-size:.95rem; font-weight:700;">
+        Submit Answer <i class="fas fa-arrow-right"></i>
+      </button>
+    </div>
+    <div id="next-area" style="display:none;">
+      <a id="next-btn" href="#"
+        style="display:inline-block; background:#22c55e; color:#fff; border:none;
+          padding:.85rem 2rem; border-radius:12px; cursor:pointer; font-size:.95rem; font-weight:700;
+          text-decoration:none;">
+        Next Question <i class="fas fa-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── Tips ── -->
+  <div style="margin-top:2rem; background:#0f172a; border-radius:10px; padding:1rem 1.2rem; border:1px solid #1e293b;">
+    <div style="font-size:.75rem; color:#475569; font-weight:700; margin-bottom:.5rem; text-transform:uppercase; letter-spacing:.05em;">💡 Tips</div>
+    <div style="font-size:.8rem; color:#475569; line-height:1.8;">
+      Use specific examples · Mention outcomes and impact · Be honest about gaps · STAR format for behavioral questions
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+const TOKEN     = "{{ token }}";
+const Q_INDEX   = {{ q_index }};
+const TOTAL     = {{ total }};
+
+function updateWordCount(ta) {
+  const words = ta.value.trim().split(/\s+/).filter(w => w).length;
+  document.getElementById('word-count').textContent = words + ' words';
+  const color = words < 20 ? '#ef4444' : words < 50 ? '#f59e0b' : '#22c55e';
+  document.getElementById('word-count').style.color = color;
+}
+
+async function submitAnswer() {
+  const answer = document.getElementById('answer-input').value.trim();
+  if (answer.length < 10) {
+    alert('Please write a more detailed answer before submitting.');
+    return;
+  }
+
+  const btn = document.getElementById('submit-btn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI is evaluating…';
+  btn.disabled = true;
+
+  try {
+    const r = await fetch(`/interview/${TOKEN}/submit/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({answer}),
+    });
+    const d = await r.json();
+
+    if (d.status !== 'success') {
+      alert('Error: ' + d.message);
+      btn.innerHTML = 'Submit Answer <i class="fas fa-arrow-right"></i>';
+      btn.disabled = false;
+      return;
+    }
+
+    // Show score
+    const scoreEl  = document.getElementById('score-display');
+    const feedEl   = document.getElementById('score-feedback');
+    const barEl    = document.getElementById('score-bar');
+    const reveal   = document.getElementById('score-reveal');
+
+    scoreEl.textContent = `${d.score}/10`;
+    scoreEl.style.color = d.score >= 7 ? '#22c55e' : d.score >= 5 ? '#f59e0b' : '#ef4444';
+    feedEl.textContent  = d.feedback;
+    reveal.style.display = 'block';
+    setTimeout(() => { barEl.style.width = (d.score * 10) + '%'; }, 100);
+
+    // Show next / done button
+    document.getElementById('submit-area').style.display = 'none';
+    document.getElementById('next-area').style.display   = 'block';
+    const nextBtn = document.getElementById('next-btn');
+    if (d.is_complete) {
+      nextBtn.href        = d.next_url;
+      nextBtn.innerHTML   = '✅ View Final Results <i class="fas fa-arrow-right"></i>';
+      nextBtn.style.background = '#a78bfa';
+    } else {
+      nextBtn.href = d.next_url;
+    }
+
+    // Disable answer input
+    document.getElementById('answer-input').disabled = true;
+
+  } catch(e) {
+    alert('Network error: ' + e.message);
+    btn.innerHTML = 'Submit Answer <i class="fas fa-arrow-right"></i>';
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

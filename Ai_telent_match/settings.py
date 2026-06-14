@@ -59,6 +59,20 @@ DATABASES = {
     }
 }
 
+# ── Email Configuration ───────────────────────────────────────────────────────
+# Console backend: emails print to terminal (perfect for demo/dev)
+EMAIL_BACKEND    = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'AI Talent Match <noreply@aitalentmatch.com>'
+SITE_URL         = 'http://127.0.0.1:8000'   # used in interview email links
+
+# To send real emails (production), replace EMAIL_BACKEND with:
+# EMAIL_BACKEND    = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST       = 'smtp.gmail.com'
+# EMAIL_PORT       = 587
+# EMAIL_USE_TLS    = True
+# EMAIL_HOST_USER  = 'your-gmail@gmail.com'
+# EMAIL_HOST_PASSWORD = 'your-app-password'   # Gmail App Password (not your login password)
+
 # Session Configuration
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 86400  # 24 hours
@@ -81,6 +95,7 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+
 
 #API_key=os.getenv('API_KEY')
 

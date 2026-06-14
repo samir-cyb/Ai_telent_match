@@ -45,6 +45,10 @@ urlpatterns = [
     path('application/<uuid:application_id>/agent-runs/', views.AgentRunsListView.as_view(), name='agent_runs_list'),
     path('agent-run/<uuid:run_id>/', views.AgentRunDetailAPIView.as_view(), name='agent_run_detail_api'),
 
+    # AI Interview API
+    path('agent-run/<uuid:run_id>/generate-interview/', views.GenerateInterviewView.as_view(), name='generate_interview'),
+    path('agent-run/<uuid:run_id>/interview-status/', views.GenerateInterviewView.as_view(), name='interview_status'),
+
     path('job/<uuid:job_id>/delete/', views.DeleteJobView.as_view(), name='delete_job'),
     # Admin endpoints
     path('admin/analytics/', views.AdminAnalyticsView.as_view(), name='admin_analytics'),

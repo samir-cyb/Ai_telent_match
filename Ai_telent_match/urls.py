@@ -8,6 +8,8 @@ from core.views import (
     student_login, student_register, student_dashboard, student_profile, student_job_detail, student_jobs,
     company_login, company_register, company_dashboard, company_post_job, company_applicants,
     applicant_documents, company_ai_agent, company_agent_run_detail,
+    company_interview_result,
+    CandidateInterviewPageView, SubmitAnswerView, InterviewDonePageView,
     admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView, admin_login_page, ApplicationsListView
 )
 
@@ -36,6 +38,12 @@ urlpatterns = [
     path('company/applicant/<uuid:application_id>/documents/', applicant_documents, name='applicant_documents'),
     path('company/ai-agent/', company_ai_agent, name='company_ai_agent'),
     path('company/agent-run/<uuid:run_id>/', company_agent_run_detail, name='company_agent_run_detail'),
+    path('company/interview/<uuid:interview_id>/result/', company_interview_result, name='company_interview_result'),
+
+    # Candidate interview (token-based)
+    path('interview/<str:token>/',        CandidateInterviewPageView.as_view(), name='candidate_interview'),
+    path('interview/<str:token>/submit/', SubmitAnswerView.as_view(), name='submit_answer'),
+    path('interview/<str:token>/done/',   InterviewDonePageView.as_view(), name='interview_done'),
     path('api/auth/company/logout/', CompanyLogoutView.as_view(), name='company_logout'),
     
     # Admin
