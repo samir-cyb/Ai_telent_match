@@ -81,10 +81,11 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
             
             // Show success message
             showNotification('Login successful! Redirecting...', 'success');
-            
-            // Redirect to dashboard
+
+            // Redirect: honour ?next= param (e.g. interview link), else fall back to dashboard
+            const nextUrl = new URLSearchParams(window.location.search).get('next');
             setTimeout(() => {
-                window.location.href = data.redirect;
+                window.location.href = nextUrl || data.redirect;
             }, 1000);
         } else {
             showNotification(data.message || 'Login failed', 'error');

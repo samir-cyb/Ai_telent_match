@@ -173,6 +173,16 @@ Match{%endblock %} {% block content %}
         </div>
       </div>
 
+      <!-- ── AI Interviews ─────────────────────────────────────── -->
+      <div class="glass-card" id="ai-interviews-card" style="display:none; border:1px solid rgba(167,139,250,0.35); background:rgba(109,40,217,0.08);">
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;">
+          <span style="font-size:1.4rem;">🤖</span>
+          <h3 style="margin:0;color:#c4b5fd;">AI Interviews</h3>
+          <span id="ai-interview-count-badge" style="background:#7c3aed;color:#fff;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;margin-left:auto;"></span>
+        </div>
+        <div id="ai-interviews-list"></div>
+      </div>
+
       <!-- Notifications -->
       <div class="glass-card notifications-card">
         <div class="notif-header-row">
@@ -214,9 +224,62 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
     } catch (error) {
       console.error("Error loading dashboard:", error);
     }
+    // Also load AI interviews directly (catches older notifications beyond the 10-item limit)
+    loadAIInterviewsDirect();
+  }
+
+  // Load AI interviews from dedicated endpoint (reliable, works even if migration pending)
+  async function loadAIInterviewsDirect() {
+    try {
+      const r    = await fetch(`${API_BASE}/student/${studentId}/ai-interviews/`);
+      const data = await r.json();
+      if (data.status === 'success' && data.interviews && data.interviews.length > 0) {
+        renderAIInterviewsDirect(data.interviews);
+      }
+    } catch (e) {
+      // Silently ignore — notification-based fallback still works
+    }
+  }
+
+  function renderAIInterviewsDirect(interviews) {
+    const card  = document.getElementById('ai-interviews-card');
+    const list  = document.getElementById('ai-interviews-list');
+    const badge = document.getElementById('ai-interview-count-badge');
+    card.style.display = 'block';
+    badge.textContent  = interviews.length + ' pending';
+    list.innerHTML = interviews.map(iv => `
+      <div style="background:rgba(109,40,217,0.15);border:1px solid rgba(167,139,250,0.3);
+        border-radius:12px;padding:1rem 1.2rem;margin-bottom:.75rem;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:700;color:#e2e8f0;font-size:.95rem;">
+              ${iv.job_title} <span style="color:#a78bfa;font-size:.8rem;">@ ${iv.company_name}</span>
+            </div>
+            ${iv.answers_given > 0 ? `<div style="color:#94a3b8;font-size:.78rem;margin-top:.2rem;">
+              <i class="fas fa-check-circle" style="color:#34d399;"></i>
+              ${iv.answers_given} of ${iv.questions_total} questions answered — resume anytime
+            </div>` : ''}
+            ${iv.deadline ? `<div style="color:#94a3b8;font-size:.78rem;margin-top:.25rem;">
+              <i class="fas fa-clock" style="color:#f87171;"></i>
+              Deadline: <strong style="color:#fca5a5;">${iv.deadline}</strong>
+            </div>` : ''}
+          </div>
+          <a href="${iv.interview_url}"
+             style="display:inline-flex;align-items:center;gap:.45rem;
+               background:linear-gradient(135deg,#7c3aed,#a855f7);
+               color:#fff;text-decoration:none;padding:.55rem 1.2rem;
+               border-radius:8px;font-size:.88rem;font-weight:700;
+               white-space:nowrap;box-shadow:0 4px 14px rgba(124,58,237,.4);">
+            🤖 ${iv.answers_given > 0 ? 'Continue Interview' : 'Start Interview'}
+          </a>
+        </div>
+      </div>`).join('');
   }
 
   function updateDashboard(data) {
+    // Detect new notifications (toast system)
+    detectNewNotifications(data.recent_notifications);
+
     // Update header
     document.getElementById("student-name").textContent =
       data.profile_summary?.name || "Student";
@@ -279,8 +342,60 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
     // Update skill gaps
     updateSkillGaps(data.skill_analytics?.most_demanded_missing_skills);
 
+    // Update AI interviews card (from notifications)
+    updateAIInterviews(data.recent_notifications);
+
     // Update notifications
     updateNotifications(data.recent_notifications);
+  }
+
+  // ── AI Interviews section ─────────────────────────────────────────────────
+  function updateAIInterviews(notifications) {
+    const card   = document.getElementById('ai-interviews-card');
+    const list   = document.getElementById('ai-interviews-list');
+    const badge  = document.getElementById('ai-interview-count-badge');
+    if (!notifications) return;
+
+    // Pull every ai_interview notification that has an interview URL
+    const interviews = notifications.filter(n => n.type === 'ai_interview' && n.data?.interview_url);
+
+    if (interviews.length === 0) {
+      card.style.display = 'none';
+      return;
+    }
+
+    card.style.display = 'block';
+    badge.textContent  = interviews.length + ' pending';
+
+    list.innerHTML = interviews.map(n => {
+      const d          = n.data;
+      const deadline   = d.deadline_str || (d.expires_at ? new Date(d.expires_at).toLocaleString('en-BD') : 'No deadline');
+      const company    = d.company_name  || '';
+      const jobTitle   = d.job_title     || '';
+      return `
+        <div style="background:rgba(109,40,217,0.15);border:1px solid rgba(167,139,250,0.3);
+          border-radius:12px;padding:1rem 1.2rem;margin-bottom:.75rem;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:700;color:#e2e8f0;font-size:.95rem;">
+                ${jobTitle} <span style="color:#a78bfa;font-size:.8rem;">@ ${company}</span>
+              </div>
+              <div style="color:#94a3b8;font-size:.78rem;margin-top:.25rem;">
+                <i class="fas fa-clock" style="color:#f87171;"></i>
+                Deadline: <strong style="color:#fca5a5;">${deadline}</strong>
+              </div>
+            </div>
+            <a href="${d.interview_url}"
+               style="display:inline-flex;align-items:center;gap:.45rem;
+                 background:linear-gradient(135deg,#7c3aed,#a855f7);
+                 color:#fff;text-decoration:none;padding:.55rem 1.2rem;
+                 border-radius:8px;font-size:.88rem;font-weight:700;
+                 white-space:nowrap;box-shadow:0 4px 14px rgba(124,58,237,.4);">
+              🤖 Start Interview
+            </a>
+          </div>
+        </div>`;
+    }).join('');
   }
 
   function updateRadarChart(data) {
@@ -348,7 +463,7 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
 
     if (!recommendations || recommendations.length === 0) {
       container.innerHTML =
-        '<p class="no-data">No recommendations yet. Complete your profile to get matched!</p>';
+        '<p class="no-data">🎉 You\'ve applied to all available jobs! Check back when new jobs are posted.</p>';
       return;
     }
 
@@ -529,13 +644,28 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
   }
 
   function formatTime(timestamp) {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = Math.floor((now - date) / 1000 / 60); // minutes
+    // Ensure UTC timestamps are parsed correctly
+    // Django isoformat() returns '+00:00' but some older strings may be naive
+    let ts = timestamp;
+    if (ts && !ts.includes('+') && !ts.endsWith('Z') && !ts.includes('-', 10)) {
+      ts += 'Z'; // Treat naive UTC datetime as UTC
+    }
+    const date = new Date(ts);
+    if (isNaN(date)) return timestamp; // fallback if parse fails
 
-    if (diff < 60) return `${diff}m ago`;
-    if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
-    return `${Math.floor(diff / 1440)}d ago`;
+    const now = new Date();
+    const diffMs  = now - date;
+    const diffMin = Math.floor(diffMs / 1000 / 60);
+
+    if (diffMin < 1)   return 'just now';
+    if (diffMin < 60)  return `${diffMin}m ago`;
+    if (diffMin < 1440) return `${Math.floor(diffMin / 60)}h ago`;
+
+    // Older than 24h — show readable date + time in local timezone
+    return date.toLocaleDateString('en-BD', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true
+    });
   }
 
   // Smart Apply
@@ -753,13 +883,6 @@ async function checkVettingNotifications() {
         showNotifToast(n);
       }
     });
-  }
-
-  // Patch updateDashboard to also run notification detection
-  const _origUpdateDashboard = updateDashboard;
-  function updateDashboard(data) {
-    _origUpdateDashboard(data);
-    detectNewNotifications(data.recent_notifications);
   }
 
   // Refresh every 30 seconds
