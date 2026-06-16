@@ -175,9 +175,14 @@ Match{%endblock %} {% block content %}
 
       <!-- Notifications -->
       <div class="glass-card notifications-card">
-        <h3><i class="fas fa-bell"></i> Recent Notifications</h3>
+        <div class="notif-header-row">
+          <h3><i class="fas fa-bell"></i> Notifications <span id="notif-unread-badge" class="notif-badge" style="display:none"></span></h3>
+          <button class="notif-mark-all-btn" onclick="markAllRead()" title="Mark all as read">
+            <i class="fas fa-check-double"></i> Mark all read
+          </button>
+        </div>
         <div id="notifications-list" class="notifications-list">
-          <p>No new notifications</p>
+          <p class="no-data">No new notifications</p>
         </div>
       </div>
     </div>
@@ -400,95 +405,127 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
 
   function updateNotifications(notifications) {
     const container = document.getElementById("notifications-list");
+    const badge     = document.getElementById("notif-unread-badge");
 
     if (!notifications || notifications.length === 0) {
       container.innerHTML = '<p class="no-data">No new notifications</p>';
+      if (badge) badge.style.display = 'none';
       return;
     }
 
-    container.innerHTML = notifications
-      .map((notif) => {
-        // Check if this is an interview notification
-        const isInterview = notif.type === "interview_scheduled";
-        let additionalHtml = "";
+    const unreadCount = notifications.filter(n => !n.read).length;
+    if (badge) {
+      badge.textContent = unreadCount;
+      badge.style.display = unreadCount > 0 ? 'inline' : 'none';
+    }
 
-        if (isInterview && notif.data) {
-          // Format the interview details nicely
-          additionalHtml = `
-                <div class="interview-details">
-                    ${
-                      notif.data.interview_date
-                        ? `
-                        <div class="interview-detail">
-                            <i class="fas fa-calendar"></i>
-                            <span>📅 ${notif.data.interview_date}</span>
-                        </div>
-                    `
-                        : ""
-                    }
-                    ${
-                      notif.data.interview_time
-                        ? `
-                        <div class="interview-detail">
-                            <i class="fas fa-clock"></i>
-                            <span>⏰ ${notif.data.interview_time}</span>
-                        </div>
-                    `
-                        : ""
-                    }
-                    ${
-                      notif.data.meeting_link
-                        ? `
-                        <div class="interview-detail">
-                            <i class="fas fa-video"></i>
-                            <a href="${notif.data.meeting_link}" target="_blank" class="meeting-link">
-                                🔗 Join Meeting
-                            </a>
-                        </div>
-                    `
-                        : ""
-                    }
-                    ${
-                      notif.data.company_name
-                        ? `
-                        <div class="interview-detail">
-                            <i class="fas fa-building"></i>
-                            <span>🏢 ${notif.data.company_name}</span>
-                        </div>
-                    `
-                        : ""
-                    }
-                </div>
-            `;
+    container.innerHTML = notifications.map((notif) => {
+      const icon   = getNotificationIcon(notif.type);
+      const color  = getNotificationColor(notif.type);
+      const action = getNotificationAction(notif);
+
+      // Extra detail chips (date/time/company for scheduled interviews)
+      let chips = '';
+      if (notif.data) {
+        if (notif.data.interview_date) chips += `<span class="notif-chip">📅 ${notif.data.interview_date}</span>`;
+        if (notif.data.interview_time) chips += `<span class="notif-chip">⏰ ${notif.data.interview_time}</span>`;
+        if (notif.data.company_name)   chips += `<span class="notif-chip">🏢 ${notif.data.company_name}</span>`;
+        // In-person interview extras
+        if (notif.type === 'interview_scheduled' && notif.data.meeting_type === 'in_person') {
+          if (notif.data.location)       chips += `<span class="notif-chip">📍 ${notif.data.location}</span>`;
+          if (notif.data.contact_person) chips += `<span class="notif-chip">👤 ${notif.data.contact_person}</span>`;
         }
+      }
 
+      return `
+        <div class="notification-item ${notif.read ? 'read' : 'unread'}" data-id="${notif.id}">
+          <div class="notif-icon" style="color:${color}">
+            <i class="fas ${icon}"></i>
+          </div>
+          <div class="notif-content">
+            <h5>${notif.title}</h5>
+            <p>${notif.message}</p>
+            ${chips ? `<div class="notif-chips">${chips}</div>` : ''}
+            ${action ? `<div class="notif-action-row">${action}</div>` : ''}
+            <span class="notif-time">${formatTime(notif.created_at)}</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function getNotificationAction(notif) {
+    const d = notif.data || {};
+    switch (notif.type) {
+      case 'ai_interview':
+        if (d.interview_url) return `
+          <a href="${d.interview_url}" class="notif-action-btn notif-btn-primary">
+            <i class="fas fa-robot"></i> Start AI Interview
+          </a>`;
+        break;
+      case 'vetting_invitation':
+        if (d.test_url) return `
+          <a href="${d.test_url}" class="notif-action-btn notif-btn-warning">
+            <i class="fas fa-code"></i> Take Assessment
+          </a>`;
+        break;
+      case 'interview_scheduled':
+        if (d.meeting_type === 'in_person') {
+          return `<span class="notif-chip" style="color:#94a3b8;font-size:0.75rem;"><i class="fas fa-building"></i> In-Person — arrive on time</span>`;
+        }
+        if (d.meeting_link) return `
+          <a href="${d.meeting_link}" target="_blank" class="notif-action-btn notif-btn-success">
+            <i class="fas fa-video"></i> Join Meeting
+          </a>`;
+        return `<span class="notif-chip" style="color:#94a3b8;font-size:0.75rem;">Meeting link will be shared by company</span>`;
+      case 'shortlisted':
         return `
-            <div class="notification-item ${notif.read ? "read" : "unread"}">
-                <div class="notif-icon">
-                    <i class="fas ${getNotificationIcon(notif.type)}"></i>
-                </div>
-                <div class="notif-content">
-                    <h5>${notif.title}</h5>
-                    <p>${notif.message}</p>
-                    ${additionalHtml}
-                    <span class="notif-time">${formatTime(notif.created_at)}</span>
-                </div>
-            </div>
-        `;
-      })
-      .join("");
+          <a href="/student/jobs/" class="notif-action-btn notif-btn-info">
+            <i class="fas fa-briefcase"></i> View Jobs
+          </a>`;
+      case 'status_interview':
+        return `
+          <span class="notif-chip" style="color:#34d399;">✓ Interview invitation sent</span>`;
+    }
+    return '';
   }
 
   function getNotificationIcon(type) {
     const icons = {
-      auto_applied: "fa-magic",
-      shortlisted: "fa-star",
-      interview_scheduled: "fa-calendar-check",
-      match: "fa-briefcase",
-      status_rejected: "fa-times-circle",
-      status_interview: "fa-calendar-alt",
+      ai_interview:        'fa-robot',
+      auto_applied:        'fa-magic',
+      shortlisted:         'fa-star',
+      interview_scheduled: 'fa-calendar-check',
+      vetting_invitation:  'fa-code',
+      match:               'fa-briefcase',
+      status_rejected:     'fa-times-circle',
+      status_interview:    'fa-calendar-alt',
     };
-    return icons[type] || "fa-bell";
+    return icons[type] || 'fa-bell';
+  }
+
+  function getNotificationColor(type) {
+    const colors = {
+      ai_interview:        '#a78bfa',
+      shortlisted:         '#fbbf24',
+      interview_scheduled: '#34d399',
+      vetting_invitation:  '#f97316',
+      status_rejected:     '#ef4444',
+      auto_applied:        '#48bbff',
+      match:               '#48bbff',
+    };
+    return colors[type] || '#94a3b8';
+  }
+
+  async function markAllRead() {
+    try {
+      await fetch(`${API_BASE}/notifications/${studentId}/mark-all-read/`, { method: 'POST' });
+      const badge = document.getElementById('notif-unread-badge');
+      if (badge) badge.style.display = 'none';
+      document.querySelectorAll('.notification-item.unread').forEach(el => {
+        el.classList.remove('unread');
+        el.classList.add('read');
+      });
+    } catch(e) { console.error('markAllRead failed', e); }
   }
 
   function formatTime(timestamp) {
@@ -668,6 +705,62 @@ async function checkVettingNotifications() {
 }
 
   
+
+  // ── Notification toast system ──────────────────────────────────
+  let _knownNotifIds = new Set();      // IDs seen since page load
+  let _toastInitialized = false;       // skip toasts on first load
+
+  // Toast container (injected once)
+  const _toastContainer = document.createElement('div');
+  _toastContainer.id = 'notif-toast-container';
+  document.body.appendChild(_toastContainer);
+
+  function showNotifToast(notif) {
+    const toast = document.createElement('div');
+    toast.className = 'notif-toast';
+    const color = getNotificationColor(notif.type);
+    toast.style.borderLeftColor = color;
+    toast.innerHTML = `
+      <span class="toast-close" onclick="dismissToast(this)">✕</span>
+      <div class="toast-title">${notif.title}</div>
+      <div class="toast-msg">${notif.message.substring(0, 100)}${notif.message.length > 100 ? '…' : ''}</div>
+    `;
+    _toastContainer.appendChild(toast);
+    // Auto-dismiss after 6 seconds
+    setTimeout(() => dismissToast(toast.querySelector('.toast-close')), 6000);
+  }
+
+  function dismissToast(closeBtn) {
+    const toast = closeBtn.closest('.notif-toast');
+    if (!toast) return;
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 350);
+  }
+
+  function detectNewNotifications(notifications) {
+    if (!notifications) return;
+    const incoming = notifications.filter(n => !n.read);
+    if (!_toastInitialized) {
+      // First load — just record existing IDs, don't toast
+      incoming.forEach(n => _knownNotifIds.add(n.id));
+      _toastInitialized = true;
+      return;
+    }
+    // Show toast for any notification ID we haven't seen before
+    incoming.forEach(n => {
+      if (!_knownNotifIds.has(n.id)) {
+        _knownNotifIds.add(n.id);
+        showNotifToast(n);
+      }
+    });
+  }
+
+  // Patch updateDashboard to also run notification detection
+  const _origUpdateDashboard = updateDashboard;
+  function updateDashboard(data) {
+    _origUpdateDashboard(data);
+    detectNewNotifications(data.recent_notifications);
+  }
 
   // Refresh every 30 seconds
   setInterval(loadDashboard, 30000);
@@ -1084,9 +1177,111 @@ async function checkVettingNotifications() {
     font-size: 0.8rem;
   }
 
+  .notif-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+  .notif-header-row h3 { margin: 0; display: flex; align-items: center; gap: 0.5rem; }
+  .notif-badge {
+    background: #ef4444;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 99px;
+    vertical-align: middle;
+  }
+  .notif-mark-all-btn {
+    background: rgba(72,187,255,0.1);
+    border: 1px solid rgba(72,187,255,0.25);
+    color: #48bbff;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .notif-mark-all-btn:hover { background: rgba(72,187,255,0.2); }
+
+  .notif-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.4rem 0;
+  }
+  .notif-chip {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.75rem;
+    color: #cbd5e1;
+  }
+  .notif-action-row {
+    margin: 0.55rem 0 0.2rem;
+  }
+  .notif-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 1rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .notif-action-btn:hover { opacity: 0.85; }
+  .notif-btn-primary { background: linear-gradient(135deg,#7c3aed,#a855f7); color:#fff; }
+  .notif-btn-warning { background: linear-gradient(135deg,#d97706,#f59e0b); color:#fff; }
+  .notif-btn-success { background: linear-gradient(135deg,#059669,#34d399); color:#fff; }
+  .notif-btn-info    { background: linear-gradient(135deg,#0369a1,#38bdf8); color:#fff; }
+
+  /* Toast popup */
+  #notif-toast-container {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    pointer-events: none;
+  }
+  .notif-toast {
+    background: rgba(15,23,42,0.95);
+    border: 1px solid rgba(99,102,241,0.4);
+    border-left: 4px solid #6366f1;
+    border-radius: 10px;
+    padding: 0.9rem 1.2rem;
+    min-width: 300px;
+    max-width: 380px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    pointer-events: all;
+    animation: toastIn 0.35s ease;
+  }
+  @keyframes toastIn {
+    from { transform: translateX(110%); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+  }
+  .notif-toast.toast-exit {
+    animation: toastOut 0.3s ease forwards;
+  }
+  @keyframes toastOut {
+    to { transform: translateX(110%); opacity: 0; }
+  }
+  .toast-title { font-weight: 700; font-size: 0.88rem; color: #e2e8f0; margin-bottom: 0.25rem; }
+  .toast-msg   { font-size: 0.78rem; color: #94a3b8; }
+  .toast-close { float: right; cursor: pointer; color: #64748b; margin-left: 0.5rem; font-size: 1rem; line-height: 1; }
+
   .notifications-list {
-    max-height: 250px;
+    max-height: 520px;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(72,187,255,0.3) transparent;
   }
 
   .notification-item {

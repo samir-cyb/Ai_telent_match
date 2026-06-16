@@ -232,33 +232,70 @@ Match{%endblock %} {% block content %}
     trust: 0.1,
   };
 
-  // Update weight labels
+  // Update weight labels + auto-normalize on each slider change
   document.querySelectorAll(".weight-control input").forEach((input) => {
-    input.addEventListener("input", updateWeightLabels);
+    input.addEventListener("input", function() {
+      normalizeAndUpdateWeights(this.id.replace('weight_', ''));
+    });
   });
 
-  function updateWeightLabels() {
-    document.getElementById("w-skills").textContent =
-      Math.round(document.getElementById("weight_skills").value * 100) + "%";
-    document.getElementById("w-cgpa").textContent =
-      Math.round(document.getElementById("weight_cgpa").value * 100) + "%";
-    document.getElementById("w-projects").textContent =
-      Math.round(document.getElementById("weight_projects").value * 100) + "%";
-    document.getElementById("w-activity").textContent =
-      Math.round(document.getElementById("weight_activity").value * 100) + "%";
-    document.getElementById("w-trust").textContent =
-      Math.round(document.getElementById("weight_trust").value * 100) + "%";
+  // Weight keys and their display span IDs
+  const WEIGHT_KEYS = ['skills','cgpa','projects','activity','trust'];
 
+  // Normalize sliders so they always sum to 1.0, then update labels
+  function normalizeAndUpdateWeights(changedKey) {
+    const raw = {};
+    WEIGHT_KEYS.forEach(k => {
+      raw[k] = parseFloat(document.getElementById('weight_' + k).value) || 0;
+    });
+
+    const total = WEIGHT_KEYS.reduce((s, k) => s + raw[k], 0);
+
+    // If total is already ~1.0, no adjustment needed
+    if (Math.abs(total - 1.0) < 0.001) {
+      updateWeightLabels(raw);
+      return;
+    }
+
+    // Distribute the difference across the OTHER sliders proportionally
+    const others = WEIGHT_KEYS.filter(k => k !== changedKey);
+    const otherTotal = others.reduce((s, k) => s + raw[k], 0);
+    const deficit = 1.0 - raw[changedKey];
+
+    others.forEach(k => {
+      if (otherTotal > 0) {
+        raw[k] = Math.max(0, (raw[k] / otherTotal) * deficit);
+      } else {
+        raw[k] = deficit / others.length;
+      }
+      raw[k] = Math.round(raw[k] * 20) / 20; // snap to 0.05 steps
+      document.getElementById('weight_' + k).value = raw[k];
+    });
+
+    // Fix any tiny rounding error on the last key
+    const newTotal = WEIGHT_KEYS.reduce((s, k) => s + raw[k], 0);
+    const lastKey  = others[others.length - 1];
+    raw[lastKey]   = Math.max(0, Math.round((raw[lastKey] + (1.0 - newTotal)) * 1000) / 1000);
+    document.getElementById('weight_' + lastKey).value = raw[lastKey];
+
+    updateWeightLabels(raw);
+  }
+
+  function updateWeightLabels(raw) {
+    if (!raw) {
+      raw = {};
+      WEIGHT_KEYS.forEach(k => { raw[k] = parseFloat(document.getElementById('weight_' + k).value) || 0; });
+    }
+    document.getElementById("w-skills").textContent   = Math.round(raw.skills   * 100) + "%";
+    document.getElementById("w-cgpa").textContent     = Math.round(raw.cgpa     * 100) + "%";
+    document.getElementById("w-projects").textContent = Math.round(raw.projects  * 100) + "%";
+    document.getElementById("w-activity").textContent = Math.round(raw.activity * 100) + "%";
+    document.getElementById("w-trust").textContent    = Math.round(raw.trust    * 100) + "%";
     updatePreview();
   }
 
-  // Live preview
-  document.querySelectorAll(".weight-control input").forEach((input) => {
-    input.addEventListener("input", function (e) {
-      e.stopPropagation(); // Stop event bubbling
-      updateWeightLabels();
-    });
-  });
+  // Initial label render
+  updateWeightLabels();
 
   document
     .getElementById("reset-to-defaults")

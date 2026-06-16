@@ -559,7 +559,9 @@ class ScheduledInterview(models.Model):
     start_time = models.TimeField()
     end_time = models.TimeField()
     meeting_link = models.URLField(blank=True)
-    meeting_type = models.CharField(max_length=20, default='online')  # online, in_person, phone
+    meeting_type = models.CharField(max_length=20, default='in_person')  # in_person, online, phone
+    location = models.CharField(max_length=500, blank=True)        # Office address for in-person
+    contact_person = models.CharField(max_length=200, blank=True)  # Interviewer name/contact
     
     # Status tracking
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -596,6 +598,8 @@ class AIInterview(models.Model):
     status          = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
     token           = models.CharField(max_length=64, unique=True)   # URL access token
     email_sent      = models.BooleanField(default=False)
+    expires_at      = models.DateTimeField(null=True, blank=True)    # Company-set deadline
+    gemini_analysis = models.JSONField(null=True, blank=True)        # Full Gemini analysis result
     created_at      = models.DateTimeField(auto_now_add=True)
     completed_at    = models.DateTimeField(null=True, blank=True)
 

@@ -48,6 +48,7 @@ urlpatterns = [
     # AI Interview API
     path('agent-run/<uuid:run_id>/generate-interview/', views.GenerateInterviewView.as_view(), name='generate_interview'),
     path('agent-run/<uuid:run_id>/interview-status/', views.GenerateInterviewView.as_view(), name='interview_status'),
+    path('interview/<uuid:interview_id>/analyze/', views.AIInterviewAnalyzeView.as_view(), name='ai_interview_analyze'),
 
     path('job/<uuid:job_id>/delete/', views.DeleteJobView.as_view(), name='delete_job'),
     # Admin endpoints
@@ -62,6 +63,7 @@ urlpatterns = [
     
     # Notifications & Scheduling
     path('notifications/<uuid:user_id>/<str:user_type>/', views.NotificationsView.as_view(), name='notifications'),
+    path('notifications/<uuid:user_id>/mark-all-read/', views.MarkAllNotificationsReadView.as_view(), name='mark_all_notifications_read'),
     #path('interview/schedule/', views.ScheduleInterviewView.as_view(), name='schedule_interview'),
     
     # Interview Slot Management

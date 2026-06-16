@@ -5,13 +5,36 @@
 <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:2rem;">
 <div style="width:100%; max-width:720px;">
 
+  <!-- ── Expired State ── -->
+  {% if is_expired %}
+  <div style="text-align:center;padding:3rem 1rem;">
+    <div style="font-size:3rem;margin-bottom:1rem;">⏰</div>
+    <h2 style="color:#ef4444;margin:0 0 .75rem;">Interview Deadline Passed</h2>
+    <p style="color:#64748b;font-size:.95rem;max-width:420px;margin:0 auto 1.5rem;">
+      This AI interview for <strong style="color:#e2e8f0;">{{ interview.application.job.title }}</strong>
+      at <strong style="color:#e2e8f0;">{{ interview.application.job.company.name }}</strong>
+      expired on {{ interview.expires_at|date:"M d, Y \a\t H:i" }}.
+    </p>
+    <p style="color:#475569;font-size:.85rem;">Please contact the company if you believe this is an error.</p>
+  </div>
+  {% else %}
+
   <!-- ── Header ── -->
   <div style="text-align:center; margin-bottom:2rem;">
-    <div style="font-size:2rem; margin-bottom:.5rem;">🎤</div>
+    <div style="font-size:2rem; margin-bottom:.5rem;">🤖</div>
     <h1 style="font-size:1.4rem; color:#f0f9ff; margin:0;">AI Interview</h1>
     <p style="color:#64748b; margin:.3rem 0 0; font-size:.9rem;">
       {{ interview.application.job.title }} — {{ interview.application.job.company.name }}
     </p>
+    {% if interview.expires_at %}
+    <div style="display:inline-flex;align-items:center;gap:.4rem;margin-top:.6rem;padding:.35rem .85rem;
+      border-radius:999px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);">
+      <i class="fas fa-clock" style="color:#f87171;font-size:.75rem;"></i>
+      <span style="color:#f87171;font-size:.78rem;font-weight:600;">
+        Deadline: {{ interview.expires_at|date:"M d, Y H:i" }}
+      </span>
+    </div>
+    {% endif %}
   </div>
 
   <!-- ── Progress bar ── -->
@@ -110,6 +133,8 @@
       Use specific examples · Mention outcomes and impact · Be honest about gaps · STAR format for behavioral questions
     </div>
   </div>
+
+  {% endif %}{# end is_expired check #}
 
 </div>
 </div>
