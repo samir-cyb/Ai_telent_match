@@ -988,43 +988,70 @@ class SmartApplyView(View):
 class StudentDashboardView(View):
     def get(self, request, student_id):
         """Rich analytics dashboard for student"""
+        try:
+            return self._get_dashboard(request, student_id)
+        except Exception as e:
+            import traceback
+            print(f"[StudentDashboard] ERROR for student {student_id}: {e}")
+            traceback.print_exc()
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+    def _get_dashboard(self, request, student_id):
         student = get_object_or_404(Student, id=student_id)
-        
-        # Get recommended jobs (score > 60, not applied)
-        all_jobs = Job.objects.filter(status='active')
+
+        # Pre-fetch all active jobs (capped at 30 for performance)
+        all_active_jobs = list(
+            Job.objects.filter(status='active')
+            .select_related('company')
+            .prefetch_related('required_skills')[:30]
+        )
+
+        # Get IDs of jobs already applied to
+        applied_job_ids = set(
+            Application.objects.filter(student=student).values_list('job_id', flat=True)
+        )
+
+        # Student's existing skills (for gap analysis)
+        student_skills = set(
+            ss.skill.name.lower()
+            for ss in StudentSkill.objects.filter(student=student).select_related('skill')
+        )
+
+        # ── Recommendations: unapplied jobs scored ≥ 50 ──────────────────────
         recommendations = []
-        
-        for job in all_jobs:
-            if not Application.objects.filter(student=student, job=job).exists():
+        for job in all_active_jobs:
+            if job.id in applied_job_ids:
+                continue
+            try:
                 engine = AIMatchingEngine(company=job.company, job=job)
                 score, explanation = engine.calculate_match(student, job, save_explanation=False)
-                if score >= 60:
+                if score >= 50:          # lowered from 60 so more jobs appear
                     recommendations.append({
                         'job_id': str(job.id),
                         'title': job.title,
                         'company': job.company.name,
                         'match_score': score,
-                        'skill_gaps': len(explanation['missing_skills']),
+                        'skill_gaps': len(explanation.get('missing_skills', [])),
                         'salary': job.salary_range
                     })
-        
+            except Exception as e:
+                print(f"[StudentDashboard] match calc failed for job {job.id}: {e}")
+                continue
         recommendations.sort(key=lambda x: x['match_score'], reverse=True)
-        
-        # Analytics
+
+        # ── Analytics ─────────────────────────────────────────────────────────
         total_applications = Application.objects.filter(student=student).count()
         shortlisted = Application.objects.filter(student=student, status='shortlisted').count()
-        interviews = Application.objects.filter(student=student, status='interview').count()
-        
-        # Skill gap analysis across all viewed jobs
-        viewed_jobs = StudentBehaviorLog.objects.filter(
-            student=student, 
-            action='viewed'
-        ).values_list('job_id', flat=True)
-        
+        interviews  = Application.objects.filter(student=student, status='interview').count()
+
+        # ── Skill gap analysis: use ALL active jobs (not just viewed ones) ───
+        # Count how often each required skill appears across active jobs,
+        # then filter to skills the student doesn't have.
         skill_demand = {}
-        for job in Job.objects.filter(id__in=viewed_jobs):
+        for job in all_active_jobs:
             for skill in job.required_skills.all():
-                skill_demand[skill.name] = skill_demand.get(skill.name, 0) + 1
+                if skill.name.lower() not in student_skills:
+                    skill_demand[skill.name] = skill_demand.get(skill.name, 0) + 1
         
         # Career trajectory prediction
         current_skills = [ss.skill.name for ss in StudentSkill.objects.filter(student=student)]
@@ -1056,10 +1083,10 @@ class StudentDashboardView(View):
                 'title': n.title,
                 'message': n.message,
                 'read': n.read,
-                'created_at': n.created_at.isoformat(),
+                'created_at': n.created_at.strftime('%Y-%m-%dT%H:%M:%SZ'),  # Always UTC with Z
                 'data': n.data  # Include the full data object
             } for n in Notification.objects.filter(
-                user_id=student.id, 
+                user_id=student.id,
                 user_type='student'
             ).order_by('-created_at')[:10]
         ]
@@ -1343,6 +1370,8 @@ class ApplicationsListView(View):
         for app in applications:
             # Latest agent run for this application
             latest_run = app.agent_runs.filter(status='completed').first()
+            # AI Interview data (safe lookup — no walrus operator)
+            ai_iv = app.ai_interviews.order_by('-created_at').first()
             data.append({
                 'id': str(app.id),
                 'student_id': str(app.student.id),
@@ -1360,15 +1389,9 @@ class ApplicationsListView(View):
                 'agent_run_id':  str(latest_run.id) if latest_run else None,
                 'agent_run_count': app.agent_runs.count(),
                 # AI Interview data
-                **({
-                    'ai_interview_id':     str(ai_iv.id),
-                    'ai_interview_status': ai_iv.status,
-                    'ai_interview_result_url': f'/company/interview/{ai_iv.id}/result/',
-                } if (ai_iv := app.ai_interviews.order_by('-created_at').first()) else {
-                    'ai_interview_id': None,
-                    'ai_interview_status': None,
-                    'ai_interview_result_url': None,
-                }),
+                'ai_interview_id':         str(ai_iv.id) if ai_iv else None,
+                'ai_interview_status':     ai_iv.status if ai_iv else None,
+                'ai_interview_result_url': f'/company/interview/{ai_iv.id}/result/' if ai_iv else None,
             })
         return JsonResponse({'status': 'success', 'applications': data})
 @method_decorator(csrf_exempt, name='dispatch')
@@ -1616,7 +1639,7 @@ class NotificationsView(View):
                     'message': n.message,
                     'read': n.read,
                     'data': n.data,
-                    'created_at': n.created_at.isoformat()
+                    'created_at': n.created_at.strftime('%Y-%m-%dT%H:%M:%SZ'),  # Always UTC with Z
                 } for n in notifications[:20]
             ]
         })
@@ -2218,6 +2241,46 @@ class StudentApplicationsView(View):
             'applied_job_ids': [str(job_id) for job_id in applications]
         })
         
+class StudentAIInterviewsView(View):
+    """Return all pending/in-progress AI interviews for a student."""
+    def get(self, request, student_id):
+        student = get_object_or_404(Student, id=student_id)
+        try:
+            interviews = AIInterview.objects.filter(
+                application__student=student,
+                status__in=['pending', 'in_progress'],
+            ).select_related('application__job__company').order_by('-created_at')
+
+            from django.utils import timezone as tz
+            data = []
+            for iv in interviews:
+                job     = iv.application.job
+                is_exp  = iv.expires_at and tz.now() > iv.expires_at
+                if is_exp:
+                    continue  # skip expired
+                site_url      = getattr(__import__('django').conf.settings, 'SITE_URL', 'http://127.0.0.1:8000')
+                interview_url = f'{site_url}/interview/{iv.token}/'
+                data.append({
+                    'interview_id':   str(iv.id),
+                    'token':          iv.token,
+                    'interview_url':  interview_url,
+                    'status':         iv.status,
+                    'job_title':      job.title,
+                    'company_name':   job.company.name,
+                    'deadline':       iv.expires_at.strftime('%B %d, %Y at %I:%M %p') if iv.expires_at else None,
+                    'expires_at':     iv.expires_at.strftime('%Y-%m-%dT%H:%M:%SZ') if iv.expires_at else None,
+                    'questions_total': len(iv.questions) if iv.questions else 0,
+                    'answers_given':  len(iv.answers) if iv.answers else 0,
+                    'created_at':     iv.created_at.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                })
+        except Exception as e:
+            # If migration hasn't been run yet, return empty list gracefully
+            print(f"[StudentAIInterviews] DB error (migration pending?): {e}")
+            data = []
+
+        return JsonResponse({'status': 'success', 'interviews': data})
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class UploadResumeView(View):
     def post(self, request, student_id):
@@ -2837,7 +2900,17 @@ class GenerateInterviewView(View):
             return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
 
         # Don't regenerate if already exists
-        existing = AIInterview.objects.filter(agent_run=run).first()
+        try:
+            existing = AIInterview.objects.filter(agent_run=run).first()
+        except Exception as db_err:
+            err_str = str(db_err)
+            if 'no such column' in err_str or 'does not exist' in err_str:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '⚠️ Database migration needed. Please run: python manage.py migrate — then try again.'
+                }, status=500)
+            return JsonResponse({'status': 'error', 'message': f'Database error: {db_err}'}, status=500)
+
         if existing:
             return JsonResponse({
                 'status':       'exists',
@@ -2868,14 +2941,23 @@ class GenerateInterviewView(View):
 
         # Create interview record
         token = _uuid.uuid4().hex  # 32-char random token
-        interview = AIInterview.objects.create(
-            application=run.application,
-            agent_run=run,
-            questions=questions,
-            token=token,
-            status='pending',
-            expires_at=expires_at,
-        )
+        try:
+            interview = AIInterview.objects.create(
+                application=run.application,
+                agent_run=run,
+                questions=questions,
+                token=token,
+                status='pending',
+                expires_at=expires_at,
+            )
+        except Exception as db_err:
+            err_str = str(db_err)
+            if 'no such column' in err_str or 'does not exist' in err_str:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '⚠️ Database migration needed. Run: python manage.py migrate'
+                }, status=500)
+            return JsonResponse({'status': 'error', 'message': f'Failed to create interview: {db_err}'}, status=500)
 
         # Build interview URL
         site_url      = getattr(django_settings, 'SITE_URL', 'http://127.0.0.1:8000')
