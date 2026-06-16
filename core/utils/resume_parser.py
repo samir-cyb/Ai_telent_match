@@ -21,20 +21,40 @@ Required JSON structure:
         {"name": "Skill Name", "category": "One of: Frontend, Backend, AI/ML, Design, Soft Skills, DevOps, Data Science, Uncategorized", "level": "Beginner|Intermediate|Expert"}
     ],
     "projects": [
-        {"title": "Project Title", "description": "Brief description", "tech_stack": ["Tech1", "Tech2"], "complexity": 3}
+        {"title": "Project Title", "description": "Brief description", "tech_stack": ["Tech1", "Tech2"], "complexity": 3, "github_url": null}
     ],
     "experiences": [
         {"company_name": "Company", "role": "Job Title", "start_date": "YYYY-MM-DD or null", "end_date": "YYYY-MM-DD or null", "is_current": false, "description": "Responsibilities"}
     ]
 }
 
-Rules:
-- CGPA must be a number (float) or null. Convert percentage to 4.0 scale if needed.
-- Skills level must be exactly: Beginner, Intermediate, or Expert.
-- Project complexity must be an integer from 1 to 5.
+SKILL LEVEL RULES (very important — do NOT default everything to Beginner):
+- Expert: Used professionally or in research/internships, published papers, led projects with this tech, 2+ years using it, or it's a core skill clearly demonstrated across multiple projects/experiences.
+- Intermediate: Used in multiple projects, internship experience, or self-taught with clear practical output.
+- Beginner: Only mentioned once, only in coursework, or no evidence of real usage.
+- If the candidate has INTERNSHIP experience with a tech → at least Intermediate.
+- If the candidate has RESEARCH PAPERS using a tech → Expert for that tech.
+- If a tech appears across 3+ projects → at least Intermediate.
+- If Python/ML is core to their work and they have internships + research → Expert.
+
+PROJECT TECH STACK RULES (very important — do NOT leave tech_stack empty):
+- For EVERY project, list ALL technologies used, even if not explicitly listed — infer from project type:
+  - "Chatbot", "Medical Chatbot", "NLP", "conversational AI" → include: Python, NLP, likely TensorFlow or PyTorch, possibly LangChain
+  - "RAG", "Retrieval", "LLM", "GPT", "Vector" → include: Python, LangChain or LlamaIndex, OpenAI or HuggingFace, FAISS or Pinecone
+  - "Computer Vision", "Image Detection", "Object Detection" → include: Python, OpenCV, TensorFlow or PyTorch
+  - "Machine Learning", "Deep Learning", "Neural Network", "MARL", "Reinforcement Learning" → include: Python, TensorFlow or PyTorch, scikit-learn
+  - "Web App", "Dashboard" → include obvious framework (Django/Flask/React etc.)
+  - "Robotic Arm", "Robotics" → include: Python, ROS or Arduino, relevant sensors
+  - "Transportation", "Prediction", "Classification" → include: Python, scikit-learn, Pandas
+  - Always include the PRIMARY LANGUAGE even if only implied.
+- Project complexity (1-5):
+  1=simple script/tutorial, 2=basic app, 3=moderate (APIs/DB/ML model), 4=advanced (multi-component/real-world), 5=research-grade/novel system
+
+GENERAL RULES:
+- CGPA must be a number (float) or null. Convert percentage to 4.0 scale if needed (divide by 25).
 - Dates must be ISO format (YYYY-MM-DD) or null.
 - If a field is missing, use null or empty arrays.
-- Respond with raw JSON only, no extra text."""
+- Respond with raw JSON only, no extra text, no markdown, no backticks."""
 
     def parse_resume(self, file_obj):
         try:

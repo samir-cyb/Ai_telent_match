@@ -603,9 +603,15 @@
                                 </select>
                             </div>
                         </div>
-                        <button type="button" class="btn-secondary btn-sm" onclick="addProjectFromModal()">
-                            <i class="fas fa-plus"></i> Add Project
-                        </button>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            <button type="button" id="project-add-btn" class="btn-secondary btn-sm" onclick="addProjectFromModal()">
+                                <i class="fas fa-plus"></i> Add Project
+                            </button>
+                            <button type="button" id="project-cancel-btn" class="btn-sm" onclick="cancelEditProject()"
+                                style="background:rgba(255,255,255,0.08);color:#94a3b8;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:0.4rem 0.85rem;cursor:pointer;display:none;">
+                                <i class="fas fa-times"></i> Cancel Edit
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- Projects List -->
@@ -832,10 +838,29 @@
         
         <div class="modal-footer">
             <button type="button" class="btn-secondary btn-lg" onclick="closeModal()">Cancel</button>
-            <button type="submit" class="btn-primary btn-lg" form="edit-form">
+            <button type="submit" id="save-btn" class="btn-primary btn-lg" form="edit-form">
                 <i class="fas fa-save"></i> Save Changes
             </button>
         </div>
+    </div>
+</div>
+
+<!-- ==================== SAVE PROFILE LOADER OVERLAY ==================== -->
+<div id="save-loader-overlay" style="
+    display:none; position:fixed; inset:0; z-index:99999;
+    background:rgba(15,23,42,0.75); backdrop-filter:blur(4px);
+    align-items:center; justify-content:center; flex-direction:column; gap:1rem;">
+    <div style="
+        background:rgba(30,41,59,0.95); border:1px solid rgba(99,102,241,0.3);
+        border-radius:1rem; padding:2.5rem 3rem; text-align:center;
+        box-shadow:0 25px 60px rgba(0,0,0,0.5);">
+        <div style="
+            width:48px; height:48px; border:4px solid rgba(99,102,241,0.2);
+            border-top-color:#6366f1; border-radius:50%;
+            animation:spin 0.8s linear infinite; margin:0 auto 1.2rem;">
+        </div>
+        <p style="color:#e2e8f0; font-size:1.05rem; font-weight:600; margin:0 0 0.4rem;">Saving your profile…</p>
+        <p id="save-loader-msg" style="color:#94a3b8; font-size:0.85rem; margin:0;">Processing data, please wait</p>
     </div>
 </div>
 
@@ -1347,63 +1372,113 @@ function removeSkill(index) {
 
 // ==================== PROJECTS MANAGEMENT IN MODAL ====================
 
+// tracks which project is being edited (-1 = add mode)
+let editingProjectIndex = -1;
+
 function renderModalProjects() {
     const container = document.getElementById('modal-projects-list');
-    
     if (!currentProjects || currentProjects.length === 0) {
         container.innerHTML = '<p class="no-data-small">No projects added yet. Add your first project above.</p>';
         return;
     }
-    
     container.innerHTML = currentProjects.map((proj, index) => `
-        <div class="managed-item">
+        <div class="managed-item ${editingProjectIndex === index ? 'managed-item-editing' : ''}">
             <div class="managed-item-info">
                 <span class="managed-item-title">${proj.title}</span>
-                <span class="managed-item-subtitle">${(proj.tech_stack || []).join(', ')} • Complexity: ${proj.complexity || 1}/5</span>
+                <span class="managed-item-subtitle">
+                    ${(proj.tech_stack || []).join(', ') || 'No tech stack'} &bull; Complexity: ${proj.complexity || 1}/5
+                    ${proj.github_url ? `&bull; <a href="${proj.github_url}" target="_blank" style="color:#48bbff;font-size:0.75rem;"><i class="fab fa-github"></i> GitHub</a>` : ''}
+                </span>
             </div>
-            <button type="button" class="btn-delete" onclick="removeProject(${index})">
-                <i class="fas fa-trash"></i>
-            </button>
+            <div class="managed-item-actions">
+                <button type="button" class="btn-edit-small" onclick="startEditProject(${index})" title="Edit">
+                    <i class="fas fa-pen"></i>
+                </button>
+                <button type="button" class="btn-delete" onclick="removeProject(${index})" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
         </div>
     `).join('');
 }
 
-function addProjectFromModal() {
-    const title = document.getElementById('new-project-title').value.trim();
-    const githubUrl = document.getElementById('new-project-github').value.trim();
-    const description = document.getElementById('new-project-description').value.trim();
-    const techInput = document.getElementById('new-project-tech').value.trim();
-    const complexity = parseInt(document.getElementById('new-project-complexity').value);
-    
-    if (!title) {
-        showNotification('Please enter project title', 'error');
-        return;
+function startEditProject(index) {
+    const proj = currentProjects[index];
+    editingProjectIndex = index;
+
+    document.getElementById('new-project-title').value       = proj.title || '';
+    document.getElementById('new-project-github').value      = proj.github_url || '';
+    document.getElementById('new-project-description').value = proj.description || '';
+    document.getElementById('new-project-tech').value        = (proj.tech_stack || []).join(', ');
+    document.getElementById('new-project-complexity').value  = proj.complexity || 3;
+
+    // Change button label and color to indicate edit mode
+    const addBtn = document.getElementById('project-add-btn');
+    if (addBtn) {
+        addBtn.innerHTML = '<i class="fas fa-save"></i> Update Project';
+        addBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
     }
-    
-    const techStack = techInput ? techInput.split(',').map(t => t.trim()).filter(t => t) : [];
-    
-    const newProject = {
-        title: title,
-        description: description,
-        tech_stack: techStack,
-        complexity: complexity,
-        github_url: githubUrl || null,
-        verified: false
-    };
-    
-    currentProjects.push(newProject);
-    
-    document.getElementById('new-project-title').value = '';
-    document.getElementById('new-project-github').value = '';
-    document.getElementById('new-project-description').value = '';
-    document.getElementById('new-project-tech').value = '';
-    document.getElementById('new-project-complexity').value = '3';
-    
+
+    // Show cancel button
+    const cancelBtn = document.getElementById('project-cancel-btn');
+    if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+
+    // Scroll form into view
+    document.getElementById('new-project-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('new-project-title').focus();
     renderModalProjects();
-    showNotification(`Project "${title}" added`, 'success');
+}
+
+function cancelEditProject() {
+    editingProjectIndex = -1;
+    document.getElementById('new-project-title').value       = '';
+    document.getElementById('new-project-github').value      = '';
+    document.getElementById('new-project-description').value = '';
+    document.getElementById('new-project-tech').value        = '';
+    document.getElementById('new-project-complexity').value  = '3';
+    const addBtn = document.getElementById('project-add-btn');
+    if (addBtn) { addBtn.innerHTML = '<i class="fas fa-plus"></i> Add Project'; addBtn.style.background = ''; }
+    const cancelBtn = document.getElementById('project-cancel-btn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    renderModalProjects();
+}
+
+function addProjectFromModal() {
+    const title      = document.getElementById('new-project-title').value.trim();
+    const githubUrl  = document.getElementById('new-project-github').value.trim();
+    const description= document.getElementById('new-project-description').value.trim();
+    const techInput  = document.getElementById('new-project-tech').value.trim();
+    const complexity = parseInt(document.getElementById('new-project-complexity').value);
+
+    if (!title) { showNotification('Please enter project title', 'error'); return; }
+
+    const techStack = techInput ? techInput.split(',').map(t => t.trim()).filter(t => t) : [];
+    const projectData = { title, description, tech_stack: techStack, complexity,
+                          github_url: githubUrl || null, verified: false };
+
+    if (editingProjectIndex >= 0) {
+        // Update existing
+        projectData.verified = currentProjects[editingProjectIndex].verified || false;
+        currentProjects[editingProjectIndex] = projectData;
+        showNotification(`Project "${title}" updated`, 'success');
+        editingProjectIndex = -1;
+        const addBtn = document.getElementById('project-add-btn');
+        if (addBtn) { addBtn.innerHTML = '<i class="fas fa-plus"></i> Add Project'; addBtn.style.background = ''; }
+    } else {
+        currentProjects.push(projectData);
+        showNotification(`Project "${title}" added`, 'success');
+    }
+
+    document.getElementById('new-project-title').value       = '';
+    document.getElementById('new-project-github').value      = '';
+    document.getElementById('new-project-description').value = '';
+    document.getElementById('new-project-tech').value        = '';
+    document.getElementById('new-project-complexity').value  = '3';
+    renderModalProjects();
 }
 
 function removeProject(index) {
+    if (editingProjectIndex === index) cancelEditProject();
     const removed = currentProjects.splice(index, 1)[0];
     renderModalProjects();
     showNotification(`Project "${removed.title}" removed`, 'success');
@@ -1808,7 +1883,19 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
         return;
     }
     isSaving = true;
-    
+
+    // Show saving overlay
+    const saveOverlay = document.getElementById('save-loader-overlay');
+    const saveMsg = document.getElementById('save-loader-msg');
+    if (saveOverlay) {
+        saveOverlay.style.display = 'flex';
+        // Check if any project has a new github_url vs what's stored — show appropriate message
+        const hasGithubProjects = (currentProjects || []).some(p => p.github_url);
+        if (saveMsg) saveMsg.textContent = hasGithubProjects
+            ? 'Verifying GitHub projects… this may take a few seconds'
+            : 'Processing data, please wait';
+    }
+
     console.log('[DEBUG] === FORM SUBMISSION STARTED ===');
     
     // Collect Job Types
@@ -1883,6 +1970,9 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
         showNotification('Error: ' + error.message, 'error');
     } finally {
         isSaving = false;
+        // Hide saving overlay
+        const saveOverlay = document.getElementById('save-loader-overlay');
+        if (saveOverlay) saveOverlay.style.display = 'none';
         console.log('[DEBUG] === FORM SUBMISSION ENDED ===');
     }
 });
@@ -3206,7 +3296,7 @@ loadProfile();
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.25rem 2rem;
+    padding: 0.65rem 1.5rem;
     border-bottom: 1px solid rgba(72, 187, 255, 0.2);
     background: rgba(0, 0, 0, 0.3);
     flex-shrink: 0;
@@ -3247,7 +3337,7 @@ loadProfile();
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 1.5rem 2rem;
+    padding: 1rem 1.5rem;
     -webkit-overflow-scrolling: touch;
 }
 
@@ -3273,7 +3363,7 @@ loadProfile();
     display: flex;
     justify-content: flex-end;
     gap: 1rem;
-    padding: 1.25rem 2rem;
+    padding: 0.6rem 1.5rem;
     border-top: 1px solid rgba(72, 187, 255, 0.2);
     background: rgba(0, 0, 0, 0.3);
     flex-shrink: 0;
@@ -3283,7 +3373,7 @@ loadProfile();
 .enhanced-form {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 0.85rem;
     max-width: 960px;
     margin: 0 auto;
 }
@@ -3291,8 +3381,8 @@ loadProfile();
 .form-section-card {
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(72, 187, 255, 0.1);
-    border-radius: 1rem;
-    padding: 1.25rem;
+    border-radius: 0.75rem;
+    padding: 0.9rem 1rem;
 }
 
 .section-title-bar {
@@ -3537,6 +3627,37 @@ loadProfile();
 .managed-item-subtitle {
     color: #64748b;
     font-size: 0.8rem;
+}
+
+.managed-item-actions {
+    display: flex;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
+.btn-edit-small {
+    background: rgba(72, 187, 255, 0.1);
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    color: #48bbff;
+    width: 32px;
+    height: 32px;
+    border-radius: 0.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+.btn-edit-small:hover {
+    background: rgba(72, 187, 255, 0.25);
+    border-color: #48bbff;
+}
+
+.managed-item-editing {
+    border: 1px solid rgba(245, 158, 11, 0.5) !important;
+    background: rgba(245, 158, 11, 0.06) !important;
 }
 
 .btn-delete {

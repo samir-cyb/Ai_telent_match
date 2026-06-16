@@ -220,10 +220,10 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
         const data = await response.json();
         
         if (data.status === 'success') {
-            showNotification('Registration successful! Redirecting to login...', 'success');
+            showNotification('Account created! Taking you to your dashboard...', 'success');
             setTimeout(() => {
-                window.location.href = '/student/login/';
-            }, 2000);
+                window.location.href = data.redirect || '/student/dashboard/';
+            }, 1500);
         } else {
             showNotification(data.message || 'Registration failed', 'error');
         }

@@ -21,6 +21,181 @@ from .utils.resume_parser import ResumeParser
 from .utils.recruitment_agent import RecruitmentAgent
 from datetime import datetime, date, time
 from django.db import transaction
+
+# ── Tech inference map: keyword in title/description → tech names to add ─────
+# RULES:
+#   1. Only infer for UNAMBIGUOUS keywords — if a word could belong to ANY tech stack,
+#      do NOT infer. Better to leave tech_stack empty than to add the wrong tech.
+#   2. Python is only inferred for domains where Python is the dominant language
+#      (ML, AI, DL, NLP, Computer Vision, RL, Data Science). NOT for generic "web app".
+#   3. Always infer the FRAMEWORK/LIBRARY when it's explicitly named
+#      (django → python+django; flutter → flutter+dart; react → javascript+react).
+#   4. Add mobile/web framework-specific entries so non-Python projects get their tech.
+_TITLE_TECH_MAP = [
+
+    # ── Python AI/ML/DL/NLP — Python is unambiguous for these domains ──────────
+    (['rag system', 'retrieval augmented', 'langchain', 'llamaindex', 'vector store', 'embedding'],
+     ['python', 'langchain', 'openai', 'faiss']),
+
+    (['large language model', 'llm', ' gpt', 'language model', 'huggingface', 'transformers'],
+     ['python', 'openai', 'langchain', 'transformers']),
+
+    (['chatbot', 'medical chatbot', 'health chatbot', 'ai chatbot',
+      'ai-powered', 'ai powered', 'lexical ai', 'tiny neuron', 'neuron research'],
+     ['python', 'nlp', 'tensorflow']),
+
+    (['natural language processing', 'nlp', 'text classification', 'named entity recognition',
+      'sentiment analysis', 'text mining'],
+     ['python', 'nlp', 'scikit-learn']),
+
+    (['computer vision', 'image detection', 'object detection', 'face recognition',
+      'image segmentation', 'yolo'],
+     ['python', 'opencv', 'tensorflow']),
+
+    (['deep learning', 'neural network', 'cnn ', 'rnn ', 'lstm', 'convolutional',
+      'recurrent network', 'attention mechanism'],
+     ['python', 'tensorflow', 'pytorch']),
+
+    (['reinforcement learning', 'marl', 'multi-agent reinforcement', 'rl agent',
+      'q-learning', 'policy gradient'],
+     ['python', 'pytorch', 'tensorflow']),
+
+    (['machine learning model', 'ml model', 'scikit', 'sklearn', 'xgboost', 'random forest',
+      'data science pipeline', 'feature engineering',
+      'early prediction', 'car health', 'health prediction',
+      'smart transportation', 'traffic prediction', 'autonomous'],
+     ['python', 'scikit-learn', 'pandas']),
+
+    (['robotics', 'robotic arm', 'ros ', 'robot operating'],
+     ['python', 'ros', 'arduino']),
+
+    (['data analysis', 'data science', 'data pipeline', 'etl pipeline',
+      'pandas', 'numpy', 'matplotlib', 'seaborn'],
+     ['python', 'pandas', 'numpy']),
+
+    # ── Explicit Python web frameworks — only when the framework name is present ─
+    (['django', 'django rest', 'drf'],
+     ['python', 'django']),
+    (['flask app', 'flask api', 'flask web'],
+     ['python', 'flask']),
+    (['fastapi', 'fast api'],
+     ['python', 'fastapi']),
+
+    # ── Mobile: Flutter / React Native / Android / iOS ─────────────────────────
+    (['flutter', 'dart '],
+     ['flutter', 'dart']),
+    (['react native'],
+     ['javascript', 'react native']),
+    (['android', 'kotlin', 'android studio'],
+     ['android', 'kotlin', 'java']),
+    (['ios app', 'swift ', 'swiftui', 'xcode'],
+     ['ios', 'swift']),
+
+    # ── Frontend JavaScript frameworks ──────────────────────────────────────────
+    (['react.js', 'reactjs', 'react app', 'next.js', 'nextjs'],
+     ['javascript', 'react']),
+    (['vue.js', 'vuejs', 'nuxt'],
+     ['javascript', 'vue']),
+    (['angular', 'angularjs'],
+     ['javascript', 'typescript', 'angular']),
+
+    # ── Backend (non-Python) ────────────────────────────────────────────────────
+    (['node.js', 'nodejs', 'express.js', 'expressjs'],
+     ['javascript', 'nodejs']),
+    (['spring boot', 'spring mvc', 'java backend'],
+     ['java', 'spring']),
+    (['laravel', 'php backend', 'php web'],
+     ['php', 'laravel']),
+    (['asp.net', 'dotnet', '.net core', 'c# web'],
+     ['c#', 'dotnet']),
+
+    # ── Database / Infrastructure (only when unambiguously named) ───────────────
+    (['firebase', 'firestore'],
+     ['firebase']),
+    (['mongodb', 'mongoose'],
+     ['mongodb']),
+    (['postgresql', 'postgres'],
+     ['postgresql']),
+]
+
+def _enrich_project_from_github(project, student):
+    """
+    If a project has a github_url, fetch repo details via GitHub API and:
+      - Update tech_stack with actual repo languages (additive, won't remove existing)
+      - Update complexity_score from repo signals (size, stars, languages, README)
+      - Mark project.verified=True if the repo belongs to the student's github_username
+    Safe to call even without a token — errors are caught and logged.
+    """
+    if not project.github_url:
+        return
+
+    try:
+        from core.utils.github_scraper import GitHubValidator
+        validator = GitHubValidator()
+
+        # Extract owner/repo from URL: https://github.com/owner/repo[.git][/...]
+        url = project.github_url.rstrip('/')
+        # Remove .git suffix if present (e.g. https://github.com/user/repo.git)
+        if url.endswith('.git'):
+            url = url[:-4]
+        parts = url.replace('https://github.com/', '').split('/')
+        if len(parts) < 2:
+            return
+        repo_owner, repo_name = parts[0], parts[1]
+
+        # Fetch full repo details (languages, README, stars, size)
+        details = validator.fetch_repository_details(repo_owner, repo_name)
+        if not details:
+            print(f"[GitHub] Could not fetch details for {repo_owner}/{repo_name}")
+            return
+
+        # 1. Update complexity_score from GitHub signals
+        new_complexity = validator.calculate_project_complexity(details)
+        if new_complexity > (project.complexity_score or 1):
+            project.complexity_score = new_complexity
+            print(f"[GitHub] '{project.title}' complexity updated → {new_complexity}")
+
+        # 2. Add detected languages to tech_stack (additive — don't clear existing)
+        existing_tech = set(t.name.lower() for t in project.tech_stack.all())
+        for lang in details.get('languages', {}).keys():
+            lang_clean = lang.strip().lower()
+            if lang_clean and lang_clean not in existing_tech:
+                skill = Skill.objects.filter(name__iexact=lang_clean).first()
+                if not skill:
+                    skill = Skill.objects.create(name=lang_clean, category='Uncategorized')
+                project.tech_stack.add(skill)
+                existing_tech.add(lang_clean)
+                print(f"[GitHub] '{project.title}' added lang: {lang_clean}")
+
+        # 3. Verify ownership — mark project verified if repo belongs to student
+        # Normalize: treat underscore and hyphen as equivalent (samir_cyb == samir-cyb)
+        def _norm(s): return s.lower().replace('-', '_').replace(' ', '_')
+        student_gh = _norm(student.github_username or '')
+        if student_gh and _norm(repo_owner) == student_gh:
+            project.verified = True
+            print(f"[GitHub] '{project.title}' verified (owner matches)")
+
+        project.save()
+
+    except Exception as e:
+        print(f"[GitHub] Enrichment error for '{project.title}': {e}")
+
+
+def _infer_tech_from_text(title: str, description: str) -> list:
+    """
+    Return inferred tech list based on keywords in project title + description.
+
+    Conservative: only adds tech when the keyword is domain-specific and unambiguous.
+    Generic words like 'web app', 'dashboard', 'system', 'platform' are intentionally
+    NOT in the map — they don't tell us which tech stack was used.
+    """
+    combined = (title + ' ' + description).lower()
+    result = set()
+    for keywords, techs in _TITLE_TECH_MAP:
+        if any(kw in combined for kw in keywords):
+            result.update(techs)
+    return list(result)
+
 # ==================== PAGE RENDERING VIEWS ====================
 
 def landing_page(request):
@@ -104,83 +279,67 @@ def admin_fraud_review(request):
 # ==================== AUTHENTICATION VIEWS ====================
 @method_decorator(csrf_exempt, name='dispatch')
 class StudentRegisterView(View):
-    
-    def post(self, request, application_id):
+
+    def post(self, request):
         try:
             data = json.loads(request.body)
-            
-            # ✅ VALIDATION: Check required fields exist
-            required_fields = ['date', 'start_time', 'end_time']
-            for field in required_fields:
-                if field not in data or not data[field]:
-                    return JsonResponse({
-                        'status': 'error', 
-                        'message': f'Missing required field: {field}'
-                    }, status=400)
-            
-            application = get_object_or_404(Application, id=application_id)
-            company_id = request.session.get('company_id')
-            
-            # Security check
-            if str(application.job.company.id) != company_id:
-                return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
-            
-            # Verify applicant is shortlisted
-            if application.status != 'shortlisted':
-                return JsonResponse({
-                    'status': 'error', 
-                    'message': 'Applicant must be shortlisted before scheduling interview'
-                }, status=400)
-            
-            # Check if interview already scheduled
-            if hasattr(application, 'scheduled_interview'):
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Interview already scheduled for this applicant'
-                }, status=400)
-            
-            # ✅ PARSE STRINGS TO DATE/TIME OBJECTS (Alternative Fix)
-            from datetime import datetime
-            date_obj = datetime.strptime(data['date'], '%Y-%m-%d').date()
-            start_time_obj = datetime.strptime(data['start_time'], '%H:%M').time()
-            end_time_obj = datetime.strptime(data['end_time'], '%H:%M').time()
-            
-            # ✅ TRANSACTION SAFETY: Wrap creation in atomic transaction
-            with transaction.atomic():
-                # Create interview with proper objects (not strings)
-                interview = ScheduledInterview.objects.create(
-                    application=application,
-                    slot_id=data.get('slot_id'),
-                    date=date_obj,              # Now a date object
-                    start_time=start_time_obj,   # Now a time object
-                    end_time=end_time_obj,       # Now a time object
-                    meeting_link=data.get('meeting_link', ''),
-                    meeting_type=data.get('meeting_type', 'online'),
-                    company_notes=data.get('notes', '')
-                )
-                
-                # Update application status
-                application.status = 'interview'
-                application.save()
-                
-                # Send notifications (wrapped in try-except so it doesn't break the transaction)
+
+            # Validate required fields
+            for field in ['name', 'email', 'password']:
+                if not data.get(field):
+                    return JsonResponse({'status': 'error', 'message': f'{field} is required'}, status=400)
+
+            if Student.objects.filter(email=data['email']).exists():
+                return JsonResponse({'status': 'error', 'message': 'Email already registered'}, status=400)
+
+            # Build preferences from top-level form keys
+            preferences = {
+                'job_types':          data.get('job_types', []),
+                'company_size':       data.get('company_size', []),
+                'willing_to_relocate': data.get('willing_to_relocate', False),
+            }
+
+            student = Student.objects.create(
+                email=data['email'],
+                name=data['name'],
+                university_id=data.get('university_id', ''),
+                department=data.get('department', ''),
+                cgpa=data.get('cgpa') or None,
+                graduation_date=data.get('graduation_date') or None,
+                github_username=data.get('github_username', ''),
+                linkedin_url=data.get('linkedin_url', ''),
+                portfolio_url=data.get('portfolio_url', ''),
+                preferences=preferences,
+            )
+            student.set_password(data['password'])
+            student.save()
+
+            # Verify GitHub score if username provided
+            if data.get('github_username'):
                 try:
-                    self._send_notifications(interview)
-                except Exception as notif_error:
-                    # Log error but don't rollback the interview creation
-                    print(f"Notification error (non-critical): {notif_error}")
-            
+                    validator = GitHubValidator()
+                    result = validator.validate_student_github(data['github_username'])
+                    if result.get('valid'):
+                        student.github_verified = True
+                        student.github_score = result['score']
+                        student.save()
+                except Exception:
+                    pass  # non-critical
+
+            student.calculate_trust_score()
+
+            # Auto-login after registration so they land on dashboard directly
+            request.session['student_id'] = str(student.id)
+            request.session['user_type'] = 'student'
+
             return JsonResponse({
                 'status': 'success',
-                'interview_id': str(interview.id),
-                'message': 'Interview scheduled successfully',
-                'details': {
-                    'date': data['date'],
-                    'time': f"{data['start_time']} - {data['end_time']}",
-                    'meeting_link': data.get('meeting_link', 'Will be shared soon')
-                }
+                'student_id': str(student.id),
+                'trust_score': float(student.trust_score),
+                'message': 'Registration successful',
+                'redirect': '/student/dashboard/',
             })
-            
+
         except Exception as e:
             import traceback
             print(traceback.format_exc())
@@ -459,7 +618,8 @@ class StudentProfileView(View):
             print(f"[DEBUG] Skills count: {len(data.get('skills', []))}")
             
             student = get_object_or_404(Student, id=student_id)
-            
+            _old_gh_username = student.github_username or ''  # Capture BEFORE any field update
+
             # Update basic fields
             student.name = data.get('name') or student.name
             student.department = data.get('department') or student.department
@@ -622,12 +782,15 @@ class StudentProfileView(View):
                     # Solution: First try case-insensitive lookup, then handle IntegrityError
                     project = None
                     created = False
-                    
+                    old_github_url = None  # Track to skip API if URL unchanged
+
                     try:
                         # Step 1: Try to find existing project by case-insensitive title
                         project = student.projects.filter(title__iexact=title).first()
-                        
+
                         if project:
+                            # Track old URL before overwriting
+                            old_github_url = project.github_url or ''
                             # Update existing project
                             project.description = description
                             project.github_url = github_url or None
@@ -692,14 +855,20 @@ class StudentProfileView(View):
                     
                     # Update tech stack
                     if project:
+                        # If Gemini returned empty tech_stack, infer from title+description
+                        if not tech_stack:
+                            tech_stack = _infer_tech_from_text(title, description)
+                            if tech_stack:
+                                print(f"[DEBUG] Inferred tech_stack for '{title}': {tech_stack}")
+
                         project.tech_stack.clear()
                         for tech_name in tech_stack:
                             tech_clean = (tech_name or '').strip().lower()
                             if not tech_clean:
                                 continue
-                                
+
                             skill = Skill.objects.filter(name__iexact=tech_clean).first()
-                            
+
                             if not skill:
                                 skill = Skill.objects.create(
                                     name=tech_clean,
@@ -709,21 +878,30 @@ class StudentProfileView(View):
                                 if skill.name != tech_clean:
                                     skill.name = tech_clean
                                     skill.save()
-                            
+
                             project.tech_stack.add(skill)
-                        
+
                         print(f"[DEBUG] Project '{title}' tech_stack set: {tech_stack}")
-            
-            # Re-verify GitHub if username changed
-            if data.get('github_username'):
+
+                        # Enrich from GitHub ONLY if github_url is new or changed
+                        new_github_url = github_url or ''
+                        if new_github_url and new_github_url != (old_github_url or ''):
+                            print(f"[DEBUG] GitHub URL changed → enriching '{title}'")
+                            _enrich_project_from_github(project, student)
+                        elif new_github_url:
+                            print(f"[DEBUG] GitHub URL unchanged — skipping API call for '{title}'")
+
+            # Re-verify GitHub ONLY if username changed or not yet verified
+            new_gh_username = data.get('github_username', '')
+            if new_gh_username and (new_gh_username != _old_gh_username or not student.github_verified):
                 try:
                     validator = GitHubValidator()
-                    result = validator.validate_student_github(data['github_username'])
+                    result = validator.validate_student_github(new_gh_username)
                     if result.get('valid'):
                         student.github_verified = True
                         student.github_score = result.get('score', 0)
                         student.save()
-                        print(f"[DEBUG] GitHub verified: {data['github_username']}")
+                        print(f"[DEBUG] GitHub verified: {new_gh_username}")
                 except Exception as gh_err:
                     print(f"[DEBUG] GitHub verification skipped: {gh_err}")
             
@@ -1179,7 +1357,18 @@ class ApplicationsListView(View):
                 'agent_score':    round(latest_run.score * 100, 1) if latest_run else None,
                 'agent_confidence': latest_run.confidence if latest_run else None,
                 'agent_run_url': f'/company/agent-run/{latest_run.id}/' if latest_run else None,
+                'agent_run_id':  str(latest_run.id) if latest_run else None,
                 'agent_run_count': app.agent_runs.count(),
+                # AI Interview data
+                **({
+                    'ai_interview_id':     str(ai_iv.id),
+                    'ai_interview_status': ai_iv.status,
+                    'ai_interview_result_url': f'/company/interview/{ai_iv.id}/result/',
+                } if (ai_iv := app.ai_interviews.order_by('-created_at').first()) else {
+                    'ai_interview_id': None,
+                    'ai_interview_status': None,
+                    'ai_interview_result_url': None,
+                }),
             })
         return JsonResponse({'status': 'success', 'applications': data})
 @method_decorator(csrf_exempt, name='dispatch')
@@ -1442,7 +1631,16 @@ class NotificationsView(View):
         ).update(read=True)
         
         return JsonResponse({'status': 'success'})
-    
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class MarkAllNotificationsReadView(View):
+    """Mark every unread notification for a student/company as read."""
+    def post(self, request, user_id):
+        Notification.objects.filter(user_id=user_id, read=False).update(read=True)
+        return JsonResponse({'status': 'success'})
+
+
 class InterviewSlotAvailabilityView(View):
     """Get detailed slot availability for company"""
     
@@ -1803,7 +2001,8 @@ class UpdatePreferencesView(APIView):
             print(f"Projects data: {data.get('projects', [])}")
             print(f"Experiences data: {data.get('experiences', [])}")
             student = get_object_or_404(Student, id=student_id)
-            
+            _old_gh_username = student.github_username or ''  # Capture BEFORE any field update
+
             # Update basic fields
             student.name = data.get('name', student.name)
             student.department = data.get('department', student.department)
@@ -1925,8 +2124,11 @@ class UpdatePreferencesView(APIView):
                     verified = proj_data.get('verified', False)
                     
                     # Try to get existing project by title (case-insensitive)
+                    old_github_url = None  # Track to skip API if URL unchanged
                     try:
                         project = student.projects.get(title__iexact=title)
+                        # Track old URL before overwriting
+                        old_github_url = project.github_url or ''
                         # Update existing
                         project.description = description
                         project.github_url = github_url
@@ -1945,38 +2147,49 @@ class UpdatePreferencesView(APIView):
                         )
                     
                     # Update tech stack - clear and rebuild
+                    # If Gemini returned empty tech_stack, infer from title+description
+                    if not tech_stack:
+                        tech_stack = _infer_tech_from_text(title, description)
+                        if tech_stack:
+                            print(f"[DEBUG] Inferred tech_stack for '{title}': {tech_stack}")
+
                     project.tech_stack.clear()
                     for tech_name in tech_stack:
                         if tech_name:
                             tech_clean = tech_name.strip().lower()
-                            
-                            # FIXED: Use filter().first() instead of get_or_create() with iexact
-                            # This handles duplicate skills gracefully
+
                             skill = Skill.objects.filter(name__iexact=tech_clean).first()
-                            
+
                             if not skill:
-                                # Create new skill if doesn't exist
                                 skill = Skill.objects.create(
                                     name=tech_clean,
                                     category='Uncategorized'
                                 )
                             else:
-                                # Update existing skill name to lowercase for consistency
                                 if skill.name != tech_clean:
                                     skill.name = tech_clean
                                     skill.save()
-                            
+
                             project.tech_stack.add(skill)
-            
-            # Re-verify GitHub if username changed
-            if data.get('github_username'):
+
+                    # Enrich from GitHub ONLY if github_url is new or changed
+                    new_github_url = github_url or ''
+                    if new_github_url and new_github_url != (old_github_url or ''):
+                        print(f"[DEBUG] GitHub URL changed → enriching '{title}'")
+                        _enrich_project_from_github(project, student)
+                    elif new_github_url:
+                        print(f"[DEBUG] GitHub URL unchanged — skipping API call for '{title}'")
+
+            # Re-verify GitHub ONLY if username changed or not yet verified
+            new_gh_username = data.get('github_username', '')
+            if new_gh_username and (new_gh_username != _old_gh_username or not student.github_verified):
                 validator = GitHubValidator()
-                result = validator.validate_student_github(data['github_username'])
+                result = validator.validate_student_github(new_gh_username)
                 if result['valid']:
                     student.github_verified = True
                     student.github_score = result['score']
                     student.save()
-            
+
             # Recalculate trust score
             student.calculate_trust_score()
             
@@ -2644,6 +2857,15 @@ class GenerateInterviewView(View):
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': f'Question generation failed: {e}'}, status=500)
 
+        # Parse deadline
+        try:
+            data_body      = json.loads(request.body) if request.body else {}
+            expires_in_days = int(data_body.get('expires_in_days', 3))
+        except Exception:
+            expires_in_days = 3
+        from django.utils import timezone as tz
+        expires_at = tz.now() + timedelta(days=expires_in_days)
+
         # Create interview record
         token = _uuid.uuid4().hex  # 32-char random token
         interview = AIInterview.objects.create(
@@ -2652,6 +2874,7 @@ class GenerateInterviewView(View):
             questions=questions,
             token=token,
             status='pending',
+            expires_at=expires_at,
         )
 
         # Build interview URL
@@ -2661,6 +2884,7 @@ class GenerateInterviewView(View):
         job           = run.application.job
 
         # Send email (prints to console in dev mode)
+        deadline_str = expires_at.strftime('%B %d, %Y at %I:%M %p')
         email_body = f"""Dear {student.name},
 
 Congratulations! You have been shortlisted for the position of {job.title} at {job.company.name}.
@@ -2669,11 +2893,13 @@ As the next step in our recruitment process, please complete your AI-powered int
 
 🔗 Interview Link: {interview_url}
 
+⏰ DEADLINE: Please complete by {deadline_str} ({expires_in_days} days from now)
+
 Instructions:
 • You will be asked 6 questions
 • Type your answers carefully — an AI will evaluate your responses
-• Complete all questions in one session
-• There is no time limit
+• Complete all questions before the deadline
+• You can pause and resume anytime before the deadline
 
 Good luck!
 
@@ -2695,6 +2921,27 @@ Powered by AI Talent Match"""
         except Exception as e:
             email_status = f'failed: {e}'
 
+        # In-app notification for student with the interview URL
+        Notification.objects.create(
+            user_id=student.id,
+            user_type='student',
+            type='ai_interview',
+            title=f'🤖 AI Interview Ready: {job.title}',
+            message=(
+                f'Your AI interview for {job.title} at {job.company.name} is ready. '
+                f'Answer {len(questions)} questions before {deadline_str}.'
+            ),
+            data={
+                'interview_url': interview_url,
+                'interview_id':  str(interview.id),
+                'token':         token,
+                'company_name':  job.company.name,
+                'job_title':     job.title,
+                'expires_at':    expires_at.isoformat(),
+                'deadline_str':  deadline_str,
+            }
+        )
+
         return JsonResponse({
             'status':         'success',
             'interview_id':   str(interview.id),
@@ -2703,6 +2950,35 @@ Powered by AI Talent Match"""
             'email_status':   email_status,
             'question_count': len(questions),
         })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AIInterviewAnalyzeView(View):
+    """
+    Company triggers full Gemini analysis on a completed interview.
+    POST /api/interview/<interview_id>/analyze/
+    Saves result to interview.gemini_analysis and returns it.
+    """
+    def post(self, request, interview_id):
+        from .utils.interview_generator import generate_final_report
+        company_id = request.session.get('company_id')
+        if not company_id:
+            return JsonResponse({'status': 'error', 'message': 'Not logged in'}, status=403)
+
+        interview = get_object_or_404(AIInterview, id=interview_id)
+        if str(interview.application.job.company.id) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        if interview.status != 'completed':
+            return JsonResponse({'status': 'error', 'message': 'Interview not completed yet'}, status=400)
+
+        try:
+            report = generate_final_report(interview)
+            interview.gemini_analysis = report
+            interview.save(update_fields=['gemini_analysis'])
+            return JsonResponse({'status': 'success', 'analysis': report})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
 class CandidateInterviewPageView(View):
@@ -2724,17 +3000,22 @@ class CandidateInterviewPageView(View):
         if interview.is_complete():
             return redirect(f'/interview/{token}/done/')
 
+        # Check deadline
+        from django.utils import timezone as tz
+        is_expired = interview.expires_at and tz.now() > interview.expires_at
+
         next_idx = interview.get_next_question_index()
         question = interview.questions[next_idx]
 
         return render(request, 'interviews/candidate_interview.html', {
-            'interview':   interview,
-            'question':    question,
-            'q_index':     next_idx,
-            'q_number':    next_idx + 1,
-            'total':       len(interview.questions),
+            'interview':    interview,
+            'question':     question,
+            'q_index':      next_idx,
+            'q_number':     next_idx + 1,
+            'total':        len(interview.questions),
             'progress_pct': int((next_idx / len(interview.questions)) * 100),
-            'token':       token,
+            'token':        token,
+            'is_expired':   is_expired,
         })
 
 
@@ -2862,17 +3143,31 @@ def company_interview_result(request, interview_id):
     answers   = interview.answers
     answer_scores = interview.answers  # list of {answer, score, feedback} or bare strings
 
+    # Build per-question reason lookup from gemini_analysis if available
+    reason_map = {}
+    if interview.gemini_analysis and 'per_question' in interview.gemini_analysis:
+        for pq in interview.gemini_analysis['per_question']:
+            reason_map[pq.get('q_index', -1)] = pq.get('reason', '')
+
+    # Build answer lookup by q_index for stored answers
+    ans_by_idx = {}
+    for a in answers:
+        if isinstance(a, dict) and 'q_index' in a:
+            ans_by_idx[a['q_index']] = a
+
     qa_pairs = []
     for i, q in enumerate(questions):
-        ans_obj = answers[i] if i < len(answers) else None
+        ans_obj = ans_by_idx.get(i) or (answers[i] if i < len(answers) else None)
         if isinstance(ans_obj, dict):
             ans_text  = ans_obj.get('answer', '')
             score_val = ans_obj.get('score')
             feedback  = ans_obj.get('feedback', '')
+            reason    = ans_obj.get('reason', '') or reason_map.get(i, '')
         else:
             ans_text  = ans_obj or ''
             score_val = None
             feedback  = ''
+            reason    = reason_map.get(i, '')
         qa_pairs.append({
             'question': q.get('question', '') if isinstance(q, dict) else str(q),
             'type':     q.get('type', 'Question') if isinstance(q, dict) else 'Question',
@@ -2881,6 +3176,7 @@ def company_interview_result(request, interview_id):
             'score':    score_val,
             'score_pct': (score_val or 0) * 10,
             'feedback': feedback,
+            'reason':   reason,
         })
 
     # Agent score as percentage (score is stored 0.0-1.0, convert to 0-100)
@@ -3055,11 +3351,13 @@ class ScheduleInterviewView(View):
                 interview = ScheduledInterview.objects.create(
                     application=application,
                     slot_id=data.get('slot_id'),
-                    date=date_obj,              # Date object
-                    start_time=start_time_obj,   # Time object
-                    end_time=end_time_obj,       # Time object
+                    date=date_obj,
+                    start_time=start_time_obj,
+                    end_time=end_time_obj,
                     meeting_link=data.get('meeting_link', ''),
-                    meeting_type=data.get('meeting_type', 'online'),
+                    meeting_type=data.get('meeting_type', 'in_person'),
+                    location=data.get('location', ''),
+                    contact_person=data.get('contact_person', ''),
                     company_notes=data.get('notes', '')
                 )
                 
@@ -3130,18 +3428,22 @@ class ScheduleInterviewView(View):
             formatted_date = date_obj.strftime('%A, %B %d, %Y')
             
             # Notify Student
+            meeting_type = interview.meeting_type or 'in_person'
+            if meeting_type == 'in_person':
+                notif_title = f'🏢 In-Person Interview: {app.job.title}'
+                location_line = f'\n📍 Location: {interview.location}' if interview.location else ''
+                contact_line = f'\n👤 Contact: {interview.contact_person}' if interview.contact_person else ''
+                notif_msg = f'You have been invited for an in-person interview at {app.job.company.name}!\n\n📅 Date: {formatted_date}\n⏰ Time: {start_display} - {end_display}{location_line}{contact_line}\n\nPlease arrive on time. Good luck!'
+            else:
+                notif_title = f'🎤 Interview Scheduled: {app.job.title}'
+                notif_msg = f'Your interview for {app.job.title} at {app.job.company.name} has been scheduled!\n\n📅 Date: {formatted_date}\n⏰ Time: {start_display} - {end_display}\n🔗 Meeting Link: {interview.meeting_link or "Will be shared separately"}\n\nPlease join on time. Good luck!'
+
             Notification.objects.create(
                 user_id=app.student.id,
                 user_type='student',
                 type='interview_scheduled',
-                title=f'🎤 Interview Scheduled: {app.job.title}',
-                message=f"""Your interview for {app.job.title} at {app.job.company.name} has been scheduled!
-
-📅 Date: {formatted_date}
-⏰ Time: {start_display} - {end_display}
-🔗 Meeting Link: {interview.meeting_link or 'Will be shared separately'}
-
-Please join on time. Good luck!""",
+                title=notif_title,
+                message=notif_msg,
                 data={
                     'interview_id': str(interview.id),
                     'job_id': str(app.job.id),
@@ -3149,7 +3451,10 @@ Please join on time. Good luck!""",
                     'company_name': app.job.company.name,
                     'interview_date': date_obj.isoformat() if hasattr(date_obj, 'isoformat') else str(date_obj),
                     'interview_time': start_time_obj.strftime('%H:%M') if hasattr(start_time_obj, 'strftime') else str(start_time_obj),
-                    'meeting_link': interview.meeting_link or ''
+                    'meeting_type': meeting_type,
+                    'meeting_link': interview.meeting_link or '',
+                    'location': interview.location or '',
+                    'contact_person': interview.contact_person or '',
                 }
             )
             

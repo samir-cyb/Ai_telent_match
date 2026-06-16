@@ -126,10 +126,10 @@ def score_answer(question: str, good_answer_includes: str, answer: str) -> dict:
     """
     Score a single interview answer.
 
-    Returns: {"score": int(0-10), "feedback": str}
+    Returns: {"score": int(0-10), "feedback": str, "reason": str}
     """
     if not answer or len(answer.strip()) < 10:
-        return {"score": 0, "feedback": "No answer provided or answer too short."}
+        return {"score": 0, "feedback": "No answer provided or answer too short.", "reason": "Answer was blank or too short to evaluate."}
 
     prompt = f"""You are evaluating an interview answer. Be fair but strict.
 
@@ -145,18 +145,136 @@ Score this answer from 0 to 10:
 - 0-2:  Poor. Off-topic, too short, or fundamentally wrong.
 
 Respond with ONLY valid JSON (no markdown):
-{{"score": 7, "feedback": "Brief 1-2 sentence feedback explaining the score."}}"""
+{{
+  "score": 7,
+  "feedback": "Brief 1-2 sentence feedback shown to recruiter.",
+  "reason": "1 sentence explaining exactly why this score was given (e.g. 'Candidate demonstrated X but missed Y')."
+}}"""
 
     try:
         resp = _client.models.generate_content(model=_MODEL, contents=prompt)
         result = _safe_parse_json(resp.text)
         if isinstance(result, dict) and 'score' in result:
             result['score'] = max(0, min(10, int(result['score'])))
+            if 'reason' not in result:
+                result['reason'] = result.get('feedback', '')
             return result
     except Exception as e:
         print(f"[InterviewGenerator] score_answer failed: {e}")
 
-    return {"score": 5, "feedback": "Answer evaluated. Score assigned based on content."}
+    return {"score": 5, "feedback": "Answer evaluated. Score assigned based on content.", "reason": "Automated scoring applied."}
+
+
+def generate_final_report(interview) -> dict:
+    """
+    Run Gemini analysis on completed interview.
+    Returns full report dict saved to AIInterview.gemini_analysis.
+
+    Result shape:
+    {
+      "overall_score": 72,          # 0-100
+      "hire_recommendation": "Recommend",  # Recommend | Maybe | Not Recommend
+      "recommendation_reason": "...",
+      "strengths": ["...", "..."],
+      "weaknesses": ["...", "..."],
+      "per_question": [
+        {"q_index": 0, "score": 8, "reason": "..."},
+        ...
+      ]
+    }
+    """
+    questions = interview.questions or []
+    answers   = interview.answers   or []
+
+    # Build answer lookup by q_index
+    ans_map = {a['q_index']: a for a in answers}
+
+    qa_summary = []
+    for i, q in enumerate(questions):
+        a = ans_map.get(i, {})
+        qa_summary.append({
+            'index':    i + 1,
+            'question': q.get('question', ''),
+            'type':     q.get('type', ''),
+            'target':   q.get('target', ''),
+            'expected': q.get('good_answer_includes', ''),
+            'answer':   a.get('answer', '(not answered)'),
+            'score':    a.get('score', 0),
+            'feedback': a.get('feedback', ''),
+        })
+
+    qa_text = '\n\n'.join([
+        f"Q{item['index']} [{item['type']}] — {item['question']}\n"
+        f"Expected: {item['expected']}\n"
+        f"Answer: {item['answer']}\n"
+        f"Score: {item['score']}/10 — {item['feedback']}"
+        for item in qa_summary
+    ])
+
+    student = interview.application.student
+    job     = interview.application.job
+
+    prompt = f"""You are a senior recruiter reviewing a completed AI interview.
+
+CANDIDATE: {student.name}
+POSITION: {job.title} at {job.company.name}
+
+INTERVIEW TRANSCRIPT (with per-question scores already assigned):
+{qa_text}
+
+Based on this full transcript, provide a comprehensive hiring analysis.
+
+Respond with ONLY valid JSON (no markdown, no explanation outside JSON):
+{{
+  "overall_score": 72,
+  "hire_recommendation": "Recommend",
+  "recommendation_reason": "2-3 sentence summary of why you recommend or not.",
+  "strengths": [
+    "Specific strength 1 observed in the answers",
+    "Specific strength 2",
+    "Specific strength 3"
+  ],
+  "weaknesses": [
+    "Specific weakness 1",
+    "Specific weakness 2"
+  ],
+  "per_question": [
+    {{"q_index": 0, "score": 8, "reason": "Candidate clearly explained X with Y example, but missed Z."}}
+  ]
+}}
+
+Rules:
+- overall_score: 0-100, weighted average of question scores scaled to 100, adjusted by depth and quality
+- hire_recommendation must be exactly one of: "Recommend", "Maybe", "Not Recommend"
+- strengths: 2-4 items, specific and evidence-based from answers
+- weaknesses: 1-3 items, constructive and specific
+- per_question: one entry per question (0-indexed), score 0-10, reason 1 sentence
+"""
+
+    try:
+        resp   = _client.models.generate_content(model=_MODEL, contents=prompt)
+        result = _safe_parse_json(resp.text)
+        if isinstance(result, dict) and 'overall_score' in result:
+            result['overall_score'] = max(0, min(100, int(result['overall_score'])))
+            if result.get('hire_recommendation') not in ('Recommend', 'Maybe', 'Not Recommend'):
+                result['hire_recommendation'] = 'Maybe'
+            return result
+    except Exception as e:
+        print(f"[InterviewGenerator] generate_final_report failed: {e}")
+
+    # Fallback: compute from existing scores
+    scores = [a.get('score', 0) for a in answers if 'score' in a]
+    avg    = (sum(scores) / len(scores) * 10) if scores else 50
+    rec    = 'Recommend' if avg >= 65 else 'Maybe' if avg >= 45 else 'Not Recommend'
+    return {
+        'overall_score':        round(avg),
+        'hire_recommendation':  rec,
+        'recommendation_reason': 'Score computed from individual answer scores.',
+        'strengths':  ['Completed all interview questions'],
+        'weaknesses': ['Detailed analysis unavailable — Gemini offline'],
+        'per_question': [{'q_index': a.get('q_index', i), 'score': a.get('score', 0), 'reason': a.get('feedback', '')}
+                         for i, a in enumerate(answers)],
+    }
 
 
 def _fallback_questions(job, req_skills, gaps_text, dept_cat) -> list:
