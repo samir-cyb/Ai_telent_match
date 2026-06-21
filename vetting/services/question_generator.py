@@ -3,7 +3,6 @@ import random
 from google import genai
 
 
-
 # Variety seeds so Gemini never generates the same question
 _VARIETY_SEEDS = [
     "Focus on edge cases and real-world messy input.",

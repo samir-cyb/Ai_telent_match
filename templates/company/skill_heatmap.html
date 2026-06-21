@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% block title %}Skill Demand Heatmap | AI Talent Match{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:1100px;padding:2rem 1rem 4rem;">
+
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;flex-wrap:wrap;gap:1rem;">
+    <div>
+      <h1 style="font-size:1.8rem;font-weight:800;margin:0;
+        background:linear-gradient(135deg,#48bbff,#a855f7);
+        -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+        📊 Skill Demand Heatmap
+      </h1>
+      <p style="color:#64748b;margin:.3rem 0 0;font-size:.9rem;">
+        Real-time talent market intelligence across all active jobs on the platform
+      </p>
+    </div>
+    <div style="display:flex;gap:.75rem;align-items:center;">
+      <div id="stats-pill" style="
+        background:rgba(72,187,255,.08);border:1px solid rgba(72,187,255,.2);
+        border-radius:999px;padding:.4rem 1rem;font-size:.82rem;color:#93c5fd;
+      ">Loading…</div>
+      <a href="/company/dashboard/" style="
+        background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+        color:#94a3b8;text-decoration:none;padding:.4rem 1rem;border-radius:8px;font-size:.82rem;
+      ">← Dashboard</a>
+    </div>
+  </div>
+
+  <!-- Tab nav -->
+  <div style="display:flex;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+    <button class="tab-btn active" data-tab="top10" onclick="switchTab('top10', this)">🔥 Top 10 Skills</button>
+    <button class="tab-btn" data-tab="gap" onclick="switchTab('gap', this)">⚡ Supply vs Demand Gap</button>
+    <button class="tab-btn" data-tab="dept" onclick="switchTab('dept', this)">🏛️ By Department</button>
+    <button class="tab-btn" data-tab="trend" onclick="switchTab('trend', this)">📈 Weekly Trend</button>
+  </div>
+
+  <!-- Tab panels -->
+  <div id="tab-top10" class="tab-panel">
+    <div class="glass-card" style="padding:1.5rem;">
+      <h3 style="margin:0 0 .5rem;font-size:1rem;color:#e2e8f0;">Most In-Demand Skills</h3>
+      <p style="color:#64748b;font-size:.82rem;margin:0 0 1.5rem;">
+        Number of active job postings requiring each skill
+      </p>
+      <div style="position:relative;height:340px;">
+        <canvas id="top10Chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-gap" class="tab-panel" style="display:none;">
+    <div class="glass-card" style="padding:1.5rem;">
+      <h3 style="margin:0 0 .5rem;font-size:1rem;color:#e2e8f0;">Supply vs Demand Gap</h3>
+      <p style="color:#64748b;font-size:.82rem;margin:0 0 1.5rem;">
+        Red = talent shortage (demand &gt; supply). This is where you'll struggle to hire.
+      </p>
+      <div style="position:relative;height:360px;">
+        <canvas id="gapChart"></canvas>
+      </div>
+    </div>
+    <!-- Gap cards -->
+    <div id="gap-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;margin-top:1.5rem;"></div>
+  </div>
+
+  <div id="tab-dept" class="tab-panel" style="display:none;">
+    <div id="dept-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5rem;"></div>
+  </div>
+
+  <div id="tab-trend" class="tab-panel" style="display:none;">
+    <div class="glass-card" style="padding:1.5rem;">
+      <h3 style="margin:0 0 .5rem;font-size:1rem;color:#e2e8f0;">Weekly Trending Skills</h3>
+      <p style="color:#64748b;font-size:.82rem;margin:0 0 1.5rem;">
+        Skills most demanded in jobs posted in the last 7 days
+      </p>
+      <div style="position:relative;height:340px;">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+.tab-btn {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  color: #64748b;
+  padding: .5rem 1.1rem;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+}
+.tab-btn.active, .tab-btn:hover {
+  background: rgba(72,187,255,.12);
+  border-color: rgba(72,187,255,.35);
+  color: #48bbff;
+}
+.gap-card {
+  background: rgba(15,23,42,.7);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+  transition: border-color .2s;
+}
+.gap-card:hover { border-color: rgba(72,187,255,.3); }
+.dept-card {
+  background: rgba(15,23,42,.7);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 1.25rem;
+}
+.dept-card h4 {
+  margin: 0 0 1rem;
+  font-size: .9rem;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.dept-skill-bar {
+  margin-bottom: .65rem;
+}
+.dept-skill-bar .label {
+  display: flex;
+  justify-content: space-between;
+  font-size: .78rem;
+  color: #94a3b8;
+  margin-bottom: .25rem;
+}
+.dept-skill-bar .bar-track {
+  height: 8px;
+  background: rgba(255,255,255,.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.dept-skill-bar .bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #48bbff, #a855f7);
+  transition: width .8s ease;
+}
+</style>
+
+<script>
+const COMPANY_ID = "{{ company_id }}";
+const API_BASE   = window.API_BASE || "http://127.0.0.1:8000/api";
+
+const chartDefaults = {
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(10,15,30,.95)',
+      borderColor: 'rgba(72,187,255,.3)',
+      borderWidth: 1,
+      titleColor: '#e2e8f0',
+      bodyColor: '#94a3b8',
+      padding: 10,
+    }
+  },
+  scales: {
+    x: {
+      ticks: { color: '#64748b', font: { size: 11 } },
+      grid:  { color: 'rgba(255,255,255,.04)' },
+    },
+    y: {
+      ticks: { color: '#64748b', font: { size: 11 } },
+      grid:  { color: 'rgba(255,255,255,.04)' },
+    }
+  }
+};
+
+let charts = {};
+
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).style.display = 'block';
+  btn.classList.add('active');
+}
+
+async function loadHeatmap() {
+  try {
+    const r = await fetch(`${API_BASE}/company/${COMPANY_ID}/skill-heatmap/`);
+    const d = await r.json();
+    if (d.status !== 'success') return;
+
+    // Stats pill
+    document.getElementById('stats-pill').textContent =
+      `${d.total_active_jobs} active jobs · ${d.total_students} students`;
+
+    buildTop10(d.top10);
+    buildGap(d.gap_data);
+    buildDept(d.dept_breakdown);
+    buildTrend(d.weekly_trend);
+  } catch (e) {
+    console.error('Heatmap load error:', e);
+    document.getElementById('stats-pill').textContent = 'Error loading data';
+  }
+}
+
+function buildTop10(data) {
+  if (!data || !data.length) return;
+  const labels = data.map(d => d.skill);
+  const values = data.map(d => d.count);
+  const maxVal = Math.max(...values);
+  const colors = values.map(v => {
+    const ratio = v / maxVal;
+    return `rgba(${Math.round(72 + (168-72)*ratio)}, ${Math.round(187 - (187-85)*ratio)}, ${Math.round(255 - (255-247)*ratio)}, 0.8)`;
+  });
+
+  if (charts.top10) charts.top10.destroy();
+  charts.top10 = new Chart(document.getElementById('top10Chart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 8, borderSkipped: false }] },
+    options: {
+      ...chartDefaults,
+      indexAxis: 'y',
+      plugins: { ...chartDefaults.plugins },
+      scales: {
+        x: { ...chartDefaults.scales.x, title: { display: true, text: 'Number of Job Postings', color: '#64748b', font: { size: 11 } } },
+        y: { ...chartDefaults.scales.y }
+      }
+    }
+  });
+}
+
+function buildGap(data) {
+  if (!data || !data.length) return;
+  const labels  = data.map(d => d.skill);
+  const demand  = data.map(d => d.demand);
+  const supply  = data.map(d => d.supply);
+
+  if (charts.gap) charts.gap.destroy();
+  charts.gap = new Chart(document.getElementById('gapChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Demand (Jobs)', data: demand, backgroundColor: 'rgba(239,68,68,.7)',  borderRadius: 6 },
+        { label: 'Supply (Students)', data: supply, backgroundColor: 'rgba(34,197,94,.7)', borderRadius: 6 },
+      ]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: {
+        ...chartDefaults.plugins,
+        legend: {
+          display: true,
+          labels: { color: '#94a3b8', font: { size: 11 } }
+        }
+      },
+    }
+  });
+
+  // Gap cards
+  const container = document.getElementById('gap-cards');
+  container.innerHTML = data.map(d => {
+    const gapPct = d.demand > 0 ? Math.round((d.gap / d.demand) * 100) : 0;
+    const severity = gapPct > 60 ? 'critical' : gapPct > 30 ? 'moderate' : 'low';
+    const color    = severity === 'critical' ? '#ef4444' : severity === 'moderate' ? '#f59e0b' : '#22c55e';
+    return `
+    <div class="gap-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
+        <span style="font-weight:700;color:#e2e8f0;font-size:.9rem;">${d.skill}</span>
+        <span style="background:${color}20;border:1px solid ${color}60;color:${color};
+          font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;">
+          ${severity.toUpperCase()}
+        </span>
+      </div>
+      <div style="font-size:.78rem;color:#64748b;margin-bottom:.4rem;">
+        Demand: <strong style="color:#fca5a5;">${d.demand}</strong> jobs ·
+        Supply: <strong style="color:#86efac;">${d.supply}</strong> students
+      </div>
+      <div style="background:rgba(255,255,255,.05);border-radius:999px;height:6px;overflow:hidden;">
+        <div style="width:${Math.min(100, Math.round((d.supply/Math.max(d.demand,1))*100))}%;
+          height:100%;background:#22c55e;border-radius:999px;"></div>
+      </div>
+      <div style="font-size:.72rem;color:#64748b;margin-top:.3rem;">
+        ${Math.min(100, Math.round((d.supply/Math.max(d.demand,1))*100))}% supply coverage
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function buildDept(data) {
+  if (!data || !Object.keys(data).length) {
+    document.getElementById('dept-grid').innerHTML =
+      '<p style="color:#64748b;text-align:center;grid-column:1/-1;">No department data available yet.</p>';
+    return;
+  }
+  const deptIcons = { CSE:'💻', BBA:'📊', EEE:'⚡', General:'🏢', CE:'🏗️', ME:'⚙️' };
+  const container = document.getElementById('dept-grid');
+  container.innerHTML = Object.entries(data).map(([dept, skills]) => {
+    const max = Math.max(...skills.map(s => s.count), 1);
+    return `
+    <div class="dept-card">
+      <h4>${deptIcons[dept] || '🎓'} ${dept}</h4>
+      ${skills.map(s => `
+        <div class="dept-skill-bar">
+          <div class="label"><span>${s.skill}</span><span>${s.count} jobs</span></div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:${Math.round((s.count/max)*100)}%;"></div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function buildTrend(data) {
+  if (!data || !data.length) {
+    document.getElementById('tab-trend').innerHTML +=
+      '<p style="color:#64748b;text-align:center;margin-top:2rem;">No jobs posted in the last 7 days yet.</p>';
+    return;
+  }
+  const labels = data.map(d => d.skill);
+  const values = data.map(d => d.count);
+
+  if (charts.trend) charts.trend.destroy();
+  charts.trend = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: '#48bbff',
+        backgroundColor: 'rgba(72,187,255,.08)',
+        fill: true,
+        tension: .4,
+        pointBackgroundColor: '#48bbff',
+        pointRadius: 5,
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: { ...chartDefaults.plugins },
+      scales: {
+        x: { ...chartDefaults.scales.x },
+        y: { ...chartDefaults.scales.y,
+          title: { display: true, text: 'Demand (last 7 days)', color: '#64748b', font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+loadHeatmap();
+</script>
+{% endblock %}
