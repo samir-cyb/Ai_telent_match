@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+{% block title %}AI Interview Result — {{ interview.application.student.name }}{% endblock %}
+
+{% block content %}
+<div style="padding:2rem; max-width:1000px; margin:0 auto;">
+
+  <!-- ── Back ── -->
+  <a href="/company/agent-run/{{ interview.agent_run.id }}/" style="color:#64748b;text-decoration:none;font-size:.85rem;">
+    ← Back to Agent Report
+  </a>
+
+  <!-- ── Header ── -->
+  <div style="display:flex;align-items:center;gap:1.5rem;margin:1.5rem 0 2rem;">
+    <div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#a855f7);
+      display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:900;color:#fff;">
+      {{ interview.application.student.name|slice:":1"|upper }}
+    </div>
+    <div>
+      <h1 style="margin:0;font-size:1.4rem;color:#f0f9ff;">{{ interview.application.student.name }}</h1>
+      <p style="margin:.2rem 0 0;color:#64748b;font-size:.9rem;">
+        {{ interview.application.job.title }} · AI Interview Results
+      </p>
+    </div>
+    <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:.5rem;">
+      <span style="padding:.4rem 1rem;border-radius:999px;font-size:.82rem;font-weight:700;
+        {% if interview.status == 'completed' %}background:#22c55e22;color:#22c55e;
+        {% elif interview.status == 'in_progress' %}background:#f59e0b22;color:#f59e0b;
+        {% else %}background:#3b82f622;color:#3b82f6;{% endif %}">
+        {{ interview.status|title }}
+      </span>
+      {% if interview.expires_at %}
+      <span style="font-size:.75rem;color:#64748b;">
+        ⏰ Deadline: {{ interview.expires_at|date:"M d, Y H:i" }}
+      </span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Score cards ── -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem;">
+    <div class="glass-card" style="padding:1.5rem;text-align:center;">
+      <div style="font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem;">Agent Score</div>
+      <div style="font-size:2.2rem;font-weight:900;color:#3b82f6;">{{ agent_score_pct|floatformat:1 }}%</div>
+      <div style="font-size:.75rem;color:#475569;margin-top:.3rem;">Recruitment AI</div>
+    </div>
+    <div class="glass-card" style="padding:1.5rem;text-align:center;">
+      <div style="font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem;">Interview Score</div>
+      {% if interview.interview_score is not None %}
+      <div style="font-size:2.2rem;font-weight:900;color:#a78bfa;">{{ interview.interview_score|floatformat:1 }}%</div>
+      {% else %}
+      <div style="font-size:2.2rem;font-weight:900;color:#475569;">—</div>
+      {% endif %}
+      <div style="font-size:.75rem;color:#475569;margin-top:.3rem;">AI Assessed (60%)</div>
+    </div>
+    <div class="glass-card" style="padding:1.5rem;text-align:center;">
+      <div style="font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem;">Combined Score</div>
+      {% if interview.combined_score is not None %}
+      <div style="font-size:2.2rem;font-weight:900;
+        color:{% if interview.combined_score >= 60 %}#22c55e{% elif interview.combined_score >= 45 %}#f59e0b{% else %}#ef4444{% endif %};">
+        {{ interview.combined_score|floatformat:1 }}%
+      </div>
+      <div style="font-size:.75rem;color:#475569;margin-top:.3rem;">
+        {% if interview.combined_score >= 60 %}✅ Shortlist
+        {% elif interview.combined_score >= 45 %}⚠ Manual Review
+        {% else %}❌ Reject{% endif %}
+      </div>
+      {% else %}
+      <div style="font-size:2.2rem;font-weight:900;color:#475569;">—</div>
+      <div style="font-size:.75rem;color:#475569;margin-top:.3rem;">Not yet available</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Gemini Analysis ── -->
+  {% if interview.status == 'completed' %}
+  <div id="analysis-section">
+
+    {% if interview.gemini_analysis %}
+    {% with a=interview.gemini_analysis %}
+
+    <!-- Hire Recommendation Banner -->
+    <div class="glass-card" style="padding:1.5rem;margin-bottom:1.5rem;
+      {% if a.hire_recommendation == 'Recommend' %}border-left:4px solid #22c55e;background:rgba(34,197,94,0.05);
+      {% elif a.hire_recommendation == 'Maybe' %}border-left:4px solid #f59e0b;background:rgba(245,158,11,0.05);
+      {% else %}border-left:4px solid #ef4444;background:rgba(239,68,68,0.05);{% endif %}">
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <div style="font-size:2rem;">
+          {% if a.hire_recommendation == 'Recommend' %}✅
+          {% elif a.hire_recommendation == 'Maybe' %}⚠️
+          {% else %}❌{% endif %}
+        </div>
+        <div>
+          <div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem;">Gemini Hire Recommendation</div>
+          <div style="font-size:1.3rem;font-weight:800;
+            {% if a.hire_recommendation == 'Recommend' %}color:#22c55e;
+            {% elif a.hire_recommendation == 'Maybe' %}color:#f59e0b;
+            {% else %}color:#ef4444;{% endif %}">
+            {{ a.hire_recommendation }}
+          </div>
+          <p style="color:#94a3b8;font-size:.87rem;margin:.4rem 0 0;line-height:1.5;">{{ a.recommendation_reason }}</p>
+        </div>
+        <div style="margin-left:auto;text-align:center;">
+          <div style="font-size:.7rem;color:#64748b;margin-bottom:.3rem;">GEMINI SCORE</div>
+          <div style="font-size:2rem;font-weight:900;
+            {% if a.overall_score >= 70 %}color:#22c55e;{% elif a.overall_score >= 50 %}color:#f59e0b;{% else %}color:#ef4444;{% endif %}">
+            {{ a.overall_score }}/100
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Strengths & Weaknesses -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+      <div class="glass-card" style="padding:1.25rem;border-top:3px solid #22c55e;">
+        <div style="font-size:.75rem;color:#22c55e;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.8rem;">💪 Strengths</div>
+        {% for s in a.strengths %}
+        <div style="display:flex;gap:.6rem;align-items:flex-start;margin-bottom:.5rem;">
+          <span style="color:#22c55e;font-size:.8rem;margin-top:.1rem;">✓</span>
+          <span style="color:#e2e8f0;font-size:.85rem;line-height:1.5;">{{ s }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="glass-card" style="padding:1.25rem;border-top:3px solid #f59e0b;">
+        <div style="font-size:.75rem;color:#f59e0b;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.8rem;">⚠ Areas to Improve</div>
+        {% for w in a.weaknesses %}
+        <div style="display:flex;gap:.6rem;align-items:flex-start;margin-bottom:.5rem;">
+          <span style="color:#f59e0b;font-size:.8rem;margin-top:.1rem;">→</span>
+          <span style="color:#94a3b8;font-size:.85rem;line-height:1.5;">{{ w }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Radar Chart -->
+    <div class="glass-card" style="padding:1.5rem;margin-bottom:1.5rem;">
+      <h3 style="margin:0 0 1rem;color:#f0f9ff;font-size:.95rem;">📊 Performance Radar</h3>
+      <div style="position:relative;height:260px;">
+        <canvas id="radarChart"></canvas>
+      </div>
+    </div>
+
+    {% endwith %}
+    {% else %}
+    <!-- Run Analysis button -->
+    <div class="glass-card" style="padding:2rem;text-align:center;margin-bottom:1.5rem;border:2px dashed #334155;">
+      <div style="font-size:2rem;margin-bottom:.75rem;">🤖</div>
+      <h3 style="color:#f0f9ff;margin:0 0 .5rem;">Run Gemini Analysis</h3>
+      <p style="color:#64748b;font-size:.88rem;margin:0 0 1.25rem;">
+        Get AI-powered hiring recommendation, per-question reasoning, strengths & weaknesses.
+      </p>
+      <button id="analyze-btn" onclick="runAnalysis()"
+        style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;
+          padding:.85rem 2rem;border-radius:12px;cursor:pointer;font-size:.95rem;font-weight:700;">
+        <i class="fas fa-brain"></i> Analyze with Gemini
+      </button>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ── Q&A Transcript ── -->
+  <div class="glass-card" style="padding:1.5rem;margin-bottom:2rem;">
+    <h3 style="margin:0 0 1.2rem;color:#f0f9ff;font-size:.95rem;">📋 Interview Transcript</h3>
+
+    {% if qa_pairs %}
+      {% for qa in qa_pairs %}
+      <div style="margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid #1e293b;">
+        <!-- Q header -->
+        <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:.8rem;">
+          <div style="width:28px;height:28px;border-radius:50%;background:#7c3aed33;display:flex;align-items:center;
+            justify-content:center;font-size:.75rem;font-weight:700;color:#c4b5fd;flex-shrink:0;">
+            {{ forloop.counter }}
+          </div>
+          <div>
+            <span style="font-size:.7rem;background:#7c3aed22;color:#c4b5fd;padding:.2rem .6rem;
+              border-radius:6px;font-weight:700;text-transform:uppercase;margin-right:.5rem;">{{ qa.type }}</span>
+            <span style="font-size:.7rem;color:#475569;">{{ qa.target }}</span>
+          </div>
+          {% if qa.score is not None %}
+          <div style="margin-left:auto;font-size:1.1rem;font-weight:900;
+            color:{% if qa.score >= 7 %}#22c55e{% elif qa.score >= 5 %}#f59e0b{% else %}#ef4444{% endif %};">
+            {{ qa.score }}/10
+          </div>
+          {% endif %}
+        </div>
+
+        <p style="color:#e2e8f0;font-size:.9rem;line-height:1.6;margin:0 0 .8rem;padding-left:36px;">
+          <strong>Q:</strong> {{ qa.question }}
+        </p>
+
+        {% if qa.answer %}
+        <p style="color:#94a3b8;font-size:.88rem;line-height:1.6;margin:0 0 .6rem;padding-left:36px;">
+          <strong style="color:#64748b;">A:</strong> {{ qa.answer }}
+        </p>
+        {% else %}
+        <p style="color:#475569;font-size:.85rem;font-style:italic;padding-left:36px;">Not answered yet</p>
+        {% endif %}
+
+        {% if qa.score is not None %}
+        <div style="padding-left:36px;margin-top:.5rem;">
+          <div style="height:4px;background:#1e293b;border-radius:999px;overflow:hidden;margin-bottom:.4rem;">
+            <div style="height:100%;border-radius:999px;width:{{ qa.score_pct }}%;
+              background:{% if qa.score >= 7 %}#22c55e{% elif qa.score >= 5 %}#f59e0b{% else %}#ef4444{% endif %};
+              transition:width 1s ease;"></div>
+          </div>
+          {% if qa.feedback %}
+          <p style="color:#475569;font-size:.78rem;margin:0 0 .3rem;font-style:italic;">💬 {{ qa.feedback }}</p>
+          {% endif %}
+          {% if qa.reason %}
+          <p style="color:#64748b;font-size:.77rem;margin:0;border-left:2px solid #334155;padding-left:.6rem;">
+            🤖 <em>{{ qa.reason }}</em>
+          </p>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <div style="text-align:center;color:#475569;padding:2rem;">
+        <div style="font-size:2rem;margin-bottom:.5rem;">⏳</div>
+        <p>The candidate hasn't started the interview yet.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Action buttons ── -->
+  {% if interview.status == 'completed' %}
+  <div style="display:flex;gap:1rem;justify-content:flex-end;">
+    <button onclick="updateDecision('reject')"
+      style="background:#ef444422;color:#f87171;border:1px solid #ef4444;padding:.8rem 1.8rem;
+        border-radius:10px;cursor:pointer;font-weight:700;font-size:.9rem;">
+      ✗ Reject
+    </button>
+    <button onclick="updateDecision('review')"
+      style="background:#f59e0b22;color:#fbbf24;border:1px solid #f59e0b;padding:.8rem 1.8rem;
+        border-radius:10px;cursor:pointer;font-weight:700;font-size:.9rem;">
+      ⟳ Manual Review
+    </button>
+    <button onclick="scheduleOffline()"
+      style="background:#f9731622;color:#fb923c;border:1px solid #f97316;padding:.8rem 1.8rem;
+        border-radius:10px;cursor:pointer;font-weight:700;font-size:.9rem;">
+      🏢 Schedule Final Interview
+    </button>
+    <button onclick="updateDecision('hire')"
+      style="background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;
+        padding:.8rem 1.8rem;border-radius:10px;cursor:pointer;font-weight:700;font-size:.9rem;">
+      ✓ Hire Candidate
+    </button>
+  </div>
+  {% endif %}
+
+  <!-- Toast -->
+  <div id="toast" style="display:none;position:fixed;bottom:2rem;right:2rem;background:#1e293b;
+    color:#f1f5f9;padding:1rem 1.5rem;border-radius:12px;font-size:.9rem;z-index:999;
+    border-left:4px solid #22c55e;box-shadow:0 8px 32px rgba(0,0,0,.4);"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+const INTERVIEW_ID = "{{ interview.id }}";
+const APP_ID       = "{{ interview.application.id }}";
+
+{% if interview.gemini_analysis %}
+// Radar chart using per-question scores from Gemini analysis
+const radarScores  = [{% for qa in qa_pairs %}{{ qa.score|default:0 }}{% if not forloop.last %},{% endif %}{% endfor %}];
+const radarLabels  = [{% for qa in qa_pairs %}"Q{{ forloop.counter }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+if (document.getElementById('radarChart')) {
+  new Chart(document.getElementById('radarChart'), {
+    type: 'radar',
+    data: {
+      labels: radarLabels,
+      datasets: [{
+        label: 'Score (0-10)',
+        data: radarScores,
+        backgroundColor: 'rgba(167,139,250,0.2)',
+        borderColor: '#a78bfa',
+        pointBackgroundColor: '#a78bfa',
+        pointRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        r: { min:0, max:10, grid:{color:'#1e293b'},
+          ticks:{color:'#475569',backdropColor:'transparent',stepSize:2},
+          pointLabels:{color:'#94a3b8',font:{size:12}} }
+      },
+      plugins:{legend:{labels:{color:'#94a3b8'}}}
+    }
+  });
+}
+{% endif %}
+
+async function runAnalysis() {
+  const btn = document.getElementById('analyze-btn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing…';
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/interview/${INTERVIEW_ID}/analyze/`, {method:'POST'});
+    const d = await r.json();
+    if (d.status === 'success') {
+      location.reload();  // Reload to show analysis
+    } else {
+      alert('Analysis failed: ' + d.message);
+      btn.innerHTML = '<i class="fas fa-brain"></i> Retry Analysis';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    alert('Network error: ' + e.message);
+    btn.innerHTML = '<i class="fas fa-brain"></i> Retry Analysis';
+    btn.disabled = false;
+  }
+}
+
+async function updateDecision(decision) {
+  const statusMap = {hire:'hired', reject:'rejected', review:'interview'};
+  const r = await fetch('/api/application/update/', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({application_id: APP_ID, status: statusMap[decision]})
+  });
+  const d = await r.json();
+  const toast = document.getElementById('toast');
+  toast.textContent = decision==='hire' ? '✅ Candidate hired!' : decision==='reject' ? '❌ Candidate rejected.' : '🔄 Moved to manual review.';
+  toast.style.display = 'block';
+  toast.style.borderLeftColor = decision==='hire' ? '#22c55e' : decision==='reject' ? '#ef4444' : '#f59e0b';
+  setTimeout(() => toast.style.display='none', 3000);
+}
+
+function scheduleOffline() {
+  window.location.href = `/company/applicants/?job={{ interview.application.job.id }}&schedule={{ interview.application.id }}`;
+}
+</script>
+{% endblock %}

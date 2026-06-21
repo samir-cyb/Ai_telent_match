@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Error | Assessment{% endblock %}
+{% block content %}
+<div class="container" style="padding: 2rem; text-align: center;">
+    <div class="glass-card" style="padding: 3rem;">
+        <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: #ff5858; margin-bottom: 1rem;"></i>
+        <h2 style="color: #f0f9ff; margin-bottom: 1rem;">Assessment Error</h2>
+        <p style="color: #94a3b8; margin-bottom: 2rem;">{{ message|default:"An error occurred during your assessment." }}</p>
+        <a href="/student/dashboard/" class="btn-primary">Back to Dashboard</a>
+    </div>
+</div>
+{% endblock %}

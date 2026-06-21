@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% block title %}AI Interview — Question {{ q_number }} of {{ total }}{% endblock %}
+
+{% block content %}
+<div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:2rem;">
+<div style="width:100%; max-width:720px;">
+
+  <!-- ── Expired State ── -->
+  {% if is_expired %}
+  <div style="text-align:center;padding:3rem 1rem;">
+    <div style="font-size:3rem;margin-bottom:1rem;">⏰</div>
+    <h2 style="color:#ef4444;margin:0 0 .75rem;">Interview Deadline Passed</h2>
+    <p style="color:#64748b;font-size:.95rem;max-width:420px;margin:0 auto 1.5rem;">
+      This AI interview for <strong style="color:#e2e8f0;">{{ interview.application.job.title }}</strong>
+      at <strong style="color:#e2e8f0;">{{ interview.application.job.company.name }}</strong>
+      expired on {{ interview.expires_at|date:"M d, Y \a\t H:i" }}.
+    </p>
+    <p style="color:#475569;font-size:.85rem;">Please contact the company if you believe this is an error.</p>
+  </div>
+  {% else %}
+
+  <!-- ── Header ── -->
+  <div style="text-align:center; margin-bottom:2rem;">
+    <div style="font-size:2rem; margin-bottom:.5rem;">🤖</div>
+    <h1 style="font-size:1.4rem; color:#f0f9ff; margin:0;">AI Interview</h1>
+    <p style="color:#64748b; margin:.3rem 0 0; font-size:.9rem;">
+      {{ interview.application.job.title }} — {{ interview.application.job.company.name }}
+    </p>
+    {% if interview.expires_at %}
+    <div style="display:inline-flex;align-items:center;gap:.4rem;margin-top:.6rem;padding:.35rem .85rem;
+      border-radius:999px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);">
+      <i class="fas fa-clock" style="color:#f87171;font-size:.75rem;"></i>
+      <span style="color:#f87171;font-size:.78rem;font-weight:600;">
+        Deadline: {{ interview.expires_at|date:"M d, Y H:i" }}
+      </span>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Progress bar ── -->
+  <div style="margin-bottom:2rem;">
+    <div style="display:flex; justify-content:space-between; font-size:.8rem; color:#64748b; margin-bottom:.5rem;">
+      <span>Question {{ q_number }} of {{ total }}</span>
+      <span>{{ progress_pct }}% complete</span>
+    </div>
+    <div style="background:#1e293b; border-radius:999px; height:8px; overflow:hidden;">
+      <div id="progress-fill" style="height:100%; border-radius:999px; width:{{ progress_pct }}%;
+        background:linear-gradient(90deg,#3b82f6,#a78bfa); transition:width .6s ease;"></div>
+    </div>
+    <!-- Step dots -->
+    <div style="display:flex; gap:.5rem; margin-top:.8rem; justify-content:center;">
+      {% for i in interview.questions %}
+      <div style="width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+        font-size:.72rem; font-weight:700;
+        {% if forloop.counter < q_number %}background:#22c55e; color:#fff;
+        {% elif forloop.counter == q_number %}background:#3b82f6; color:#fff;
+        {% else %}background:#1e293b; color:#475569;{% endif %}">
+        {% if forloop.counter < q_number %}✓{% else %}{{ forloop.counter }}{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── Question card ── -->
+  <div class="glass-card" style="padding:2rem; margin-bottom:1.5rem;" id="question-card">
+    <div style="display:flex; align-items:center; gap:.8rem; margin-bottom:1.2rem;">
+      <span style="background:#3b82f633; color:#93c5fd; padding:.3rem .8rem; border-radius:8px; font-size:.75rem; font-weight:700; text-transform:uppercase;">
+        {{ question.type|default:"question" }}
+      </span>
+      <span style="font-size:.75rem; color:#475569;">{{ question.target }}</span>
+    </div>
+    <p style="color:#f1f5f9; font-size:1.05rem; line-height:1.7; margin:0; font-weight:500;">
+      {{ question.question }}
+    </p>
+  </div>
+
+  <!-- ── Answer area ── -->
+  <div class="glass-card" style="padding:1.5rem; margin-bottom:1rem;" id="answer-card">
+    <label style="display:block; font-size:.85rem; color:#64748b; margin-bottom:.8rem; font-weight:600;">
+      YOUR ANSWER
+    </label>
+    <textarea id="answer-input"
+      placeholder="Type your answer here. Be specific and use examples where possible…"
+      style="width:100%; min-height:160px; background:#0f172a; border:1px solid #334155;
+        border-radius:10px; color:#e2e8f0; padding:1rem; font-size:.9rem; line-height:1.6;
+        resize:vertical; font-family:inherit; outline:none; box-sizing:border-box;"
+      oninput="updateWordCount(this)"></textarea>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:.8rem;">
+      <span id="word-count" style="font-size:.75rem; color:#475569;">0 words</span>
+      <span style="font-size:.75rem; color:#475569;">Aim for 50–200 words</span>
+    </div>
+  </div>
+
+  <!-- ── Score reveal (hidden until answer submitted) ── -->
+  <div id="score-reveal" style="display:none; margin-bottom:1.5rem;">
+    <div class="glass-card" style="padding:1.5rem; border-left:4px solid #22c55e;">
+      <div style="display:flex; align-items:center; gap:1rem; margin-bottom:.8rem;">
+        <div style="font-size:2rem; font-weight:900;" id="score-display">—</div>
+        <div>
+          <div style="font-size:.75rem; color:#64748b; text-transform:uppercase; letter-spacing:.05em;">AI Score</div>
+          <div style="height:6px; width:200px; background:#1e293b; border-radius:999px; margin-top:.3rem; overflow:hidden;">
+            <div id="score-bar" style="height:100%; border-radius:999px; background:#22c55e; width:0%; transition:width 1s ease;"></div>
+          </div>
+        </div>
+      </div>
+      <p id="score-feedback" style="color:#94a3b8; font-size:.88rem; line-height:1.6; margin:0;"></p>
+    </div>
+  </div>
+
+  <!-- ── Buttons ── -->
+  <div style="display:flex; gap:1rem; justify-content:flex-end;">
+    <div id="submit-area">
+      <button id="submit-btn" onclick="submitAnswer()"
+        style="background:linear-gradient(135deg,#3b82f6,#6366f1); color:#fff; border:none;
+          padding:.85rem 2rem; border-radius:12px; cursor:pointer; font-size:.95rem; font-weight:700;">
+        Submit Answer <i class="fas fa-arrow-right"></i>
+      </button>
+    </div>
+    <div id="next-area" style="display:none;">
+      <a id="next-btn" href="#"
+        style="display:inline-block; background:#22c55e; color:#fff; border:none;
+          padding:.85rem 2rem; border-radius:12px; cursor:pointer; font-size:.95rem; font-weight:700;
+          text-decoration:none;">
+        Next Question <i class="fas fa-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── Tips ── -->
+  <div style="margin-top:2rem; background:#0f172a; border-radius:10px; padding:1rem 1.2rem; border:1px solid #1e293b;">
+    <div style="font-size:.75rem; color:#475569; font-weight:700; margin-bottom:.5rem; text-transform:uppercase; letter-spacing:.05em;">💡 Tips</div>
+    <div style="font-size:.8rem; color:#475569; line-height:1.8;">
+      Use specific examples · Mention outcomes and impact · Be honest about gaps · STAR format for behavioral questions
+    </div>
+  </div>
+
+  {% endif %}{# end is_expired check #}
+
+</div>
+</div>
+
+<!-- Anti-cheat violation bar -->
+<div id="cheat-bar" style="
+  display:none; position:fixed; top:0; left:0; right:0; z-index:9999;
+  background:#7f1d1d; border-bottom:2px solid #ef4444;
+  padding:.6rem 1.5rem; display:flex; align-items:center; gap:1rem;
+  font-size:.85rem; color:#fca5a5; font-weight:600;
+">
+  <i class="fas fa-exclamation-triangle" style="color:#f87171;"></i>
+  <span id="cheat-msg">⚠️ Violation detected — return to fullscreen</span>
+  <span style="margin-left:auto;">Violations: <strong id="violation-count" style="color:#fef2f2;">0</strong> / 3</span>
+</div>
+
+<script>
+const TOKEN    = "{{ token }}";
+const Q_INDEX  = {{ q_index }};
+const TOTAL    = {{ total }};
+
+// ── Anti-cheat state ────────────────────────────────────────────────────────
+let tabSwitches     = 0;
+let fullscreenExits = 0;
+let copyPastes      = 0;
+let totalViolations = 0;
+const MAX_VIOLATIONS = 3;
+let answerSubmitted  = false;
+let cheatBarShown    = false;
+
+function showCheatBar(msg) {
+  const bar = document.getElementById('cheat-bar');
+  bar.style.display = 'flex';
+  document.getElementById('cheat-msg').textContent = '⚠️ ' + msg;
+  document.getElementById('violation-count').textContent = totalViolations;
+  cheatBarShown = true;
+}
+
+async function reportViolation(type) {
+  totalViolations++;
+  showCheatBar(
+    type === 'tab_switch'      ? 'Tab switch detected — stay on this page!' :
+    type === 'fullscreen_exit' ? 'Fullscreen exit detected — return to fullscreen!' :
+    'Copy-paste blocked — type your own answer!'
+  );
+  const autoSubmit = totalViolations >= MAX_VIOLATIONS;
+  try {
+    await fetch(`/api/interview/${TOKEN}/report-cheating/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ type, at: new Date().toISOString(), count: totalViolations, auto_submit: autoSubmit }),
+    });
+  } catch (e) { /* silent */ }
+
+  if (autoSubmit && !answerSubmitted) {
+    autoForceSubmit();
+  }
+}
+
+async function autoForceSubmit() {
+  answerSubmitted = true;
+  showCheatBar('🚫 Too many violations — interview auto-submitted and flagged for review.');
+  const answer = document.getElementById('answer-input')?.value?.trim() || '[Auto-submitted due to cheating violations]';
+  try {
+    await fetch(`/interview/${TOKEN}/submit/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ answer, cheating_auto_submit: true }),
+    });
+  } catch (e) { /* silent */ }
+  // Disable all inputs
+  if (document.getElementById('answer-input')) document.getElementById('answer-input').disabled = true;
+  if (document.getElementById('submit-btn'))   document.getElementById('submit-btn').disabled   = true;
+  setTimeout(() => { window.location.href = `/interview/${TOKEN}/done/`; }, 3000);
+}
+
+// ── Fullscreen enforcement ───────────────────────────────────────────────────
+function enterFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+}
+
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) {
+    fullscreenExits++;
+    reportViolation('fullscreen_exit');
+    // Try to re-enter after short delay
+    setTimeout(enterFullscreen, 1500);
+  } else {
+    // Back in fullscreen — hide bar if no pending violations
+    if (cheatBarShown && totalViolations < MAX_VIOLATIONS) {
+      document.getElementById('cheat-bar').style.display = 'none';
+    }
+  }
+});
+
+// ── Tab / window visibility ──────────────────────────────────────────────────
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    tabSwitches++;
+    reportViolation('tab_switch');
+  }
+});
+
+// ── Copy-paste block ─────────────────────────────────────────────────────────
+document.addEventListener('copy',  e => { if (!answerSubmitted) { e.preventDefault(); copyPastes++; reportViolation('copy_paste'); } });
+document.addEventListener('cut',   e => { if (!answerSubmitted) { e.preventDefault(); copyPastes++; reportViolation('copy_paste'); } });
+document.addEventListener('paste', e => { if (!answerSubmitted) { e.preventDefault(); copyPastes++; reportViolation('copy_paste'); } });
+
+// ── Right-click block ────────────────────────────────────────────────────────
+document.addEventListener('contextmenu', e => { if (!answerSubmitted) e.preventDefault(); });
+
+// ── Enter fullscreen on first click / load ───────────────────────────────────
+window.addEventListener('load', () => {
+  // Show fullscreen prompt overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'fs-overlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;
+    backdrop-filter:blur(8px);
+  `;
+  overlay.innerHTML = `
+    <div style="font-size:3rem;">🔒</div>
+    <h2 style="color:#f0f9ff;margin:0;font-size:1.5rem;">Secure Interview Mode</h2>
+    <p style="color:#94a3b8;text-align:center;max-width:380px;margin:0;font-size:.9rem;">
+      This interview runs in fullscreen mode. Tab switching, copy-paste, and leaving fullscreen
+      will be flagged and reported to the company. <strong style="color:#f87171;">3 violations = auto-submit.</strong>
+    </p>
+    <button id="fs-start-btn"
+      style="background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border:none;
+        padding:1rem 2.5rem;border-radius:14px;font-size:1rem;font-weight:700;cursor:pointer;">
+      🔒 Enter Fullscreen &amp; Start
+    </button>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('fs-start-btn').addEventListener('click', () => {
+    overlay.remove();
+    enterFullscreen();
+  });
+});
+
+// ── Word count ───────────────────────────────────────────────────────────────
+function updateWordCount(ta) {
+  const words = ta.value.trim().split(/\s+/).filter(w => w).length;
+  document.getElementById('word-count').textContent = words + ' words';
+  const color = words < 20 ? '#ef4444' : words < 50 ? '#f59e0b' : '#22c55e';
+  document.getElementById('word-count').style.color = color;
+}
+
+// ── Submit answer ────────────────────────────────────────────────────────────
+async function submitAnswer() {
+  if (answerSubmitted) return;
+  const answer = document.getElementById('answer-input').value.trim();
+  if (answer.length < 10) {
+    alert('Please write a more detailed answer before submitting.');
+    return;
+  }
+
+  answerSubmitted = true;
+  const btn = document.getElementById('submit-btn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI is evaluating…';
+  btn.disabled = true;
+
+  try {
+    const r = await fetch(`/interview/${TOKEN}/submit/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({answer}),
+    });
+    const d = await r.json();
+
+    if (d.status !== 'success') {
+      alert('Error: ' + d.message);
+      btn.innerHTML = 'Submit Answer <i class="fas fa-arrow-right"></i>';
+      btn.disabled = false;
+      answerSubmitted = false;
+      return;
+    }
+
+    // Show score
+    const scoreEl = document.getElementById('score-display');
+    const feedEl  = document.getElementById('score-feedback');
+    const barEl   = document.getElementById('score-bar');
+    const reveal  = document.getElementById('score-reveal');
+
+    scoreEl.textContent = `${d.score}/10`;
+    scoreEl.style.color = d.score >= 7 ? '#22c55e' : d.score >= 5 ? '#f59e0b' : '#ef4444';
+    feedEl.textContent  = d.feedback;
+    reveal.style.display = 'block';
+    setTimeout(() => { barEl.style.width = (d.score * 10) + '%'; }, 100);
+
+    document.getElementById('submit-area').style.display = 'none';
+    document.getElementById('next-area').style.display   = 'block';
+    const nextBtn = document.getElementById('next-btn');
+    if (d.is_complete) {
+      nextBtn.href      = d.next_url;
+      nextBtn.innerHTML = '✅ View Final Results <i class="fas fa-arrow-right"></i>';
+      nextBtn.style.background = '#a78bfa';
+    } else {
+      nextBtn.href = d.next_url;
+    }
+    document.getElementById('answer-input').disabled = true;
+
+  } catch(e) {
+    alert('Network error: ' + e.message);
+    btn.innerHTML = 'Submit Answer <i class="fas fa-arrow-right"></i>';
+    btn.disabled = false;
+    answerSubmitted = false;
+  }
+}
+</script>
+{% endblock %}

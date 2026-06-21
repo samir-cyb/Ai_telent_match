@@ -41,7 +41,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='student',
             name='password',
-            field=models.CharField(default='', max_length=255),
+            field=models.CharField(max_length=255),
             preserve_default=False,
         ),
     ]

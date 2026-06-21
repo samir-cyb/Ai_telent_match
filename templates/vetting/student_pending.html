@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Pending Assessments | AI Talent Match{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 2rem 0; max-width: 1000px; margin: 0 auto;">
+    <div class="glass-card" style="padding: 2rem; margin-bottom: 2rem;">
+        <h1 style="color: #48bbff; margin-bottom: 0.5rem;"><i class="fas fa-clipboard-list"></i> Pending Assessments</h1>
+        <p style="color: #94a3b8;">Technical evaluations waiting for your completion</p>
+    </div>
+
+    <div id="assessments-container">
+        <div class="loading-spinner" style="text-align: center; padding: 3rem; color: #48bbff;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+            <p>Loading assessments...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
+const studentId = localStorage.getItem('student_id');
+
+if (!studentId) {
+    window.location.href = '/student/login/';
+}
+
+async function loadPendingAssessments() {
+    const container = document.getElementById('assessments-container');
+    
+    try {
+        const response = await fetch(`${API_BASE}/notifications/${studentId}/student/`);
+        const data = await response.json();
+        
+        console.log("API Response:", data); // DEBUG: Check console to see actual structure
+        
+        if (!data.notifications) {
+            throw new Error('No notifications array in response');
+        }
+        
+        const vettingNotifications = data.notifications.filter(n => 
+            n.type === 'vetting_invitation' && !n.read
+        );
+        
+        if (vettingNotifications.length === 0) {
+            container.innerHTML = `
+                <div class="glass-card" style="padding: 3rem; text-align: center;">
+                    <i class="fas fa-check-circle" style="font-size: 3rem; color: #00b86b; margin-bottom: 1rem;"></i>
+                    <h3 style="color: #f0f9ff; margin-bottom: 0.5rem;">No Pending Assessments</h3>
+                    <p style="color: #94a3b8;">You're all caught up!</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div style="display: flex; flex-direction: column; gap: 1.5rem;">';
+        
+        vettingNotifications.forEach(notif => {
+            // Handle both object and string data fields
+            const notifData = typeof notif.data === 'string' ? JSON.parse(notif.data) : notif.data;
+            const testUrl = notifData?.test_url || `/vetting/test/${notifData?.token}/`;
+            const jobTitle = notif.title.replace('Technical Assessment: ', '');
+            
+            html += `
+                <div class="glass-card" style="padding: 1.5rem; border: 1px solid rgba(72, 187, 255, 0.3);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <h3 style="color: #48bbff; margin-bottom: 0.5rem;">
+                                <i class="fas fa-code"></i> ${jobTitle}
+                            </h3>
+                            <p style="color: #cbd5e1; margin: 0;">${notif.message}</p>
+                        </div>
+                        <a href="${testUrl}" class="btn-primary" style="text-decoration: none; white-space: nowrap;">
+                            <i class="fas fa-play"></i> Start Assessment
+                        </a>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error loading assessments:', error);
+        container.innerHTML = `
+            <div class="glass-card" style="padding: 2rem; text-align: center; color: #ff5858;">
+                <i class="fas fa-exclamation-circle" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                <p>Error loading assessments. Please try again later.</p>
+                <p style="font-size: 0.8rem; margin-top: 0.5rem;">${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+loadPendingAssessments();
+</script>
+{% endblock %}

@@ -1,355 +1,2243 @@
-{% extends "base.html" %}
-{% block title %}Applicants | AI Talent Pool{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Applicants | AI Talent
+Pool{%endblock%} {% block content %}
 <div class="container applicants-container">
-    <!-- Header -->
-    <div class="page-header glass-card">
-        <a href="/company/dashboard/" class="back-link">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
-        <h1>Applicants for <span id="job-title">Loading...</span></h1>
-        <p>Review and manage candidates for this position</p>
+  <!-- Header -->
+  <div class="page-header glass-card">
+    <a href="/company/dashboard/" class="back-link">
+      <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+    <h1>Applicants for <span id="job-title">Loading...</span></h1>
+    <p>Review and manage candidates for this position</p>
+  </div>
+
+  <!-- Filters Bar -->
+  <div class="filters-bar glass-card">
+    <div class="filter-group">
+      <label>Status:</label>
+      <select id="status-filter">
+        <option value="all">All</option>
+        <option value="applied">Applied</option>
+        <option value="shortlisted">Shortlisted</option>
+        <option value="interview">Interview</option>
+        <option value="hired">Hired</option>
+        <option value="rejected">Rejected</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Min Match Score:</label>
+      <input type="range" id="score-filter" min="0" max="100" value="0" />
+      <span id="score-value">0%</span>
+    </div>
+    <div class="filter-actions">
+      <button class="btn-primary" onclick="autoShortlist()">
+        <i class="fas fa-magic"></i> Auto-Shortlist Top 10
+      </button>
+      <button class="btn-primary btn-auto-schedule" onclick="autoScheduleAll()">
+        <i class="fas fa-calendar-week"></i> Auto Schedule
+      </button>
+      <button class="btn-primary" onclick="openSlotModal()">
+        <i class="fas fa-calendar-plus"></i> Set Interview Slots
+      </button>
+      <button class="btn-primary" onclick="viewVettingDashboard()">
+        <i class="fas fa-code"></i> Vetting Dashboard
+      </button>
+      <button class="btn-primary" onclick="exportCSV()">
+        <i class="fas fa-download"></i> Export
+      </button>
+    </div>
+  </div>
+
+  <!-- Two Column Layout -->
+  <div class="applicants-grid">
+    <!-- LEFT COLUMN: Applicants List -->
+    <div class="applicants-list-section">
+      <div id="applicants-list" class="applicants-list">
+        <div class="loading-spinner">
+          <i class="fas fa-spinner fa-spin"></i> Loading applicants...
+        </div>
+      </div>
     </div>
 
-    <!-- Filters -->
-    <div class="filters-bar glass-card">
-        <div class="filter-group">
-            <label>Status:</label>
-            <select id="status-filter">
-                <option value="all">All</option>
-                <option value="applied">Applied</option>
-                <option value="shortlisted">Shortlisted</option>
-                <option value="interview">Interview</option>
-                <option value="hired">Hired</option>
-                <option value="rejected">Rejected</option>
-            </select>
-        </div>
-        <div class="filter-group">
-            <label>Min Match Score:</label>
-            <input type="range" id="score-filter" min="0" max="100" value="0">
-            <span id="score-value">0%</span>
-        </div>
-        <div class="filter-actions">
-            <button class="btn-primary" onclick="autoShortlist()">
-                <i class="fas fa-magic"></i> Auto-Shortlist Top 10
-            </button>
-            <button class="btn-secondary" onclick="exportCSV()">
-                <i class="fas fa-download"></i> Export
-            </button>
-        </div>
-    </div>
-
-    <!-- Stats Summary -->
-    <div class="stats-summary glass-card">
-        <div class="stat-item">
+    <!-- RIGHT COLUMN: Sidebar -->
+    <div class="sidebar-section">
+      <!-- Stats Summary Card -->
+      <div class="stats-summary-card">
+        <h3><i class="fas fa-chart-line"></i> Match Scores</h3>
+        <div class="stats-row-inline">
+          <div class="stat-item">
             <span class="stat-value" id="total-count">0</span>
             <span class="stat-label">Total</span>
-        </div>
-        <div class="stat-item">
+          </div>
+          <div class="stat-item">
             <span class="stat-value" id="avg-score">0%</span>
             <span class="stat-label">Avg Score</span>
-        </div>
-        <div class="stat-item">
+          </div>
+          <div class="stat-item">
             <span class="stat-value" id="top-score">0%</span>
             <span class="stat-label">Top Score</span>
+          </div>
         </div>
+      </div>
+
+      <!-- Interview Slot Availability Card -->
+      <div class="interview-slots-card">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-calendar-alt"></i> Interview Slot Availability
+          </h3>
+          <i class="fas fa-clock"></i>
+        </div>
+        <div id="slot-calendar" class="slot-calendar-content">
+          <div class="loading-small">Loading slots...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slot Setup Modal -->
+<div id="slot-setup-modal" class="modal" style="display: none">
+  <div class="modal-content glass-card">
+    <h3><i class="fas fa-calendar-plus"></i> Set Up Interview Slots</h3>
+    <p>Configure available time slots for interviews</p>
+
+    <div class="form-group">
+      <label>Interview Date</label>
+      <input type="date" id="slot-date" required />
     </div>
 
-    <!-- Applicants List -->
-    <div id="applicants-list" class="applicants-list">
-        <div class="loading-spinner">
-            <i class="fas fa-spinner fa-spin"></i> Loading applicants...
-        </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Start Time</label>
+        <input type="time" id="slot-start" value="09:00" required />
+      </div>
+      <div class="form-group">
+        <label>End Time</label>
+        <input type="time" id="slot-end" value="17:00" required />
+      </div>
     </div>
+
+    <div class="form-group">
+      <label>Slot Duration</label>
+      <select id="slot-duration">
+        <option value="15">15 minutes</option>
+        <option value="30" selected>30 minutes</option>
+        <option value="45">45 minutes</option>
+        <option value="60">1 hour</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Break Start (Optional)</label>
+        <input type="time" id="break-start" value="13:00" />
+      </div>
+      <div class="form-group">
+        <label>Break End (Optional)</label>
+        <input type="time" id="break-end" value="14:00" />
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeSlotModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveInterviewSlots()">
+        <i class="fas fa-save"></i> Create Slots
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule Interview Modal -->
+<div id="schedule-modal" class="modal" style="display: none">
+  <div class="modal-content glass-card">
+    <h3><i class="fas fa-video"></i> Schedule Interview</h3>
+    <p id="schedule-applicant-name">Applicant: Name</p>
+
+    <div class="form-group">
+      <label>Select Available Slot</label>
+      <select id="available-slots-dropdown" onchange="onSlotSelect()">
+        <option value="">-- Choose a time slot --</option>
+      </select>
+    </div>
+
+    <div id="slot-details" class="slot-preview" style="display: none">
+      <p><i class="fas fa-calendar"></i> <span id="preview-date"></span></p>
+      <p><i class="fas fa-clock"></i> <span id="preview-time"></span></p>
+    </div>
+
+    <div class="form-group">
+      <label>Meeting Link (Zoom/Google Meet)</label>
+      <input type="url" id="meeting-link" placeholder="https://zoom.us/j/..." />
+    </div>
+
+    <div class="form-group">
+      <label>Notes for Applicant</label>
+      <textarea
+        id="interview-notes"
+        rows="3"
+        placeholder="Any special instructions..."
+      ></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeScheduleModal()">
+        Cancel
+      </button>
+      <button class="btn-primary" onclick="confirmScheduleInterview()">
+        <i class="fas fa-check"></i> Schedule & Notify
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Vetting Dashboard Modal -->
+<div id="vetting-modal" class="modal" style="display: none">
+  <div class="modal-content glass-card" style="max-width: 900px; width: 95%">
+    <h3><i class="fas fa-code"></i> Technical Vetting Dashboard</h3>
+    <p>Candidates ranked by coding assessment scores</p>
+
+    <div id="vetting-content">
+      <div class="loading-spinner">
+        <i class="fas fa-spinner fa-spin"></i> Loading vetting data...
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeVettingModal()">Close</button>
+      <button class="btn-primary" onclick="createVettingChallenge()">
+        <i class="fas fa-plus"></i> Create New Assessment
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     CREATE ASSESSMENT MODAL  (2-step: Configure → Preview & Edit → Save)
+     ═══════════════════════════════════════════════════════════════════ -->
+<div
+  id="challenge-modal"
+  class="modal"
+  style="display: none; align-items: flex-start; padding-top: 40px"
+>
+  <div
+    class="modal-content glass-card"
+    id="challenge-modal-box"
+    style="
+      max-width: 680px;
+      width: 95%;
+      max-height: 88vh;
+      overflow-y: auto;
+      border-radius: 16px;
+    "
+  >
+    <!-- ── STEP 1: Configure ── -->
+    <div id="step-configure">
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 4px;
+        "
+      >
+        <h3 style="margin: 0">
+          <i class="fas fa-sliders-h" style="color: #3b82f6"></i> Configure
+          Assessment
+        </h3>
+        <button
+          onclick="closeChallengeModal()"
+          style="
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 1.3rem;
+            cursor: pointer;
+          "
+        >
+          ✕
+        </button>
+      </div>
+      <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1.5rem">
+        Fill in the details below — AI builds the entire question paper from
+        your inputs.
+      </p>
+
+      <!-- Assessment Type -->
+      <div class="form-group">
+        <label
+          style="
+            font-weight: 600;
+            color: #e2e8f0;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          "
+          >Assessment Type</label
+        >
+        <div
+          style="
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 8px;
+          "
+        >
+          <div
+            id="type-coding"
+            onclick="selectAssessmentType('coding')"
+            style="
+              padding: 14px;
+              border-radius: 10px;
+              border: 2px solid #3b82f6;
+              background: rgba(59, 130, 246, 0.12);
+              cursor: pointer;
+              text-align: center;
+              transition: all 0.2s;
+            "
+          >
+            <div style="font-size: 1.6rem">💻</div>
+            <div
+              style="
+                font-weight: 700;
+                color: #93c5fd;
+                font-size: 0.88rem;
+                margin-top: 4px;
+              "
+            >
+              Coding Challenge
+            </div>
+            <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px">
+              Tech / Engineering
+            </div>
+          </div>
+          <div
+            id="type-mcq_written"
+            onclick="selectAssessmentType('mcq_written')"
+            style="
+              padding: 14px;
+              border-radius: 10px;
+              border: 2px solid #475569;
+              background: rgba(71, 85, 105, 0.12);
+              cursor: pointer;
+              text-align: center;
+              transition: all 0.2s;
+            "
+          >
+            <div style="font-size: 1.6rem">📝</div>
+            <div
+              style="
+                font-weight: 700;
+                color: #cbd5e1;
+                font-size: 0.88rem;
+                margin-top: 4px;
+              "
+            >
+              MCQ + Written
+            </div>
+            <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px">
+              Business / Design / Arts
+            </div>
+          </div>
+        </div>
+        <input type="hidden" id="challenge-assessment-type" value="coding" />
+      </div>
+
+      <!-- Topic (required) -->
+      <div class="form-group">
+        <label
+          style="
+            font-weight: 600;
+            color: #e2e8f0;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          "
+        >
+          Topic <span style="color: #ef4444">*</span>
+          <span
+            style="
+              font-weight: 400;
+              color: #64748b;
+              font-size: 0.8rem;
+              text-transform: none;
+              letter-spacing: 0;
+            "
+          >
+            — the entire paper is built around this</span
+          >
+        </label>
+        <input
+          type="text"
+          id="challenge-topic"
+          required
+          placeholder="e.g. Django REST APIs, Digital Marketing, Financial Modeling, UI/UX Design Principles…"
+          style="
+            width: 100%;
+            background: #0f172a;
+            border: 2px solid #3b82f6;
+            color: #f1f5f9;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 0.95rem;
+            margin-top: 6px;
+            box-sizing: border-box;
+            outline: none;
+          "
+        />
+      </div>
+
+      <!-- Keywords -->
+      <div class="form-group">
+        <label
+          style="
+            font-weight: 600;
+            color: #e2e8f0;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          "
+        >
+          Keywords / Subtopics
+          <span
+            style="
+              font-weight: 400;
+              color: #64748b;
+              font-size: 0.8rem;
+              text-transform: none;
+              letter-spacing: 0;
+            "
+          >
+            (comma separated)</span
+          >
+        </label>
+        <input
+          type="text"
+          id="challenge-keywords"
+          placeholder="e.g. serializers, JWT auth, pagination  OR  SEO, Google Ads, A/B testing"
+          style="
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #f1f5f9;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            margin-top: 6px;
+            box-sizing: border-box;
+            outline: none;
+          "
+        />
+        <p style="font-size: 0.75rem; color: #64748b; margin-top: 4px">
+          AI will ensure each keyword appears in at least one question.
+        </p>
+      </div>
+
+      <!-- Custom Instructions -->
+      <div class="form-group">
+        <label
+          style="
+            font-weight: 600;
+            color: #e2e8f0;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          "
+        >
+          Custom Instructions to AI
+          <span
+            style="
+              font-weight: 400;
+              color: #64748b;
+              font-size: 0.8rem;
+              text-transform: none;
+              letter-spacing: 0;
+            "
+          >
+            (optional)</span
+          >
+        </label>
+        <textarea
+          id="challenge-custom-instructions"
+          rows="2"
+          placeholder="e.g. Focus on practical scenario questions, avoid pure theory. Use Bangladeshi market context."
+          style="
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #f1f5f9;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 0.88rem;
+            margin-top: 6px;
+            box-sizing: border-box;
+            resize: vertical;
+            outline: none;
+            font-family: inherit;
+          "
+        ></textarea>
+      </div>
+
+      <!-- Row: Department + Seniority -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+        <div class="form-group">
+          <label
+            style="
+              font-weight: 600;
+              color: #e2e8f0;
+              font-size: 0.85rem;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+            "
+            >Department</label
+          >
+          <select
+            id="challenge-department"
+            style="
+              width: 100%;
+              background: #1e293b;
+              border: 1px solid #334155;
+              color: #f1f5f9;
+              border-radius: 8px;
+              padding: 9px 12px;
+              font-size: 0.88rem;
+              margin-top: 6px;
+            "
+          >
+            <option value="any">General / Any</option>
+            <option value="tech">Technology / Software</option>
+            <option value="engineering">Engineering (EEE/Mech)</option>
+            <option value="business">Business / MBA / Finance</option>
+            <option value="design">Design / UI-UX / Arts</option>
+            <option value="science">Science / Research / Math</option>
+            <option value="humanities">Humanities / Media / Econ</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label
+            style="
+              font-weight: 600;
+              color: #e2e8f0;
+              font-size: 0.85rem;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+            "
+            >Seniority Level</label
+          >
+          <select
+            id="challenge-seniority"
+            style="
+              width: 100%;
+              background: #1e293b;
+              border: 1px solid #334155;
+              color: #f1f5f9;
+              border-radius: 8px;
+              padding: 9px 12px;
+              font-size: 0.88rem;
+              margin-top: 6px;
+            "
+          >
+            <option value="any">Any / Not specified</option>
+            <option value="intern">Intern</option>
+            <option value="junior">Junior (0-1 yr)</option>
+            <option value="mid" selected>Mid-level (2-4 yrs)</option>
+            <option value="senior">Senior (5+ yrs)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Row: Difficulty + Time -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+        <div class="form-group">
+          <label
+            style="
+              font-weight: 600;
+              color: #e2e8f0;
+              font-size: 0.85rem;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+            "
+            >Difficulty</label
+          >
+          <select
+            id="challenge-difficulty"
+            style="
+              width: 100%;
+              background: #1e293b;
+              border: 1px solid #334155;
+              color: #f1f5f9;
+              border-radius: 8px;
+              padding: 9px 12px;
+              font-size: 0.88rem;
+              margin-top: 6px;
+            "
+          >
+            <option value="easy">Easy (~30 min)</option>
+            <option value="medium" selected>Medium (~45 min)</option>
+            <option value="hard">Hard (~60 min)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label
+            style="
+              font-weight: 600;
+              color: #e2e8f0;
+              font-size: 0.85rem;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+            "
+            >Time Limit</label
+          >
+          <select
+            id="challenge-timelimit"
+            style="
+              width: 100%;
+              background: #1e293b;
+              border: 1px solid #334155;
+              color: #f1f5f9;
+              border-radius: 8px;
+              padding: 9px 12px;
+              font-size: 0.88rem;
+              margin-top: 6px;
+            "
+          >
+            <option value="30">30 minutes</option>
+            <option value="45" selected>45 minutes</option>
+            <option value="60">60 minutes</option>
+            <option value="90">90 minutes</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- MCQ / Written count (only for mcq_written) -->
+      <div
+        id="mcq-count-row"
+        style="display: none; grid-template-columns: 1fr 1fr; gap: 12px"
+      >
+        <div class="form-group">
+          <label
+            style="
+              font-weight: 600;
+              color: #e2e8f0;
+              font-size: 0.85rem;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+            "
+            >Number of MCQs</label
+          >
+          <select
+            id="challenge-mcq-count"
+            style="
+              width: 100%;
+              background: #1e293b;
+              border: 1px solid #334155;
+              color: #f1f5f9;
+              border-radius: 8px;
+              padding: 9px 12px;
+              font-size: 0.88rem;
+              margin-top: 6px;
+            "
+          >
+            <option value="2">2 questions</option>
+            <option value="3">3 questions</option>
+            <option value="4" selected>4 questions</option>
+            <option value="5">5 questions</option>
+            <option value="6">6 questions</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label
+            style="
+              font-weight: 600;
+              color: #e2e8f0;
+              font-size: 0.85rem;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+            "
+            >Written Questions</label
+          >
+          <select
+            id="challenge-written-count"
+            style="
+              width: 100%;
+              background: #1e293b;
+              border: 1px solid #334155;
+              color: #f1f5f9;
+              border-radius: 8px;
+              padding: 9px 12px;
+              font-size: 0.88rem;
+              margin-top: 6px;
+            "
+          >
+            <option value="1">1 question</option>
+            <option value="2" selected>2 questions</option>
+            <option value="3">3 questions</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 1.5rem">
+        <button class="btn-secondary" onclick="closeChallengeModal()">
+          Cancel
+        </button>
+        <button
+          class="btn-primary"
+          id="generate-btn"
+          onclick="previewChallenge()"
+        >
+          <i class="fas fa-eye"></i> Preview Questions
+        </button>
+      </div>
+    </div>
+    <!-- /step-configure -->
+
+    <!-- ── STEP 2: Preview & Edit ── -->
+    <div id="step-preview" style="display: none">
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 4px;
+        "
+      >
+        <h3 style="margin: 0">
+          <i class="fas fa-edit" style="color: #8b5cf6"></i> Review & Edit
+          Questions
+        </h3>
+        <button
+          onclick="closeChallengeModal()"
+          style="
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 1.3rem;
+            cursor: pointer;
+          "
+        >
+          ✕
+        </button>
+      </div>
+      <p
+        id="preview-subtitle"
+        style="color: #64748b; font-size: 0.85rem; margin-bottom: 1rem"
+      >
+        Edit any question before saving. Changes are reflected in the final
+        assessment.
+      </p>
+
+      <!-- Editable title -->
+      <div class="form-group" style="margin-bottom: 1rem">
+        <label style="font-weight: 600; color: #e2e8f0; font-size: 0.85rem"
+          >Assessment Title</label
+        >
+        <input
+          type="text"
+          id="preview-title"
+          style="
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #f1f5f9;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            margin-top: 4px;
+            box-sizing: border-box;
+            outline: none;
+          "
+        />
+      </div>
+
+      <!-- Questions list (dynamically built) -->
+      <div id="preview-questions"></div>
+
+      <div class="modal-actions" style="margin-top: 1.5rem">
+        <button class="btn-secondary" onclick="backToConfigure()">
+          <i class="fas fa-arrow-left"></i> Back & Reconfigure
+        </button>
+        <button
+          class="btn-secondary"
+          onclick="regeneratePreview()"
+          id="regen-btn"
+          style="margin-left: 8px"
+        >
+          <i class="fas fa-sync"></i> Regenerate
+        </button>
+        <button class="btn-primary" id="save-btn" onclick="saveAssessment()">
+          <i class="fas fa-save"></i> Save Assessment
+        </button>
+      </div>
+    </div>
+    <!-- /step-preview -->
+  </div>
+</div>
+
+<!-- View Code Modal -->
+<div id="code-modal" class="modal" style="display: none">
+  <div class="modal-content glass-card" style="max-width: 800px; width: 95%">
+    <h3><i class="fas fa-code"></i> Candidate Submission</h3>
+    <p id="code-modal-title">Student Name - Score: 0%</p>
+
+    <div class="form-group">
+      <label>Submitted Code</label>
+      <pre id="submitted-code" class="code-preview"></pre>
+    </div>
+
+    <div class="form-group">
+      <label>Test Results</label>
+      <div id="test-results"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeCodeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI Effectiveness Modal -->
+<div id="ai-modal" class="modal" style="display: none">
+  <div class="modal-content glass-card" style="max-width: 550px; width: 95%">
+    <h3>
+      <i class="fas fa-robot" style="color: #a78bfa"></i> AI Effectiveness
+      Analysis
+    </h3>
+    <div id="ai-result" style="text-align: center; padding: 1.5rem 0">
+      <div style="position: relative; display: inline-block">
+        <svg width="160" height="160" viewBox="0 0 160 160">
+          <circle
+            cx="80"
+            cy="80"
+            r="70"
+            fill="none"
+            stroke="#1e293b"
+            stroke-width="12"
+          />
+          <circle
+            id="ai-prob-circle"
+            cx="80"
+            cy="80"
+            r="70"
+            fill="none"
+            stroke="#48bbff"
+            stroke-width="12"
+            stroke-linecap="round"
+            stroke-dasharray="439.82"
+            stroke-dashoffset="439.82"
+            transform="rotate(-90 80 80)"
+            style="transition: stroke-dashoffset 1s ease"
+          />
+        </svg>
+        <div
+          style="
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+          "
+        >
+          <span
+            id="ai-prob-number"
+            style="font-size: 2.5rem; font-weight: 800; color: #f0f9ff"
+            >--%</span
+          >
+          <span style="display: block; font-size: 0.85rem; color: #94a3b8"
+            >Success Probability</span
+          >
+        </div>
+      </div>
+      <p
+        id="ai-explanation"
+        style="
+          color: #cbd5e1;
+          margin-top: 1.5rem;
+          font-size: 1rem;
+          line-height: 1.6;
+          text-align: left;
+          padding: 0 1rem;
+        "
+      >
+        Loading analysis...
+      </p>
+    </div>
+    <div class="modal-actions" style="justify-content: center">
+      <button class="btn-secondary" onclick="closeAIModal()">Close</button>
+    </div>
+  </div>
 </div>
 
 <script>
-const API_BASE = "http://127.0.0.1:8000/api";
-const urlParams = new URLSearchParams(window.location.search);
-const jobId = urlParams.get('job_id');
-const companyId = localStorage.getItem('company_id');
+  // Use existing API_BASE from base.html or declare if not present
+  if (typeof API_BASE === "undefined") {
+    var API_BASE = "http://127.0.0.1:8000/api";
+  }
 
-if (!companyId) {
-    window.location.href = '/company/login/';
-}
+  const urlParams = new URLSearchParams(window.location.search);
+  let jobId = urlParams.get("job_id");
+  const companyId = localStorage.getItem("company_id");
 
-let allApplicants = [];
+  // ✅ FIX: Try localStorage if missing from URL
+  if (!jobId || jobId === "null" || jobId === "undefined") {
+    jobId = localStorage.getItem("last_viewed_job_id");
 
-// Load applicants
-async function loadApplicants() {
+    // If found in localStorage, update URL silently
+    if (jobId && jobId !== "null") {
+      const newUrl = window.location.pathname + "?job_id=" + jobId;
+      window.history.replaceState({}, "", newUrl);
+    }
+  }
+
+  // ✅ Only redirect if absolutely no job_id found anywhere
+  if (!jobId || jobId === "null" || jobId === "undefined") {
+    alert("Error: No job selected. Please go to dashboard and select a job.");
+    window.location.href = "/company/dashboard/";
+    throw new Error("job_id is required");
+  }
+
+  // ✅ Store for next time
+  localStorage.setItem("last_viewed_job_id", jobId);
+
+  if (!companyId) {
+    window.location.href = "/company/login/";
+  }
+
+  if (!companyId) {
+    window.location.href = "/company/login/";
+  }
+
+  let allApplicants = [];
+  let selectedApplicationId = null;
+  let availableSlotsData = [];
+  let vettingData = [];
+
+  // Load applicants
+  async function loadApplicants() {
     try {
-        const response = await fetch(`${API_BASE}/applications/?job_id=${jobId}`);
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            allApplicants = data.applications;
-            if (allApplicants.length > 0) {
-                document.getElementById('job-title').textContent = allApplicants[0].job_title;
-            }
-            updateStats();
-            renderApplicants();
+      const response = await fetch(`${API_BASE}/applications/?job_id=${jobId}`);
+      const data = await response.json();
+
+      if (data.status === "success") {
+        allApplicants = data.applications;
+        if (allApplicants.length > 0) {
+          document.getElementById("job-title").textContent =
+            allApplicants[0].job_title;
         }
+        updateStats();
+        renderApplicants();
+      }
     } catch (error) {
-        console.error('Error loading applicants:', error);
+      console.error("Error loading applicants:", error);
     }
-}
+  }
 
-function updateStats() {
+  function updateStats() {
     const total = allApplicants.length;
-    const avgScore = total > 0 ? Math.round(allApplicants.reduce((sum, a) => sum + (a.match_score || 0), 0) / total) : 0;
-    const topScore = total > 0 ? Math.round(Math.max(...allApplicants.map(a => a.match_score || 0))) : 0;
-    
-    document.getElementById('total-count').textContent = total;
-    document.getElementById('avg-score').textContent = avgScore + '%';
-    document.getElementById('top-score').textContent = topScore + '%';
-}
+    const avgScore =
+      total > 0
+        ? Math.round(
+            allApplicants.reduce((sum, a) => sum + (a.match_score || 0), 0) /
+              total,
+          )
+        : 0;
+    const topScore =
+      total > 0
+        ? Math.round(Math.max(...allApplicants.map((a) => a.match_score || 0)))
+        : 0;
 
-function renderApplicants() {
-    const container = document.getElementById('applicants-list');
-    const statusFilter = document.getElementById('status-filter').value;
-    const minScore = parseInt(document.getElementById('score-filter').value);
-    
-    let filtered = allApplicants.filter(app => {
-        const statusMatch = statusFilter === 'all' || app.status === statusFilter;
-        const scoreMatch = (app.match_score || 0) >= minScore;
-        return statusMatch && scoreMatch;
+    document.getElementById("total-count").textContent = total;
+    document.getElementById("avg-score").textContent = avgScore + "%";
+    document.getElementById("top-score").textContent = topScore + "%";
+  }
+
+  function renderApplicants() {
+    const container = document.getElementById("applicants-list");
+    const statusFilter = document.getElementById("status-filter").value;
+    const minScore = parseInt(document.getElementById("score-filter").value);
+
+    let filtered = allApplicants.filter((app) => {
+      const statusMatch = statusFilter === "all" || app.status === statusFilter;
+      const scoreMatch = (app.match_score || 0) >= minScore;
+      return statusMatch && scoreMatch;
     });
-    
-    // Sort by match score descending
+
     filtered.sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
-    
+
     if (filtered.length === 0) {
-        container.innerHTML = '<p class="no-data">No applicants match your filters</p>';
-        return;
+      container.innerHTML =
+        '<p class="no-data">No applicants match your filters</p>';
+      return;
     }
-    
-    container.innerHTML = filtered.map((app, index) => `
-        <div class="applicant-card glass-card" data-applicant-id="${app.id}">
-            <div class="applicant-rank">#${index + 1}</div>
-            <div class="applicant-info">
-                <h4>${app.student_name}</h4>
-                <div class="applicant-meta">
-                    <span class="match-score-badge" style="background: ${getScoreColor(app.match_score)}">
-                        ${Math.round(app.match_score || 0)}% Match
-                    </span>
-                    <span class="status-badge ${app.status}">${app.status}</span>
-                    <span class="date">Applied ${formatDate(app.applied_at)}</span>
-                </div>
+
+    container.innerHTML = filtered
+      .map(
+        (app, index) => `
+      <div class="applicant-card glass-card" data-applicant-id="${app.id}">
+        <div class="applicant-rank">#${index + 1}</div>
+        <div class="applicant-info">
+          <h4>${app.student_name}</h4>
+          <div class="applicant-meta">
+            <span class="match-score-badge" style="background: ${getScoreColor(app.match_score)}">
+              ${Math.round(app.match_score || 0)}% Match
+            </span>
+            <span class="status-badge ${app.status}">${app.status}</span>
+            <span class="date">Applied ${formatDate(app.applied_at)}</span>
+          </div>
+          ${
+            app.vetting_score !== null && app.vetting_score !== undefined
+              ? `
+            <div class="vetting-score mt-2">
+              <span class="score-badge ${app.vetting_score >= 70 ? "pass" : app.vetting_score >= 50 ? "warning" : "fail"}">
+                <i class="fas fa-code"></i> Code: ${Math.round(app.vetting_score)}%
+              </span>
+              ${app.vetting_passed ? '<span class="pass-badge"><i class="fas fa-check"></i> Passed</span>' : ""}
             </div>
-            <div class="applicant-actions">
-                ${getActionButtons(app)}
-            </div>
-            <div class="applicant-details" id="details-${app.id}" style="display: none;">
-                <div class="details-grid">
-                    <div class="detail-item">
-                        <label>Trust Score</label>
-                        <span>--</span>
-                    </div>
-                    <div class="detail-item">
-                        <label>Skills Match</label>
-                        <span>--</span>
-                    </div>
-                    <div class="detail-item">
-                        <label>CGPA</label>
-                        <span>--</span>
-                    </div>
-                    <div class="detail-item">
-                        <label>Projects</label>
-                        <span>--</span>
-                    </div>
-                </div>
-            </div>
+          `
+              : ""
+          }
         </div>
-    `).join('');
-}
+        <div class="applicant-actions">
+          ${getActionButtons(app)}
+        </div>
+      </div>
+    `,
+      )
+      .join("");
+  }
 
-function getScoreColor(score) {
-    if (score >= 80) return 'linear-gradient(135deg, #00b86b, #008c4a)';
-    if (score >= 60) return 'linear-gradient(135deg, #48bbff, #2b6eff)';
-    if (score >= 40) return 'linear-gradient(135deg, #ffcc00, #ff9900)';
-    return 'linear-gradient(135deg, #ff5858, #cc0000)';
-}
+  function getScoreColor(score) {
+    if (score >= 80) return "linear-gradient(135deg, #00b86b, #008c4a)";
+    if (score >= 60) return "linear-gradient(135deg, #48bbff, #2b6eff)";
+    if (score >= 40) return "linear-gradient(135deg, #ffcc00, #ff9900)";
+    return "linear-gradient(135deg, #ff5858, #cc0000)";
+  }
 
-function getActionButtons(app) {
+  function getActionButtons(app) {
     const buttons = [];
-    
-    if (app.status === 'applied') {
-        buttons.push(`<button class="btn-primary btn-sm" onclick="updateStatus('${app.id}', 'shortlisted')">
+
+    if (app.status === "applied") {
+      buttons.push(`<button class="btn-primary btn-sm" onclick="updateStatus('${app.id}', 'shortlisted')">
             <i class="fas fa-star"></i> Shortlist
         </button>`);
-        buttons.push(`<button class="btn-outline btn-sm" onclick="updateStatus('${app.id}', 'rejected')">
+      buttons.push(`<button class="btn-outline btn-sm" onclick="updateStatus('${app.id}', 'rejected')">
             <i class="fas fa-times"></i> Reject
         </button>`);
-    } else if (app.status === 'shortlisted') {
-        buttons.push(`<button class="btn-primary btn-sm" onclick="scheduleInterview('${app.id}')">
-            <i class="fas fa-calendar"></i> Interview
+    } else if (app.status === "shortlisted") {
+      // Show Send Assessment button if no vetting score yet
+      if (!app.vetting_score && !app.vetting_invited) {
+        buttons.push(`<button class="btn-secondary btn-sm" onclick="sendAssessment(this, '${app.id}', '${app.student_name.replace(/'/g, "\\'")}')">
+          <i class="fas fa-paper-plane"></i> Send Assessment
+      </button>`);
+      } else if (app.vetting_invited && !app.vetting_score) {
+        buttons.push(`<button class="btn-secondary btn-sm" disabled>
+            <i class="fas fa-clock"></i> Assessment Pending
         </button>`);
-        buttons.push(`<button class="btn-success btn-sm" onclick="hireCandidate('${app.id}')">
+      }
+
+      buttons.push(`<button class="btn-primary btn-sm" onclick="openScheduleModal('${app.id}', '${app.student_name.replace(/'/g, "\\'")}')">
+            <i class="fas fa-calendar"></i> Schedule Interview
+        </button>`);
+      buttons.push(`<button class="btn-success btn-sm" onclick="hireCandidate('${app.id}')">
             <i class="fas fa-check"></i> Hire
         </button>`);
-    } else if (app.status === 'interview') {
-        buttons.push(`<button class="btn-success btn-sm" onclick="hireCandidate('${app.id}')">
-            <i class="fas fa-check"></i> Hire
-        </button>`);
-        buttons.push(`<button class="btn-outline btn-sm" onclick="updateStatus('${app.id}', 'rejected')">
+      buttons.push(`<button class="btn-outline btn-sm" onclick="updateStatus('${app.id}', 'rejected')">
             <i class="fas fa-times"></i> Reject
+        </button>`);
+    } else if (app.status === "interview") {
+      buttons.push(`<button class="btn-success btn-sm" onclick="hireCandidate('${app.id}')">
+            <i class="fas fa-check"></i> Hire
+        </button>`);
+      buttons.push(`<button class="btn-outline btn-sm" onclick="updateStatus('${app.id}', 'rejected')">
+            <i class="fas fa-times"></i> Reject
+        </button>`);
+    } else if (app.status === "hired") {
+      buttons.push(
+        `<span class="status-badge hired"><i class="fas fa-check-circle"></i> Hired</span>`,
+      );
+    } else if (app.status === "rejected") {
+      buttons.push(
+        `<span class="status-badge rejected"><i class="fas fa-times-circle"></i> Rejected</span>`,
+      );
+    }
+
+    if (app.status !== "hired" && app.status !== "rejected") {
+      buttons.push(`<button class="btn-secondary btn-sm" onclick="viewDetails('${app.id}')">
+            <i class="fas fa-eye"></i> Details
         </button>`);
     }
-    
-    buttons.push(`<button class="btn-secondary btn-sm" onclick="viewDetails('${app.id}')">
-        <i class="fas fa-eye"></i> Details
-    </button>`);
-    
-    return buttons.join('');
-}
 
-function formatDate(timestamp) {
+    // ── Agent buttons (always visible except closed statuses) ─────────────
+    if (app.status !== "hired") {
+      // Agent decision badge
+      if (app.agent_decision) {
+        const dc = {
+          shortlist: "#22c55e",
+          reject: "#ef4444",
+          review: "#f59e0b",
+        };
+        const di = { shortlist: "✓", reject: "✗", review: "⚠" };
+        const color = dc[app.agent_decision] || "#64748b";
+        const icon = di[app.agent_decision] || "?";
+        buttons.push(`<span style="padding:.2rem .55rem; border-radius:6px; font-size:.72rem; font-weight:700;
+          background:${color}22; color:${color}; border:1px solid ${color}44;">
+          ${icon} AGENT: ${app.agent_decision.toUpperCase()}
+          ${app.agent_score ? `(${app.agent_score}%)` : ""}
+        </span>`);
+        if (app.agent_run_url) {
+          buttons.push(`<a href="${app.agent_run_url}"
+            style="font-size:.78rem; color:#48bbff; text-decoration:none; padding:.3rem .6rem; border:1px solid #48bbff44; border-radius:6px;">
+            <i class="fas fa-chart-bar"></i> Report
+          </a>`);
+        }
+      }
+      // Re-run / Run button
+      buttons.push(`<button class="btn-sm" onclick="runAgent(this, '${app.id}')"
+        style="background:#7c3aed; color:#fff; border:none; cursor:pointer; padding:.3rem .7rem; border-radius:6px; font-size:.78rem;">
+        <i class="fas fa-robot"></i> ${app.agent_decision ? "Re-run" : "Run"} Agent
+      </button>`);
+    }
+    // Add AI Analysis button (visible for applied, shortlisted, interview statuses)
+    if (app.status !== "hired" && app.status !== "rejected") {
+      buttons.push(`<button class="btn-secondary btn-sm" onclick="openAIEffectiveness('${app.id}')">
+        <i class="fas fa-robot"></i> AI Analysis
+    </button>`);
+    }
+    return buttons.join("");
+  }
+
+  // Vetting Functions
+  async function sendAssessment(btn, applicationId, studentName) {
+    // FIX: Properly receive 'btn' as first parameter
+    if (!confirm(`Send technical assessment to ${studentName}?`)) return;
+
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+    btn.disabled = true;
+
+    try {
+      // FIX: Remove /api from base since vetting URLs are at root
+      const baseUrl = API_BASE.replace("/api", "");
+      const response = await fetch(`${baseUrl}/vetting/api/challenge/token/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ application_id: applicationId }),
+      });
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        alert(
+          `✅ Assessment sent!\n\nStudent: ${studentName}\nToken: ${data.token.substring(0, 8)}...\nExpires: ${new Date(data.expires_at).toLocaleDateString()}`,
+        );
+
+        // Update UI
+        const app = allApplicants.find((a) => a.id === applicationId);
+        if (app) app.vetting_invited = true;
+        renderApplicants();
+      } else {
+        alert("❌ Error: " + (data.message || "Failed to send"));
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("❌ Network error. Please try again.");
+      btn.innerHTML = originalHTML;
+      btn.disabled = false;
+    }
+  }
+
+  function viewVettingDashboard() {
+    document.getElementById("vetting-modal").style.display = "flex";
+    loadVettingData();
+  }
+
+  function closeVettingModal() {
+    document.getElementById("vetting-modal").style.display = "none";
+  }
+
+  async function loadVettingData() {
+    const container = document.getElementById("vetting-content");
+    container.innerHTML =
+      '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+
+    try {
+      // ✅ FIX: Use correct URL path that matches your urls.py
+      const response = await fetch(
+        `/vetting/api/job/${jobId}/vetting-dashboard/`,
+      );
+      const data = await response.json();
+
+      if (data.status === "success") {
+        vettingData = data.candidates || [];
+        renderVettingDashboard(data);
+      } else {
+        container.innerHTML = `<p class="no-data">${data.message || "No vetting data available"}</p>`;
+      }
+    } catch (error) {
+      console.error("Error loading vetting data:", error);
+      container.innerHTML =
+        '<p class="no-data">Error loading vetting dashboard</p>';
+    }
+  }
+
+  function renderVettingDashboard(data) {
+    const container = document.getElementById("vetting-content");
+
+    if (!data.candidates || data.candidates.length === 0) {
+      container.innerHTML = `
+        <div class="no-vetting-data">
+          <p>No candidates have taken the technical assessment yet.</p>
+          <p>Shortlist candidates and send them assessments to see results here.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const stats = `
+      <div class="vetting-stats">
+        <div class="stat-box">
+          <span class="stat-number">${data.total_assessed || 0}</span>
+          <span class="stat-label">Assessed</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-number">${data.pass_count || 0}</span>
+          <span class="stat-label">Passed (70%+)</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-number">${Math.round(data.candidates.reduce((a, b) => a + (b.final_score || 0), 0) / data.candidates.length)}%</span>
+          <span class="stat-label">Avg Score</span>
+        </div>
+      </div>
+    `;
+
+    const table = `
+  <div class="vetting-table-container">
+    <table class="vetting-table">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Candidate</th>
+          <th>Total Score</th>
+          <th>Tests</th>
+          <th>Quality</th>
+          <th>Time</th>
+          <th>Tab Switches</th>
+          <th>Copy/Paste</th>
+          <th>Fullscreen Exits</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.candidates
+          .map((c, i) => {
+            // Determine risk level based on anti-cheat metrics
+            let riskLevel = "safe";
+            let riskClass = "text-green-400";
+            let riskIcon = "✓";
+
+            if (
+              c.tab_switches > 5 ||
+              c.copy_pastes > 3 ||
+              c.fullscreen_exits > 0
+            ) {
+              riskLevel = "high";
+              riskClass = "text-red-400";
+              riskIcon = "⚠️";
+            } else if (c.tab_switches > 2 || c.copy_pastes > 0) {
+              riskLevel = "medium";
+              riskClass = "text-yellow-400";
+              riskIcon = "⚡";
+            }
+
+            return `
+          <tr class="${c.passed ? "passed" : "failed"}">
+            <td>#${i + 1}</td>
+            <td>
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-weight: 600;">${c.student_name}</span>
+                ${riskLevel !== "safe" ? `<span style="font-size: 0.7rem; color: #ff5858;">${riskIcon} Suspicious Activity</span>` : ""}
+              </div>
+            </td>
+            <td>
+              <span class="score-badge ${c.final_score >= 90 ? "excellent" : c.final_score >= 70 ? "good" : c.final_score >= 50 ? "average" : "poor"}">
+                ${Math.round(c.final_score || 0)}%
+              </span>
+            </td>
+            <td>${Math.round(c.layer1_score || 0)}%</td>
+            <td>${Math.round(c.layer2_score || 0)}%</td>
+            <td>${c.time_taken || "-"} min</td>
+            <td>
+              <span class="${c.tab_switches > 3 ? "text-red-400 font-bold" : "text-gray-400"}">
+                ${c.tab_switches || 0}
+                ${c.tab_switches > 3 ? "⚠️" : ""}
+              </span>
+            </td>
+            <td>
+              <span class="${c.copy_pastes > 0 ? "text-red-400 font-bold" : "text-gray-400"}">
+                ${c.copy_pastes || 0}
+                ${c.copy_pastes > 2 ? "🚫" : ""}
+              </span>
+            </td>
+            <td>
+              <span class="${c.fullscreen_exits > 0 ? "text-red-400 font-bold" : "text-green-400"}">
+                ${c.fullscreen_exits || 0}
+                ${c.fullscreen_exits > 0 ? "❌" : "✓"}
+              </span>
+            </td>
+            <td>
+              ${c.passed ? '<span class="pass-badge"><i class="fas fa-check"></i> Pass</span>' : '<span class="fail-badge"><i class="fas fa-times"></i> Fail</span>'}
+              ${c.flags && c.flags.length > 0 ? `<span class="flag-badge" title="${c.flags.join(", ")}"><i class="fas fa-exclamation-triangle"></i> ${c.flags.length}</span>` : ""}
+              ${riskLevel === "high" ? '<span style="background: rgba(255, 88, 88, 0.3); color: #ff5858; padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-size: 0.7rem; margin-left: 0.5rem;">FLAGGED</span>' : ""}
+            </td>
+            <td>
+              <button class="btn-sm btn-secondary" onclick="viewSubmission('${c.submission_id}', '${c.student_name}', ${c.final_score})">
+                <i class="fas fa-code"></i> View Code
+              </button>
+            </td>
+          </tr>
+        `;
+          })
+          .join("")}
+      </tbody>
+    </table>
+  </div>
+  
+  <!-- Anti-Cheat Legend -->
+  <div style="margin-top: 1rem; padding: 1rem; background: rgba(0, 0, 0, 0.2); border-radius: 0.5rem; font-size: 0.85rem; color: #94a3b8;">
+    <strong style="color: #48bbff;">Anti-Cheat Legend:</strong>
+    <span style="margin-left: 1rem; color: #00b86b;">✓ Normal (0-2 tabs)</span>
+    <span style="margin-left: 1rem; color: #ffcc00;">⚡ Warning (3-5 tabs or 1-2 copy/paste)</span>
+    <span style="margin-left: 1rem; color: #ff5858;">⚠️ High Risk (>5 tabs, >2 copy/paste, or fullscreen exit)</span>
+  </div>
+`;
+
+    container.innerHTML = stats + table;
+  }
+
+  async function viewSubmission(submissionId, studentName, score) {
+    try {
+      const baseUrl = API_BASE.replace("/api", "");
+      const response = await fetch(
+        `${baseUrl}/vetting/submission/${submissionId}/`,
+      );
+      const data = await response.json();
+
+      if (data.status === "success") {
+        document.getElementById("code-modal-title").textContent =
+          `${studentName} - Score: ${Math.round(score)}%`;
+        document.getElementById("submitted-code").textContent =
+          data.code || "No code available";
+
+        const resultsHtml = data.test_results
+          ? `
+          <div class="test-results-summary">
+            <p><strong>Passed:</strong> ${data.test_results.passed || 0} / ${data.test_results.total || 0}</p>
+            ${
+              data.test_results.details
+                ? data.test_results.details
+                    .map(
+                      (r) => `
+              <div class="test-case ${r.passed ? "pass" : "fail"}">
+                <i class="fas ${r.passed ? "fa-check" : "fa-times"}"></i>
+                ${r.name || "Test"}: ${r.passed ? "Passed" : "Failed"}
+              </div>
+            `,
+                    )
+                    .join("")
+                : ""
+            }
+          </div>
+        `
+          : "<p>No test results available</p>";
+
+        document.getElementById("test-results").innerHTML = resultsHtml;
+        document.getElementById("code-modal").style.display = "flex";
+      } else {
+        alert("Error loading submission: " + data.message);
+      }
+    } catch (error) {
+      alert("Error loading submission details");
+    }
+  }
+
+  function closeCodeModal() {
+    document.getElementById("code-modal").style.display = "none";
+  }
+
+  // ── Assessment type toggle ──────────────────────────────────────────
+  function selectAssessmentType(type) {
+    document.getElementById("challenge-assessment-type").value = type;
+    const coding = document.getElementById("type-coding");
+    const mcq = document.getElementById("type-mcq_written");
+    const mcqRow = document.getElementById("mcq-count-row");
+    if (type === "coding") {
+      coding.style.border = "2px solid #3b82f6";
+      coding.style.background = "rgba(59,130,246,0.12)";
+      mcq.style.border = "2px solid #475569";
+      mcq.style.background = "rgba(71,85,105,0.12)";
+      mcqRow.style.display = "none";
+    } else {
+      mcq.style.border = "2px solid #8b5cf6";
+      mcq.style.background = "rgba(139,92,246,0.12)";
+      coding.style.border = "2px solid #475569";
+      coding.style.background = "rgba(71,85,105,0.12)";
+      mcqRow.style.display = "grid";
+    }
+  }
+
+  // ── Open / close ────────────────────────────────────────────────────
+  function createVettingChallenge() {
+    closeVettingModal();
+    document.getElementById("challenge-modal").style.display = "flex";
+    document.getElementById("step-configure").style.display = "block";
+    document.getElementById("step-preview").style.display = "none";
+  }
+
+  function closeChallengeModal() {
+    document.getElementById("challenge-modal").style.display = "none";
+  }
+
+  function backToConfigure() {
+    document.getElementById("step-preview").style.display = "none";
+    document.getElementById("step-configure").style.display = "block";
+  }
+
+  // ── Collect form values ─────────────────────────────────────────────
+  function getFormValues() {
+    return {
+      job_id: jobId,
+      assessment_type: document.getElementById("challenge-assessment-type")
+        .value,
+      department_category: document.getElementById("challenge-department")
+        .value,
+      topic: document.getElementById("challenge-topic").value.trim(),
+      keywords: document.getElementById("challenge-keywords").value.trim(),
+      custom_instructions: document
+        .getElementById("challenge-custom-instructions")
+        .value.trim(),
+      seniority: document.getElementById("challenge-seniority").value,
+      difficulty: document.getElementById("challenge-difficulty").value,
+      time_limit: document.getElementById("challenge-timelimit").value,
+      mcq_count:
+        parseInt(document.getElementById("challenge-mcq-count").value) || 4,
+      written_count:
+        parseInt(document.getElementById("challenge-written-count").value) || 2,
+    };
+  }
+
+  // ── STEP 1: Preview (generate without saving) ───────────────────────
+  async function previewChallenge() {
+    const vals = getFormValues();
+    if (!vals.topic) {
+      document.getElementById("challenge-topic").focus();
+      document.getElementById("challenge-topic").style.borderColor = "#ef4444";
+      alert("⚠️ Topic is required — the AI builds the entire paper around it.");
+      return;
+    }
+    document.getElementById("challenge-topic").style.borderColor = "#3b82f6";
+
+    const btn = document.getElementById("generate-btn");
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating…';
+    btn.disabled = true;
+
+    try {
+      const resp = await fetch("/vetting/api/challenge/preview/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(vals),
+      });
+      const data = await resp.json();
+      if (data.status !== "success") {
+        alert("❌ " + (data.message || "Generation failed"));
+        return;
+      }
+
+      _previewData = data.challenge_data;
+      _previewVals = vals;
+      renderPreview(data.challenge_data, vals.assessment_type);
+      document.getElementById("step-configure").style.display = "none";
+      document.getElementById("step-preview").style.display = "block";
+    } catch (e) {
+      alert("❌ Network error: " + e.message);
+    } finally {
+      btn.innerHTML = '<i class="fas fa-eye"></i> Preview Questions';
+      btn.disabled = false;
+    }
+  }
+
+  let _previewData = null;
+  let _previewVals = null;
+
+  // ── Render preview questions (editable) ────────────────────────────
+  function renderPreview(challengeData, assessmentType) {
+    document.getElementById("preview-title").value = challengeData.title || "";
+    document.getElementById("preview-subtitle").textContent =
+      assessmentType === "mcq_written"
+        ? `${challengeData.questions?.length || 0} questions generated. Edit anything before saving.`
+        : `Coding challenge generated. You can edit the title and description.`;
+
+    const container = document.getElementById("preview-questions");
+    container.innerHTML = "";
+
+    if (assessmentType === "mcq_written") {
+      (challengeData.questions || []).forEach((q, idx) => {
+        const isMcq = q.type === "mcq";
+        const div = document.createElement("div");
+        div.style.cssText =
+          "background:#1e293b; border:1px solid #334155; border-radius:10px; padding:16px; margin-bottom:12px;";
+        const badge = isMcq
+          ? '<span style="background:#1d4ed8;color:#bfdbfe;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:700;">MCQ · ' +
+            q.points +
+            " pts</span>"
+          : '<span style="background:#6d28d9;color:#ddd6fe;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:700;">Written · ' +
+            q.points +
+            " pts</span>";
+
+        let body = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            ${badge}
+            <span style="color:#64748b;font-size:0.8rem;">Q${idx + 1}</span>
+          </div>
+          <label style="color:#94a3b8;font-size:0.8rem;">Question</label>
+          <textarea id="q_text_${q.id}" rows="2" style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:8px;font-size:0.88rem;box-sizing:border-box;resize:vertical;font-family:inherit;margin-top:3px;">${q.question}</textarea>`;
+
+        if (isMcq) {
+          body += `<div style="margin-top:8px;">`;
+          (q.options || []).forEach((opt, oi) => {
+            const letter = "ABCD"[oi];
+            body += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="color:#64748b;font-size:0.8rem;width:16px;">${letter}.</span>
+              <input type="text" id="q_opt_${q.id}_${letter}" value="${opt.replace(/^[A-D]\.\s*/, "")}"
+                style="flex:1;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:6px 8px;font-size:0.85rem;">
+            </div>`;
+          });
+          body += `</div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+            <label style="color:#94a3b8;font-size:0.8rem;">Correct Answer:</label>
+            <select id="q_correct_${q.id}" style="background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:4px 8px;font-size:0.85rem;">
+              ${["A", "B", "C", "D"].map((l) => `<option value="${l}" ${q.correct_answer === l ? "selected" : ""}>${l}</option>`).join("")}
+            </select>
+          </div>`;
+        } else {
+          body += `
+          <div style="margin-top:8px;">
+            <label style="color:#94a3b8;font-size:0.8rem;">Grading Rubric</label>
+            <input type="text" id="q_rubric_${q.id}" value="${q.grading_rubric || ""}"
+              style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:6px 10px;font-size:0.85rem;box-sizing:border-box;margin-top:3px;">
+          </div>`;
+        }
+
+        div.innerHTML = body;
+        container.appendChild(div);
+      });
+    } else {
+      // Coding: show editable description
+      const div = document.createElement("div");
+      div.style.cssText =
+        "background:#1e293b; border:1px solid #334155; border-radius:10px; padding:16px;";
+      div.innerHTML = `
+        <label style="color:#94a3b8;font-size:0.8rem;">Problem Description</label>
+        <textarea id="coding_description" rows="6"
+          style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:10px;font-size:0.88rem;box-sizing:border-box;resize:vertical;font-family:monospace;margin-top:4px;">${challengeData.description || ""}</textarea>
+        <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-top:10px;">Starter Code</label>
+        <textarea id="coding_starter" rows="6"
+          style="width:100%;background:#0f172a;border:1px solid #334155;color:#f1f5f9;border-radius:6px;padding:10px;font-size:0.85rem;box-sizing:border-box;resize:vertical;font-family:monospace;margin-top:4px;">${challengeData.starter_code || ""}</textarea>`;
+      container.appendChild(div);
+    }
+  }
+
+  // ── Collect edited preview data ─────────────────────────────────────
+  function collectEditedData(assessmentType) {
+    const title = document.getElementById("preview-title").value.trim();
+    if (assessmentType === "mcq_written") {
+      const questions = (_previewData.questions || []).map((q) => {
+        const updated = {
+          ...q,
+          question:
+            document.getElementById(`q_text_${q.id}`)?.value || q.question,
+        };
+        if (q.type === "mcq") {
+          updated.options = ["A", "B", "C", "D"].map((l, i) => {
+            const val =
+              document.getElementById(`q_opt_${q.id}_${l}`)?.value || "";
+            return `${l}. ${val}`;
+          });
+          updated.correct_answer =
+            document.getElementById(`q_correct_${q.id}`)?.value ||
+            q.correct_answer;
+        } else {
+          updated.grading_rubric =
+            document.getElementById(`q_rubric_${q.id}`)?.value ||
+            q.grading_rubric;
+        }
+        return updated;
+      });
+      return { ..._previewData, title, questions };
+    } else {
+      return {
+        ..._previewData,
+        title,
+        description:
+          document.getElementById("coding_description")?.value ||
+          _previewData.description,
+        starter_code:
+          document.getElementById("coding_starter")?.value ||
+          _previewData.starter_code,
+      };
+    }
+  }
+
+  // ── Regenerate ──────────────────────────────────────────────────────
+  async function regeneratePreview() {
+    const btn = document.getElementById("regen-btn");
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Regenerating…';
+    btn.disabled = true;
+    try {
+      const resp = await fetch("/vetting/api/challenge/preview/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(_previewVals),
+      });
+      const data = await resp.json();
+      if (data.status === "success") {
+        _previewData = data.challenge_data;
+        renderPreview(data.challenge_data, _previewVals.assessment_type);
+      } else {
+        alert("❌ " + (data.message || "Regeneration failed"));
+      }
+    } catch (e) {
+      alert("❌ " + e.message);
+    } finally {
+      btn.innerHTML = '<i class="fas fa-sync"></i> Regenerate';
+      btn.disabled = false;
+    }
+  }
+
+  // ── STEP 2: Save ────────────────────────────────────────────────────
+  async function saveAssessment() {
+    const btn = document.getElementById("save-btn");
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+    btn.disabled = true;
+
+    const editedData = collectEditedData(_previewVals.assessment_type);
+
+    try {
+      const resp = await fetch("/vetting/api/challenge/create/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ..._previewVals,
+          pre_generated_data: editedData,
+        }),
+      });
+      const data = await resp.json();
+      if (data.status === "success") {
+        closeChallengeModal();
+        alert(
+          `✅ Assessment saved!\n\nTitle: ${data.data?.title}\n\nYou can now send it to candidates.`,
+        );
+        loadVettingData();
+      } else {
+        alert("❌ " + (data.message || "Save failed"));
+      }
+    } catch (e) {
+      alert("❌ " + e.message);
+    } finally {
+      btn.innerHTML = '<i class="fas fa-save"></i> Save Assessment';
+      btn.disabled = false;
+    }
+  }
+
+  // legacy alias — kept so old code calling confirmCreateChallenge still works
+  function confirmCreateChallenge() {
+    previewChallenge();
+  }
+
+  function formatDate(timestamp) {
     const date = new Date(timestamp);
     const now = new Date();
     const diff = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-    
-    if (diff === 0) return 'Today';
-    if (diff === 1) return 'Yesterday';
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
     if (diff < 7) return `${diff} days ago`;
     return date.toLocaleDateString();
-}
+  }
 
-async function updateStatus(applicationId, status) {
+  function viewDetails(applicationId) {
+    window.location.href = `/company/applicant/${applicationId}/documents/`;
+  }
+
+  // ── Recruitment Agent: run / re-run ───────────────────────────────────────
+  async function runAgent(btn, applicationId) {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running…';
+    btn.disabled = true;
+
     try {
-        const response = await fetch(`${API_BASE}/application/update/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                application_id: applicationId,
-                status: status
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            showNotification(`Candidate ${status} successfully!`, 'success');
-            loadApplicants();
-        }
-    } catch (error) {
-        showNotification('Error updating status', 'error');
-    }
-}
+      const r = await fetch(
+        `${API_BASE}/application/${applicationId}/run-agent/`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+      const d = await r.json();
 
-async function hireCandidate(applicationId) {
+      if (d.status === "success") {
+        const dc = {
+          shortlist: "#22c55e",
+          reject: "#ef4444",
+          review: "#f59e0b",
+        };
+        const di = { shortlist: "✓", reject: "✗", review: "⚠" };
+        const color = dc[d.decision] || "#94a3b8";
+        const icon = di[d.decision] || "?";
+
+        // Toast notification
+        const toast = document.createElement("div");
+        toast.style.cssText = `position:fixed;bottom:2rem;right:2rem;z-index:9999;
+          background:#1e293b;border:1px solid ${color};color:#f1f5f9;
+          padding:1rem 1.5rem;border-radius:12px;font-size:.9rem;box-shadow:0 4px 24px rgba(0,0,0,.4);`;
+        toast.innerHTML = `
+          <div style="font-weight:700; color:${color};">${icon} Agent Decision: ${d.decision.toUpperCase()}</div>
+          <div style="color:#94a3b8; font-size:.82rem;">Score: ${d.score}% · Confidence: ${d.confidence}</div>
+          <a href="${d.run_url}" style="color:#48bbff; font-size:.82rem;">View full report →</a>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+
+        // Reload applicants to show updated badge
+        await loadApplicants();
+      } else {
+        alert("Agent failed: " + d.message);
+      }
+    } catch (e) {
+      alert("Network error: " + e.message);
+    }
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }
+
+  async function updateStatus(applicationId, status) {
     try {
-        const response = await fetch(`${API_BASE}/application/hire/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                application_id: applicationId
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            showNotification('Candidate hired! AI weights updated.', 'success');
-            loadApplicants();
-        }
+      const response = await fetch(`${API_BASE}/application/update/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ application_id: applicationId, status: status }),
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        showNotification(`Candidate ${status} successfully!`, "success");
+        loadApplicants();
+      }
     } catch (error) {
-        showNotification('Error hiring candidate', 'error');
+      showNotification("Error updating status", "error");
     }
-}
+  }
 
-function scheduleInterview(applicationId) {
-    const times = prompt('Enter proposed interview times (comma separated):', '2026-04-05 10:00, 2026-04-05 14:00');
-    if (times) {
-        // In production, send to API
-        showNotification('Interview scheduled!', 'success');
-        updateStatus(applicationId, 'interview');
-    }
-}
-
-async function autoShortlist() {
+  async function hireCandidate(applicationId) {
     try {
-        const response = await fetch(`${API_BASE}/job/shortlist/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                job_id: jobId,
-                top_n: 10
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            showNotification(`Auto-shortlisted ${data.shortlisted_count} candidates!`, 'success');
-            loadApplicants();
-        }
+      const response = await fetch(`${API_BASE}/application/hire/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ application_id: applicationId }),
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        showNotification("Candidate hired! AI weights updated.", "success");
+        loadApplicants();
+      }
     } catch (error) {
-        showNotification('Error auto-shortlisting', 'error');
+      showNotification("Error hiring candidate", "error");
     }
-}
+  }
 
-function viewDetails(applicationId) {
-    const details = document.getElementById(`details-${applicationId}`);
-    details.style.display = details.style.display === 'none' ? 'block' : 'none';
-}
+  async function autoShortlist() {
+    try {
+      const response = await fetch(`${API_BASE}/job/shortlist/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_id: jobId, top_n: 10 }),
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        showNotification(
+          `Auto-shortlisted ${data.shortlisted_count} candidates!`,
+          "success",
+        );
+        loadApplicants();
+      }
+    } catch (error) {
+      showNotification("Error auto-shortlisting", "error");
+    }
+  }
 
-function exportCSV() {
-    // Simple CSV export
-    let csv = 'Name,Match Score,Status,Applied Date\n';
-    allApplicants.forEach(app => {
-        csv += `${app.student_name},${app.match_score},${app.status},${app.applied_at}\n`;
+  function exportCSV() {
+    let csv = "Name,Match Score,Status,Vetting Score,Applied Date\n";
+    allApplicants.forEach((app) => {
+      csv += `${app.student_name},${app.match_score},${app.status},${app.vetting_score || "N/A"},${app.applied_at}\n`;
     });
-    
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const blob = new Blob([csv], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = `applicants_${jobId}.csv`;
     a.click();
-}
+  }
 
-// Filter handlers
-document.getElementById('status-filter').addEventListener('change', renderApplicants);
-document.getElementById('score-filter').addEventListener('input', (e) => {
-    document.getElementById('score-value').textContent = e.target.value + '%';
-    renderApplicants();
-});
-
-function showNotification(message, type) {
-    const notif = document.createElement('div');
+  function showNotification(message, type) {
+    const notif = document.createElement("div");
     notif.className = `notification ${type}`;
-    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    notif.innerHTML = `<i class="fas ${type === "success" ? "fa-check-circle" : "fa-exclamation-circle"}"></i> ${message}`;
     notif.style.cssText = `
-        position: fixed;
-        top: 100px;
-        right: 20px;
-        padding: 1rem 2rem;
-        border-radius: 0.5rem;
-        background: ${type === 'success' ? 'rgba(72, 187, 255, 0.9)' : 'rgba(255, 88, 88, 0.9)'};
-        color: white;
-        z-index: 10000;
-        animation: slideIn 0.3s ease;
+      position: fixed; top: 100px; right: 20px; padding: 1rem 2rem;
+      border-radius: 0.5rem; background: ${type === "success" ? "rgba(72, 187, 255, 0.9)" : "rgba(255, 88, 88, 0.9)"};
+      color: white; z-index: 10000; animation: slideIn 0.3s ease;
     `;
     document.body.appendChild(notif);
     setTimeout(() => notif.remove(), 3000);
-}
+  }
 
-// Load on page load
-loadApplicants();
+  // Slot Functions
+  function openSlotModal() {
+    document.getElementById("slot-setup-modal").style.display = "flex";
+    document.getElementById("slot-date").min = new Date()
+      .toISOString()
+      .split("T")[0];
+  }
+
+  function closeSlotModal() {
+    document.getElementById("slot-setup-modal").style.display = "none";
+  }
+
+  async function saveInterviewSlots() {
+    const data = {
+      date: document.getElementById("slot-date").value,
+      start_time: document.getElementById("slot-start").value,
+      end_time: document.getElementById("slot-end").value,
+      slot_duration_minutes: parseInt(
+        document.getElementById("slot-duration").value,
+      ),
+      break_start: document.getElementById("break-start").value || null,
+      break_end: document.getElementById("break-end").value || null,
+    };
+
+    if (!data.date || !data.start_time || !data.end_time) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/job/${jobId}/interview-slots/`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        },
+      );
+      const result = await response.json();
+      if (result.status === "success") {
+        alert(`✅ Created ${result.available_slots.length} interview slots`);
+        closeSlotModal();
+        loadSlotAvailability();
+      } else {
+        alert("Error: " + result.message);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Failed to create slots");
+    }
+  }
+
+  async function loadSlotAvailability() {
+    try {
+      const response = await fetch(
+        `${API_BASE}/job/${jobId}/slot-availability/`,
+      );
+      const data = await response.json();
+      if (data.status === "success") {
+        renderSlotCalendar(data.slots);
+      } else {
+        document.getElementById("slot-calendar").innerHTML =
+          '<p class="no-data">No slots configured</p>';
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      document.getElementById("slot-calendar").innerHTML =
+        '<p class="no-data">Error loading slots</p>';
+    }
+  }
+
+  function renderSlotCalendar(slots) {
+    const container = document.getElementById("slot-calendar");
+    if (!slots || slots.length === 0) {
+      container.innerHTML =
+        '<div class="no-slots"><p>No interview slots set up yet.</p><button class="btn-outline btn-sm" onclick="openSlotModal()"><i class="fas fa-plus"></i> Create Slots</button></div>';
+      return;
+    }
+
+    container.innerHTML = slots
+      .map(
+        (slot) => `
+      <div class="slot-day">
+        <div class="slot-day-header">
+          <i class="fas fa-calendar-day"></i>
+          <strong>${slot.date_display}</strong>
+          <span class="slot-time-range">${slot.time_range}</span>
+        </div>
+        <div class="slot-stats">
+          <span class="available"><i class="fas fa-check-circle"></i> ${slot.available_count} available</span>
+          <span class="booked"><i class="fas fa-clock"></i> ${slot.booked_count} booked</span>
+        </div>
+        <div class="slot-times">
+          ${slot.all_slots
+            .map((timeSlot) => {
+              const booked = slot.booked_details?.find(
+                (b) => b.time === timeSlot.start,
+              );
+              if (booked) {
+                return `<div class="slot-time booked" title="Booked by ${booked.student_name}"><i class="fas fa-user-check"></i> ${timeSlot.start}</div>`;
+              } else {
+                return `<div class="slot-time available"><i class="fas fa-clock"></i> ${timeSlot.start}</div>`;
+              }
+            })
+            .join("")}
+        </div>
+      </div>
+    `,
+      )
+      .join("");
+  }
+
+  async function openScheduleModal(applicationId, applicantName) {
+    selectedApplicationId = applicationId;
+    document.getElementById("schedule-applicant-name").textContent =
+      `Applicant: ${applicantName}`;
+    document.getElementById("schedule-modal").style.display = "flex";
+    await loadAvailableSlots();
+  }
+
+  function closeScheduleModal() {
+    document.getElementById("schedule-modal").style.display = "none";
+    selectedApplicationId = null;
+  }
+
+  async function loadAvailableSlots() {
+    try {
+      const response = await fetch(`${API_BASE}/job/${jobId}/available-slots/`);
+      const data = await response.json();
+      availableSlotsData = data.available_slots || [];
+      const dropdown = document.getElementById("available-slots-dropdown");
+      dropdown.innerHTML = '<option value="">-- Choose a time slot --</option>';
+      availableSlotsData.forEach((day) => {
+        day.time_slots.forEach((slot) => {
+          const option = document.createElement("option");
+          option.value = JSON.stringify({
+            slot_id: day.slot_id,
+            date: day.date,
+            start: slot.start,
+            end: slot.end,
+          });
+          option.textContent = `${day.date_display} | ${slot.start} - ${slot.end}`;
+          dropdown.appendChild(option);
+        });
+      });
+    } catch (error) {
+      console.error("Error loading slots:", error);
+    }
+  }
+
+  function onSlotSelect() {
+    const dropdown = document.getElementById("available-slots-dropdown");
+    const details = document.getElementById("slot-details");
+    if (!dropdown.value) {
+      details.style.display = "none";
+      return;
+    }
+    const slot = JSON.parse(dropdown.value);
+    document.getElementById("preview-date").textContent = new Date(
+      slot.date,
+    ).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    document.getElementById("preview-time").textContent =
+      `${slot.start} - ${slot.end}`;
+    details.style.display = "block";
+  }
+
+  async function confirmScheduleInterview() {
+    const dropdown = document.getElementById("available-slots-dropdown");
+    if (!dropdown.value || !selectedApplicationId) {
+      alert("Please select a time slot");
+      return;
+    }
+    const slot = JSON.parse(dropdown.value);
+    const data = {
+      slot_id: slot.slot_id,
+      date: slot.date,
+      start_time: slot.start,
+      end_time: slot.end,
+      meeting_link: document.getElementById("meeting-link").value,
+      notes: document.getElementById("interview-notes").value,
+      meeting_type: "online",
+    };
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/application/${selectedApplicationId}/schedule-interview/`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        },
+      );
+      const result = await response.json();
+      if (result.status === "success") {
+        const interviewDate = new Date(slot.date);
+        const formattedDate = interviewDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const formattedTime = slot.start;
+
+        alert(
+          `✅ Interview Scheduled!\n\n📅 Date: ${formattedDate}\n⏰ Time: ${formattedTime}\n🔗 Link: ${data.meeting_link || "Will be shared"}\n\nStudent has been notified!`,
+        );
+
+        closeScheduleModal();
+        loadApplicants();
+        loadSlotAvailability();
+
+        document.getElementById("meeting-link").value = "";
+        document.getElementById("interview-notes").value = "";
+      } else {
+        alert("Error: " + result.message);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Failed to schedule interview");
+    }
+  }
+
+  // Event Listeners
+  document
+    .getElementById("status-filter")
+    .addEventListener("change", renderApplicants);
+  document.getElementById("score-filter").addEventListener("input", (e) => {
+    document.getElementById("score-value").textContent = e.target.value + "%";
+    renderApplicants();
+  });
+  // ============ AUTO SCHEDULE FUNCTION ============
+  async function autoScheduleAll() {
+    if (
+      !confirm(
+        "🚀 Auto Schedule will:\n\n" +
+          "• Find all SHORTLISTED applicants\n" +
+          "• Find all AVAILABLE interview slots\n" +
+          "• Automatically assign applicants to empty slots\n\n" +
+          "This will send interview notifications to all candidates.\n\n" +
+          "Do you want to continue?",
+      )
+    ) {
+      return;
+    }
+
+    const btn = document.querySelector(".btn-auto-schedule");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    btn.disabled = true;
+
+    try {
+      // Get all shortlisted applicants
+      const shortlistedApplicants = allApplicants.filter(
+        (app) => app.status === "shortlisted",
+      );
+
+      if (shortlistedApplicants.length === 0) {
+        alert(
+          "❌ No shortlisted applicants found. Please shortlist candidates first.",
+        );
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        return;
+      }
+
+      // Get available slots
+      const slotsResponse = await fetch(
+        `${API_BASE}/job/${jobId}/available-slots/`,
+      );
+      const slotsData = await slotsResponse.json();
+
+      let availableSlots = [];
+      if (slotsData.status === "success" && slotsData.available_slots) {
+        slotsData.available_slots.forEach((day) => {
+          day.time_slots.forEach((slot) => {
+            availableSlots.push({
+              slot_id: day.slot_id,
+              date: day.date,
+              date_display: day.date_display,
+              start: slot.start,
+              end: slot.end,
+            });
+          });
+        });
+      }
+
+      if (availableSlots.length === 0) {
+        alert(
+          "❌ No available interview slots. Please create slots first using 'Set Interview Slots' button.",
+        );
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        return;
+      }
+
+      // Auto schedule each shortlisted applicant
+      let scheduled = 0;
+      let failed = 0;
+      let results = [];
+
+      for (
+        let i = 0;
+        i < shortlistedApplicants.length && i < availableSlots.length;
+        i++
+      ) {
+        const applicant = shortlistedApplicants[i];
+        const slot = availableSlots[i];
+
+        try {
+          const scheduleResponse = await fetch(
+            `${API_BASE}/application/${applicant.id}/schedule-interview/`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                slot_id: slot.slot_id,
+                date: slot.date,
+                start_time: slot.start,
+                end_time: slot.end,
+                meeting_link: "",
+                notes:
+                  "Auto-scheduled interview. Please confirm your availability.",
+                meeting_type: "online",
+              }),
+            },
+          );
+
+          const scheduleResult = await scheduleResponse.json();
+
+          if (scheduleResult.status === "success") {
+            scheduled++;
+            results.push(
+              `✅ ${applicant.student_name} → ${slot.date_display} at ${slot.start}`,
+            );
+            // Update local status
+            applicant.status = "interview";
+          } else {
+            failed++;
+            results.push(
+              `❌ ${applicant.student_name} → Failed: ${scheduleResult.message}`,
+            );
+          }
+        } catch (err) {
+          failed++;
+          results.push(`❌ ${applicant.student_name} → Error: ${err.message}`);
+        }
+      }
+
+      // Show results
+      let message = `📊 Auto Schedule Complete!\n\n`;
+      message += `✅ Scheduled: ${scheduled}\n`;
+      message += `❌ Failed: ${failed}\n`;
+      message += `📋 Total Applicants: ${shortlistedApplicants.length}\n`;
+      message += `⏰ Slots Available: ${availableSlots.length}\n\n`;
+
+      if (results.length > 0) {
+        message += `Details:\n${results.slice(0, 10).join("\n")}`;
+        if (results.length > 10) {
+          message += `\n... and ${results.length - 10} more`;
+        }
+      }
+
+      alert(message);
+
+      // Reload the page to refresh the applicants list
+      loadApplicants();
+      loadSlotAvailability();
+    } catch (error) {
+      console.error("Auto schedule error:", error);
+      alert("❌ Error during auto-schedule: " + error.message);
+    } finally {
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+    }
+  }
+
+  let aiApplicationId = null;
+
+  function openAIEffectiveness(applicationId) {
+    aiApplicationId = applicationId;
+    const modal = document.getElementById("ai-modal");
+    modal.style.display = "flex";
+    document.getElementById("ai-prob-number").textContent = "...";
+    document.getElementById("ai-explanation").textContent =
+      "Analyzing candidate...";
+    // Reset circle
+    document.getElementById("ai-prob-circle").style.strokeDashoffset = "439.82";
+
+    fetch(`${API_BASE}/application/${applicationId}/ai-effectiveness/`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.status === "success") {
+          const prob = Math.min(100, Math.max(0, data.probability));
+          const offset = 439.82 * (1 - prob / 100);
+          document.getElementById("ai-prob-circle").style.strokeDashoffset =
+            offset;
+          document.getElementById("ai-prob-number").textContent = prob + "%";
+          // Color based on probability
+          const color =
+            prob >= 70 ? "#22c55e" : prob >= 45 ? "#f59e0b" : "#ef4444";
+          document.getElementById("ai-prob-circle").style.stroke = color;
+          document.getElementById("ai-explanation").textContent =
+            data.explanation;
+        } else {
+          document.getElementById("ai-explanation").textContent =
+            "Error: " + data.message;
+        }
+      })
+      .catch((err) => {
+        document.getElementById("ai-explanation").textContent =
+          "Network error. Please try again.";
+      });
+  }
+
+  function closeAIModal() {
+    document.getElementById("ai-modal").style.display = "none";
+  }
+  // Load on page load
+  loadApplicants();
+  loadSlotAvailability();
 </script>
 
 <style>
-.applicants-container {
-    padding: 2rem 0;
-}
+  .applicants-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
 
-.page-header {
+  .page-header {
     padding: 2rem;
     margin-bottom: 2rem;
-}
+  }
 
-.back-link {
+  .back-link {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
@@ -357,222 +2245,700 @@ loadApplicants();
     text-decoration: none;
     margin-bottom: 1rem;
     transition: color 0.3s;
-}
+  }
 
-.back-link:hover {
+  .back-link:hover {
     color: #48bbff;
-}
+  }
 
-.page-header h1 {
+  .page-header h1 {
     font-size: 1.8rem;
     margin-bottom: 0.5rem;
-}
+  }
 
-.page-header p {
+  .page-header p {
     color: #94a3b8;
-}
+  }
 
-.filters-bar {
+  .filters-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 1.5rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
     flex-wrap: wrap;
     gap: 1rem;
-}
+  }
 
-.filter-group {
+  .filter-group {
     display: flex;
     align-items: center;
     gap: 0.8rem;
-}
+  }
 
-.filter-group label {
+  .filter-group label {
     color: #94a3b8;
     font-size: 0.9rem;
-}
+  }
 
-.filter-group select,
-.filter-group input[type="range"] {
+  .filter-group select,
+  .filter-group input[type="range"] {
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(72, 187, 255, 0.3);
     color: white;
     padding: 0.5rem 1rem;
     border-radius: 0.5rem;
-}
+  }
 
-.filter-actions {
+  .filter-actions {
     display: flex;
     gap: 0.8rem;
-}
+    flex-wrap: wrap;
+  }
 
-.stats-summary {
+  /* Two Column Layout */
+  .applicants-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 380px;
     gap: 2rem;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    text-align: center;
-}
+  }
 
-.stat-item {
+  .applicants-list-section {
+    min-width: 0;
+  }
+
+  .sidebar-section {
     display: flex;
     flex-direction: column;
-}
+    gap: 1.5rem;
+  }
 
-.stat-value {
-    font-size: 2rem;
-    font-weight: 700;
+  /* Stats Summary Card */
+  .stats-summary-card {
+    background: rgba(15, 30, 55, 0.7);
+    backdrop-filter: blur(10px);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    border: 1px solid rgba(72, 187, 255, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  .stats-summary-card h3 {
     color: #48bbff;
-}
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+  }
 
-.stat-label {
-    color: #94a3b8;
+  .stats-row-inline {
+    display: flex;
+    justify-content: space-around;
+    gap: 1rem;
+  }
+
+  .stat-item {
+    text-align: center;
+    flex: 1;
+    padding: 0.75rem;
+    background: rgba(72, 187, 255, 0.1);
+    border-radius: 0.75rem;
+  }
+
+  .stat-value {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #48bbff;
+    display: block;
+  }
+
+  .stat-label {
+    color: #64748b;
+    font-size: 0.85rem;
+  }
+
+  /* Interview Slots Card */
+  .interview-slots-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .interview-slots-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid rgba(72, 187, 255, 0.2);
+  }
+
+  .interview-slots-card .card-header h3 {
+    color: #48bbff;
+    margin: 0;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .interview-slots-card .card-header i:last-child {
+    color: #48bbff;
+    font-size: 1.2rem;
+  }
+
+  .slot-calendar-content {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .slot-day {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .slot-day:last-child {
+    margin-bottom: 0;
+  }
+
+  .slot-day-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
     font-size: 0.9rem;
-}
+    color: #333;
+  }
 
-.applicants-list {
+  .slot-day-header i {
+    color: #48bbff;
+  }
+
+  .slot-time-range {
+    color: #64748b;
+    font-size: 0.8rem;
+    margin-left: auto;
+  }
+
+  .slot-stats {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .slot-stats .available {
+    color: #00b86b;
+  }
+
+  .slot-stats .booked {
+    color: #ff5858;
+  }
+
+  .slot-times {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .slot-time {
+    padding: 0.3rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .slot-time.available {
+    background: rgba(0, 184, 107, 0.2);
+    border: 1px solid #00b86b;
+    color: #00b86b;
+  }
+
+  .slot-time.booked {
+    background: rgba(255, 88, 88, 0.2);
+    border: 1px solid #ff5858;
+    color: #ff5858;
+  }
+
+  .no-slots {
+    text-align: center;
+    padding: 2rem;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 0.75rem;
+  }
+
+  .no-slots p {
+    color: #64748b;
+    margin-bottom: 1rem;
+  }
+
+  /* Applicants List */
+  .applicants-list {
     display: flex;
     flex-direction: column;
     gap: 1rem;
-}
+  }
 
-.applicant-card {
+  .applicant-card {
     display: grid;
     grid-template-columns: 50px 1fr auto;
     gap: 1.5rem;
     padding: 1.5rem;
     align-items: center;
-    position: relative;
-    overflow: hidden;
-}
+  }
 
-.applicant-rank {
+  .applicant-rank {
     font-size: 1.5rem;
     font-weight: 800;
     color: rgba(72, 187, 255, 0.3);
     text-align: center;
-}
+  }
 
-.applicant-info h4 {
-    font-size: 1.2rem;
+  .applicant-info h4 {
+    font-size: 1.1rem;
     margin-bottom: 0.5rem;
     color: #f0f9ff;
-}
+  }
 
-.applicant-meta {
+  .applicant-meta {
     display: flex;
     gap: 1rem;
     align-items: center;
     flex-wrap: wrap;
-}
+  }
 
-.match-score-badge {
+  .match-score-badge {
     padding: 0.3rem 0.8rem;
     border-radius: 2rem;
     color: white;
     font-size: 0.85rem;
     font-weight: 600;
-}
+  }
 
-.status-badge {
+  .status-badge {
     padding: 0.3rem 0.8rem;
     border-radius: 2rem;
     font-size: 0.85rem;
     text-transform: capitalize;
-}
+  }
 
-.status-badge.applied { background: rgba(72, 187, 255, 0.2); color: #48bbff; }
-.status-badge.shortlisted { background: rgba(255, 204, 0, 0.2); color: #ffcc00; }
-.status-badge.interview { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
-.status-badge.hired { background: rgba(0, 184, 107, 0.2); color: #00b86b; }
-.status-badge.rejected { background: rgba(255, 88, 88, 0.2); color: #ff5858; }
+  .status-badge.applied {
+    background: rgba(72, 187, 255, 0.2);
+    color: #48bbff;
+  }
+  .status-badge.shortlisted {
+    background: rgba(255, 204, 0, 0.2);
+    color: #ffcc00;
+  }
+  .status-badge.interview {
+    background: rgba(168, 85, 247, 0.2);
+    color: #a855f7;
+  }
+  .status-badge.hired {
+    background: rgba(0, 184, 107, 0.2);
+    color: #00b86b;
+  }
+  .status-badge.rejected {
+    background: rgba(255, 88, 88, 0.2);
+    color: #ff5858;
+  }
 
-.date {
+  .date {
     color: #64748b;
     font-size: 0.85rem;
-}
+  }
 
-.applicant-actions {
+  .applicant-actions {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
-}
+  }
 
-.btn-success {
-    background: linear-gradient(135deg, #00b86b, #008c4a);
-    border: none;
-    padding: 0.5rem 1rem;
+  .btn-primary,
+  .btn-secondary,
+  .btn-success,
+  .btn-outline {
+    padding: 0.4rem 0.9rem;
     border-radius: 2rem;
-    color: white;
     cursor: pointer;
-    font-weight: 600;
-}
-
-.applicant-details {
-    grid-column: 1 / -1;
-    padding-top: 1rem;
-    border-top: 1px solid rgba(255,255,255,0.1);
-    margin-top: 1rem;
-}
-
-.details-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
-}
-
-.detail-item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-}
-
-.detail-item label {
-    color: #64748b;
     font-size: 0.85rem;
-}
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.3s;
+    border: none;
+  }
 
-.detail-item span {
-    color: #f0f9ff;
-    font-weight: 600;
-}
+  .btn-primary {
+    background: linear-gradient(135deg, #48bbff, #2b6eff);
+    color: white;
+  }
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+  }
+  .btn-success {
+    background: linear-gradient(135deg, #00b86b, #008c4a);
+    color: white;
+  }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid #48bbff;
+    color: #48bbff;
+  }
 
-.no-data {
+  .btn-primary:hover,
+  .btn-success:hover,
+  .btn-outline:hover {
+    transform: translateY(-2px);
+  }
+
+  .btn-sm {
+    padding: 0.3rem 0.8rem;
+    font-size: 0.8rem;
+  }
+
+  .no-data,
+  .loading-spinner,
+  .loading-small {
     text-align: center;
     color: #64748b;
-    padding: 3rem;
-}
+    padding: 2rem;
+  }
 
-.loading-spinner {
-    text-align: center;
+  .loading-small {
+    padding: 1rem;
+  }
+
+  /* Modal Styles */
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(5px);
+  }
+
+  .modal-content {
+    width: 90%;
+    max-width: 500px;
+    padding: 2rem;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-content h3 {
     color: #48bbff;
-    padding: 3rem;
-}
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
 
-@media (max-width: 968px) {
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    display: block;
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    border-radius: 0.5rem;
+    color: #f0f9ff;
+    font-size: 1rem;
+  }
+
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: #48bbff;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .slot-preview {
+    background: rgba(72, 187, 255, 0.1);
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin: 1rem 0;
+  }
+
+  .slot-preview p {
+    margin: 0.5rem 0;
+    color: #cbd5e1;
+  }
+
+  .slot-preview i {
+    color: #48bbff;
+    width: 20px;
+  }
+
+  /* Vetting Styles */
+  .vetting-score {
+    margin-top: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .score-badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .score-badge.pass {
+    background: rgba(0, 184, 107, 0.2);
+    color: #00b86b;
+    border: 1px solid #00b86b;
+  }
+
+  .score-badge.warning {
+    background: rgba(255, 204, 0, 0.2);
+    color: #ffcc00;
+    border: 1px solid #ffcc00;
+  }
+
+  .score-badge.fail {
+    background: rgba(255, 88, 88, 0.2);
+    color: #ff5858;
+    border: 1px solid #ff5858;
+  }
+
+  .score-badge.excellent {
+    background: rgba(0, 184, 107, 0.3);
+    color: #00b86b;
+    border: 1px solid #00b86b;
+  }
+
+  .score-badge.good {
+    background: rgba(72, 187, 255, 0.3);
+    color: #48bbff;
+    border: 1px solid #48bbff;
+  }
+
+  .score-badge.average {
+    background: rgba(255, 204, 0, 0.3);
+    color: #ffcc00;
+    border: 1px solid #ffcc00;
+  }
+
+  .score-badge.poor {
+    background: rgba(255, 88, 88, 0.3);
+    color: #ff5858;
+    border: 1px solid #ff5858;
+  }
+
+  .pass-badge {
+    background: rgba(0, 184, 107, 0.2);
+    color: #00b86b;
+    padding: 0.2rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.7rem;
+  }
+
+  .fail-badge {
+    background: rgba(255, 88, 88, 0.2);
+    color: #ff5858;
+    padding: 0.2rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.7rem;
+  }
+
+  .flag-badge {
+    background: rgba(255, 204, 0, 0.2);
+    color: #ffcc00;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.5rem;
+    font-size: 0.7rem;
+    margin-left: 0.3rem;
+    cursor: help;
+  }
+
+  .vetting-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .stat-box {
+    background: rgba(72, 187, 255, 0.1);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .stat-number {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #48bbff;
+    display: block;
+  }
+
+  .vetting-table-container {
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .vetting-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .vetting-table th {
+    background: rgba(72, 187, 255, 0.2);
+    padding: 0.75rem;
+    text-align: left;
+    color: #48bbff;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+  }
+
+  .vetting-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .vetting-table tr.passed {
+    background: rgba(0, 184, 107, 0.05);
+  }
+
+  .vetting-table tr.failed {
+    background: rgba(255, 88, 88, 0.05);
+  }
+
+  .code-preview {
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    font-family: "Courier New", monospace;
+    font-size: 0.85rem;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .test-results-summary {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 0.5rem;
+    padding: 1rem;
+  }
+
+  .test-case {
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    border-radius: 0.25rem;
+    font-size: 0.85rem;
+  }
+
+  .test-case.pass {
+    background: rgba(0, 184, 107, 0.2);
+    color: #00b86b;
+  }
+
+  .test-case.fail {
+    background: rgba(255, 88, 88, 0.2);
+    color: #ff5858;
+  }
+
+  .no-vetting-data {
+    text-align: center;
+    padding: 2rem;
+    color: #94a3b8;
+  }
+
+  .mt-2 {
+    margin-top: 0.5rem;
+  }
+
+  @media (max-width: 968px) {
+    .applicants-grid {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    .sidebar-section {
+      order: 2;
+    }
+    .applicants-list-section {
+      order: 1;
+    }
     .applicant-card {
-        grid-template-columns: 1fr;
-        text-align: center;
+      grid-template-columns: 1fr;
+      text-align: center;
     }
-    
+
     .applicant-actions {
-        justify-content: center;
+      justify-content: center;
     }
-    
-    .details-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    
+
     .filters-bar {
-        flex-direction: column;
-        align-items: stretch;
+      flex-direction: column;
+      align-items: stretch;
     }
-    
+
     .filter-actions {
-        justify-content: center;
+      justify-content: center;
     }
-}
+    .stats-row-inline {
+      flex-direction: column;
+    }
+
+    .vetting-stats {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
 </style>
 {% endblock %}

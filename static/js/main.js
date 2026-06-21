@@ -1,5 +1,5 @@
 // Global helpers, tilt effects, and API interceptors
-const API_BASE = "http://127.0.0.1:8000/api";
+window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";  // Changed from const to var
 
 // Show loading state for buttons
 function setLoading(btn, isLoading) {

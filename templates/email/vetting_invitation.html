@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <h2>🧠 Technical Assessment Invitation</h2>
+    <p>Dear {{ student_name }},</p>
+    <p>
+      You have been invited to complete a technical assessment for
+      <strong>{{ job_title }}</strong> at <strong>{{ company_name }}</strong>.
+    </p>
+    <p><strong>Challenge:</strong> {{ challenge_title }}</p>
+    <p>Click the button below to start the assessment (you have 7 days):</p>
+    <p>
+      <a
+        href="{{ test_url }}"
+        style="
+          background: #48bbff;
+          color: #fff;
+          padding: 10px 20px;
+          text-decoration: none;
+          border-radius: 5px;
+        "
+        >Start Assessment</a
+      >
+    </p>
+    <p>If you have any questions, contact the company directly.</p>
+    <hr />
+    <p style="color: #888">AI Talent Match – Smart Hiring</p>
+  </body>
+</html>

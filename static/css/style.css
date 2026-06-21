@@ -10,7 +10,9 @@ body {
     background: #050b14;
     color: #f0f9ff;
     overflow-x: hidden;
-    perspective: 1200px;
+    /* perspective removed from body — it creates a new containing block for
+       position:fixed elements in Chrome/Blink, breaking full-screen overlays.
+       3D card depth is handled via perspective() inside each card's transform. */
 }
 
 /* ========== 3D ANIMATED BACKGROUND ========== */
@@ -60,11 +62,12 @@ body {
     box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.1);
     transition: all 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1);
     transform-style: preserve-3d;
-    transform: translateZ(0) rotateX(0deg);
+    /* perspective() embedded in transform so we don't need it on body */
+    transform: perspective(1200px) translateZ(0) rotateX(0deg);
 }
 
 .glass-card:hover {
-    transform: translateY(-12px) rotateX(3deg) scale(1.01);
+    transform: perspective(1200px) translateY(-12px) rotateX(3deg) scale(1.01);
     border-color: #48bbff;
     box-shadow: 0 35px 55px -15px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(72,187,255,0.2);
 }
@@ -423,4 +426,21 @@ select {
         grid-template-columns: 1fr;
         text-align: center;
     }
+}
+.back-link:hover {
+    color: #48bbff;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #94a3b8;
+    text-decoration: none;
+    margin-bottom: 1.5rem;
+    transition: color 0.3s;
+}
+
+.back-link:hover {
+    color: #48bbff;
 }

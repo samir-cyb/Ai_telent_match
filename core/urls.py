@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import views 
 
 urlpatterns = [
     # Auth endpoints
@@ -11,8 +11,20 @@ urlpatterns = [
     # Student endpoints
     path('student/<uuid:student_id>/profile/', views.StudentProfileView.as_view(), name='student_profile'),
     path('student/create/', views.StudentProfileView.as_view(), name='create_student'),
+    # ADD THIS NEW ENDPOINT for explicit updates:
+    path('student/<uuid:student_id>/profile/update/', views.StudentProfileView.as_view(), name='update_student_profile'),
     path('student/<uuid:student_id>/dashboard/', views.StudentDashboardView.as_view(), name='student_dashboard'),
     path('student/<uuid:student_id>/matches/', views.StudentMatchesView.as_view(), name='student_matches'),
+    
+    # ADD THESE TWO NEW ENDPOINTS HERE
+    path('student/<uuid:student_id>/skills/', views.AddSkillView.as_view(), name='add_skill'),
+    path('student/<uuid:student_id>/experience/', views.AddExperienceView.as_view(), name='add_experience'),
+    path('student/<uuid:student_id>/preferences/', views.UpdatePreferencesView.as_view(), name='update_preferences'),
+    path('student/<uuid:student_id>/applications/', views.StudentApplicationsView.as_view(), name='student_applications'),
+    path('student/<uuid:student_id>/upload-resume/', views.UploadResumeView.as_view(), name='api_upload_resume'),
+    path('student/<uuid:student_id>/upload-linkedin/', views.LinkedInPDFUploadView.as_view(), name='api_upload_linkedin'),
+    path('student/<uuid:student_id>/recommendations/', views.SmartJobRecommendationsView.as_view(), name='smart_recommendations'),
+    
     path('analyze-match/', views.AnalyzeMatchView.as_view(), name='analyze_match'),
     path('smart-apply/', views.SmartApplyView.as_view(), name='smart_apply'),
     path('jobs/', views.JobsListView.as_view(), name='jobs_list'),
@@ -25,13 +37,33 @@ urlpatterns = [
     path('application/hire/', views.HireCandidateView.as_view(), name='hire_candidate'),
     path('applications/', views.ApplicationsListView.as_view(), name='applications_list'),
     path('application/update/', views.UpdateApplicationView.as_view(), name='update_application'),
-    
+    path('company/<uuid:company_id>/weights/', views.CompanyWeightsView.as_view(), name='company_weights'),
+    path('company/<uuid:company_id>/weight-agent-data/', views.WeightAgentDataView.as_view(), name='weight_agent_data'),
+    path('job/<uuid:job_id>/delete/', views.DeleteJobView.as_view(), name='delete_job'),
     # Admin endpoints
     path('admin/analytics/', views.AdminAnalyticsView.as_view(), name='admin_analytics'),
     path('admin/fraud-flags/', views.FraudFlagsListView.as_view(), name='fraud_flags_list'),
     path('admin/resolve-fraud/', views.ResolveFraudFlagView.as_view(), name='resolve_fraud'),
+    # Admin Auth endpoints - ADD THESE
+    path('auth/admin/login/', views.AdminLoginView.as_view(), name='admin_login'),
+    path('auth/admin/logout/', views.AdminLogoutView.as_view(), name='admin_logout'),
+    path('admin/add/', views.AddAdminView.as_view(), name='add_admin'),
+    path('admin/list/', views.ListAdminsView.as_view(), name='list_admins'),
     
     # Notifications & Scheduling
     path('notifications/<uuid:user_id>/<str:user_type>/', views.NotificationsView.as_view(), name='notifications'),
-    path('interview/schedule/', views.ScheduleInterviewView.as_view(), name='schedule_interview'),
+    #path('interview/schedule/', views.ScheduleInterviewView.as_view(), name='schedule_interview'),
+    
+    # Interview Slot Management
+    path('job/<uuid:job_id>/interview-slots/', views.InterviewSlotView.as_view(), name='interview_slots'),
+    
+    # Interview Scheduling
+    path('application/<uuid:application_id>/schedule-interview/', views.ScheduleInterviewView.as_view(), name='schedule_interview'),
+
+    # Available slots for applicant
+    path('job/<uuid:job_id>/available-slots/', views.AvailableSlotsView.as_view(), name='available_slots'),
+    path('job/<uuid:job_id>/slot-availability/', views.InterviewSlotAvailabilityView.as_view(), name='slot_availability'),
+    path('application/<uuid:application_id>/ai-effectiveness/', views.AIEffectivenessView.as_view(), name='ai_effectiveness'),
+    path('leaderboard/', views.LeaderboardView.as_view(), name='leaderboard'),
+    
 ]

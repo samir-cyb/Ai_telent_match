@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Interview Complete{% endblock %}
+
+{% block content %}
+<div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:2rem;">
+<div style="width:100%; max-width:600px; text-align:center;">
+
+  <!-- ── Confetti animation ── -->
+  <div id="confetti" style="position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:999;"></div>
+
+  <div class="glass-card" style="padding:3rem 2rem;">
+    <div style="font-size:4rem; margin-bottom:1rem; animation:pop .5s ease;">🎉</div>
+    <h1 style="color:#f0f9ff; font-size:1.8rem; margin:0 0 .5rem;">Interview Complete!</h1>
+    <p style="color:#64748b; margin-bottom:2rem; line-height:1.7;">
+      Great job! You've answered all {{ total_questions }} questions.<br>
+      The hiring team at <strong style="color:#93c5fd;">{{ company_name }}</strong> will review your results.
+    </p>
+
+    <!-- Score summary -->
+    <div style="background:#0f172a; border-radius:14px; padding:1.5rem; margin-bottom:2rem; text-align:left;">
+      <div style="font-size:.75rem; color:#475569; text-transform:uppercase; letter-spacing:.08em; margin-bottom:1rem; font-weight:700;">
+        Your Interview Summary
+      </div>
+
+      <!-- Per-question scores -->
+      {% for score_item in per_question_scores %}
+      <div style="display:flex; align-items:center; gap:1rem; margin-bottom:.7rem;">
+        <div style="width:24px; height:24px; border-radius:50%; background:#1e293b; display:flex; align-items:center; justify-content:center;
+          font-size:.72rem; font-weight:700; color:#64748b; flex-shrink:0;">{{ forloop.counter }}</div>
+        <div style="flex:1;">
+          <div style="font-size:.8rem; color:#cbd5e1; margin-bottom:.25rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+            {{ score_item.question|truncatechars:60 }}
+          </div>
+          <div style="height:4px; background:#1e293b; border-radius:999px; overflow:hidden;">
+            <div style="height:100%; border-radius:999px; width:{{ score_item.pct }}%;
+              background:{% if score_item.score >= 7 %}#22c55e{% elif score_item.score >= 5 %}#f59e0b{% else %}#ef4444{% endif %};"></div>
+          </div>
+        </div>
+        <div style="font-size:.85rem; font-weight:700; min-width:40px; text-align:right;
+          color:{% if score_item.score >= 7 %}#22c55e{% elif score_item.score >= 5 %}#f59e0b{% else %}#ef4444{% endif %};">
+          {{ score_item.score }}/10
+        </div>
+      </div>
+      {% endfor %}
+
+      <!-- Avg interview score -->
+      <div style="border-top:1px solid #1e293b; margin-top:1rem; padding-top:1rem; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:.85rem; color:#94a3b8;">Interview Score (avg)</span>
+        <span style="font-size:1.2rem; font-weight:900; color:#a78bfa;">{{ interview_score }}%</span>
+      </div>
+
+      {% if combined_score is not None %}
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:.5rem;">
+        <span style="font-size:.85rem; color:#94a3b8;">Combined Score (40% Agent + 60% Interview)</span>
+        <span style="font-size:1.2rem; font-weight:900;
+          color:{% if combined_pct >= 60 %}#22c55e{% elif combined_pct >= 45 %}#f59e0b{% else %}#ef4444{% endif %};">
+          {{ combined_pct|floatformat:1 }}%
+        </span>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- What's next -->
+    <div style="background:#0f172a; border-radius:14px; padding:1.2rem; margin-bottom:2rem; text-align:left; border-left:3px solid #3b82f6;">
+      <div style="font-size:.8rem; font-weight:700; color:#93c5fd; margin-bottom:.5rem;">⏭ What happens next?</div>
+      <div style="font-size:.82rem; color:#64748b; line-height:1.8;">
+        The company will review your agent score and interview performance.<br>
+        You'll receive a notification about their decision via email.
+      </div>
+    </div>
+
+    <a href="/student/dashboard/" style="display:inline-block; background:linear-gradient(135deg,#3b82f6,#6366f1); color:#fff;
+      padding:.9rem 2.5rem; border-radius:12px; text-decoration:none; font-weight:700;">
+      Back to Dashboard
+    </a>
+  </div>
+</div>
+</div>
+
+<style>
+@keyframes pop { 0%{transform:scale(0)} 70%{transform:scale(1.2)} 100%{transform:scale(1)} }
+</style>
+
+<script>
+// Simple confetti burst
+(function() {
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999;';
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const pieces = Array.from({length:80}, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * -100,
+    r: Math.random() * 6 + 4,
+    d: Math.random() * 8 + 2,
+    color: ['#3b82f6','#a78bfa','#22c55e','#f59e0b','#ec4899'][Math.floor(Math.random()*5)],
+    tilt: Math.random() * 10 - 5,
+    tiltAngle: 0, tiltSpeed: Math.random() * .1 + .05,
+  }));
+
+  let frame = 0;
+  function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    pieces.forEach(p => {
+      p.tiltAngle += p.tiltSpeed;
+      p.y += p.d;
+      p.x += Math.sin(p.tiltAngle) * 2;
+      p.tilt = Math.sin(p.tiltAngle) * 15;
+      if (p.y > canvas.height) { p.y = -10; p.x = Math.random() * canvas.width; }
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, p.r, p.r*0.4, p.tilt * Math.PI/180, 0, 2*Math.PI);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+    });
+    frame++;
+    if (frame < 180) requestAnimationFrame(draw);
+    else canvas.remove();
+  }
+  draw();
+})();
+</script>
+{% endblock %}

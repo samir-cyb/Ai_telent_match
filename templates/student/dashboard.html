@@ -1,291 +1,811 @@
-{% extends "base.html" %}
-{% block title %}Student Dashboard | AI Talent Match{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Student Dashboard | AI Talent
+Match{%endblock %} {% block content %}
 <div class="container dashboard-container">
-    <!-- Welcome Header -->
-    <div class="welcome-header glass-card">
-        <div class="welcome-text">
-            <h1>Welcome back, <span id="student-name">Student</span>! 👋</h1>
-            <p>Your AI Career Coach has found new opportunities for you</p>
+  <!-- Welcome Header -->
+  <div class="welcome-header glass-card">
+    <div class="welcome-text">
+      <h1>Welcome back, <span id="student-name">Student</span>! 👋</h1>
+      <p>Your AI Career Coach has found new opportunities for you</p>
+    </div>
+    <div class="trust-score-badge">
+      <div class="score-circle" id="trust-score-display">
+        <span class="score-value">--</span>
+        <span class="score-label">Trust Score</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vetting Assessment Alert (Hidden by default) -->
+  <div id="vetting-alert-container" style="display: none; margin-bottom: 2rem">
+    <div
+      class="glass-card"
+      style="border: 2px solid #48bbff; background: rgba(72, 187, 255, 0.1)"
+    >
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 1.5rem;
+        "
+      >
+        <div>
+          <h3
+            style="
+              color: #48bbff;
+              margin-bottom: 0.5rem;
+              display: flex;
+              align-items: center;
+              gap: 0.5rem;
+            "
+          >
+            <i class="fas fa-code"></i> Technical Assessment Pending
+          </h3>
+          <p style="color: #cbd5e1; margin: 0" id="vetting-job-title">
+            You have a coding assessment waiting
+          </p>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem">
+            <i class="fas fa-clock"></i> Complete within 7 days • Duration: 45
+            minutes
+          </p>
         </div>
-        <div class="trust-score-badge">
-            <div class="score-circle" id="trust-score-display">
-                <span class="score-value">--</span>
-                <span class="score-label">Trust Score</span>
+        <a
+          id="vetting-start-btn"
+          href="#"
+          class="btn-primary btn-glow"
+          style="text-decoration: none"
+        >
+          <i class="fas fa-play"></i> Start Assessment
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="quick-actions">
+    <a href="/student/jobs/" class="glass-card action-card">
+      <i class="fas fa-search"></i>
+      <span>Browse Jobs</span>
+    </a>
+    <a href="/student/profile/" class="glass-card action-card">
+      <i class="fas fa-user-edit"></i>
+      <span>Update Profile</span>
+    </a>
+    <a href="/student/career-advisor/" class="glass-card action-card">
+      <i class="fas fa-robot"></i>
+      <span>AI Advisor</span>
+    </a>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="stats-row">
+    <div class="glass-card stat-card">
+      <i class="fas fa-paper-plane"></i>
+      <div class="stat-info">
+        <h3 id="total-applications">0</h3>
+        <p>Applications</p>
+      </div>
+    </div>
+    <div class="glass-card stat-card">
+      <i class="fas fa-star"></i>
+      <div class="stat-info">
+        <h3 id="shortlisted-count">0</h3>
+        <p>Shortlisted</p>
+      </div>
+    </div>
+    <div class="glass-card stat-card">
+      <i class="fas fa-calendar-check"></i>
+      <div class="stat-info">
+        <h3 id="interview-count">0</h3>
+        <p>Interviews</p>
+      </div>
+    </div>
+    <div class="glass-card stat-card">
+      <i class="fas fa-percentage"></i>
+      <div class="stat-info">
+        <h3 id="success-rate">0%</h3>
+        <p>Success Rate</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="dashboard-grid">
+    <!-- Left Column -->
+    <div class="dashboard-left">
+      <!-- AI Career Coach -->
+      <div class="glass-card coach-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+          <h3 style="margin:0;"><i class="fas fa-robot"></i> AI Career Coach</h3>
+          <a href="/student/career-advisor/" style="
+            background:linear-gradient(135deg,#48bbff,#a855f7);
+            color:#fff;text-decoration:none;padding:.35rem .9rem;
+            border-radius:8px;font-size:.78rem;font-weight:700;
+            box-shadow:0 2px 10px rgba(72,187,255,.3);">
+            💬 Ask Advisor
+          </a>
+        </div>
+        <div class="radar-container">
+          <canvas id="skillRadarChart" width="300" height="300"></canvas>
+        </div>
+        <div class="coach-insights" id="coach-insights">
+          <div class="insight-item">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Loading AI insights...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Career Trajectory -->
+      <div class="glass-card trajectory-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;">
+          <h3 style="margin:0;"><i class="fas fa-route"></i> Career Trajectory</h3>
+          <span id="trajectory-confidence-badge" style="
+            background:rgba(72,187,255,0.12);border:1px solid rgba(72,187,255,0.3);
+            color:#48bbff;font-size:.72rem;font-weight:700;padding:.25rem .65rem;border-radius:999px;
+            display:none;"></span>
+        </div>
+        <div id="trajectory-loading" style="text-align:center;padding:1.5rem 0;color:#64748b;">
+          <i class="fas fa-spinner fa-spin"></i> Gemini is analysing your profile…
+        </div>
+        <div id="trajectory-content" style="display:none;">
+          <!-- Track + Stage -->
+          <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+            <div style="flex:1;min-width:130px;background:rgba(72,187,255,0.08);border:1px solid rgba(72,187,255,0.2);
+              border-radius:12px;padding:.85rem 1rem;">
+              <div style="font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;">Predicted Track</div>
+              <div id="predicted-track" style="font-size:1rem;font-weight:700;color:#e2e8f0;">--</div>
             </div>
+            <div style="flex:1;min-width:130px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.2);
+              border-radius:12px;padding:.85rem 1rem;">
+              <div style="font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;">Current Stage</div>
+              <div id="current-stage" style="font-size:1rem;font-weight:700;color:#c4b5fd;">--</div>
+            </div>
+          </div>
+          <!-- Next Role -->
+          <div style="background:linear-gradient(135deg,rgba(72,187,255,0.08),rgba(168,85,247,0.08));
+            border:1px solid rgba(72,187,255,0.2);border-radius:12px;padding:.85rem 1rem;margin-bottom:1rem;">
+            <div style="font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;">🎯 Next Role</div>
+            <div id="next-role" style="font-size:1.05rem;font-weight:700;color:#48bbff;">--</div>
+          </div>
+          <!-- Career Summary -->
+          <div id="career-summary-box" style="display:none;
+            background:rgba(15,23,42,0.6);border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem;
+            border-left:3px solid #48bbff;">
+            <div style="font-size:.72rem;color:#64748b;margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em;">Gemini's Take</div>
+            <p id="career-summary" style="color:#94a3b8;font-size:.85rem;line-height:1.6;margin:0;"></p>
+          </div>
+          <!-- Goals -->
+          <div style="display:flex;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap;">
+            <div id="goal-6m-box" style="display:none;flex:1;min-width:140px;
+              background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.2);
+              border-radius:10px;padding:.7rem .9rem;">
+              <div style="font-size:.7rem;color:#64748b;margin-bottom:.25rem;">📅 6-Month Goal</div>
+              <p id="goal-6m" style="color:#86efac;font-size:.82rem;line-height:1.5;margin:0;"></p>
+            </div>
+            <div id="goal-1y-box" style="display:none;flex:1;min-width:140px;
+              background:rgba(251,146,60,0.06);border:1px solid rgba(251,146,60,0.2);
+              border-radius:10px;padding:.7rem .9rem;">
+              <div style="font-size:.7rem;color:#64748b;margin-bottom:.25rem;">🏆 1-Year Goal</div>
+              <p id="goal-1y" style="color:#fdba74;font-size:.82rem;line-height:1.5;margin:0;"></p>
+            </div>
+          </div>
+          <!-- Recommended skills -->
+          <div>
+            <div style="font-size:.75rem;color:#64748b;margin-bottom:.5rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">
+              Skills to Learn Next
+            </div>
+            <div class="skill-tags" id="skill-tags"></div>
+          </div>
         </div>
+      </div>
+      <!-- Hire Readiness Card -->
+      <div class="glass-card readiness-card">
+        <h3><i class="fas fa-hourglass-half"></i> Estimated Time to Hire</h3>
+        <div class="readiness-display">
+          <div class="readiness-gauge">
+            <div class="gauge-circle">
+              <span id="readiness-score">--</span>
+              <span>Score</span>
+            </div>
+            <div class="readiness-days">
+              <span id="readiness-days">--</span>
+              <span>Days</span>
+            </div>
+          </div>
+          <div class="readiness-details">
+            <div class="factor-row">
+              <span>Profile Completeness</span>
+              <span id="factor-profile">--%</span>
+            </div>
+            <div class="factor-row">
+              <span>Skill Demand Fit</span>
+              <span id="factor-demand">--%</span>
+            </div>
+            <div class="factor-row">
+              <span>Application Activity</span>
+              <span id="factor-activity">--%</span>
+            </div>
+            <div class="factor-row">
+              <span>Average Match Score</span>
+              <span id="factor-match">--%</span>
+            </div>
+            <div class="factor-row">
+              <span>Trust Score</span>
+              <span id="factor-trust">--%</span>
+            </div>
+          </div>
+        </div>
+        <p class="readiness-label" id="readiness-label">--</p>
+      </div>
     </div>
 
-    <!-- Stats Row -->
-    <div class="stats-row">
-        <div class="glass-card stat-card">
-            <i class="fas fa-paper-plane"></i>
-            <div class="stat-info">
-                <h3 id="total-applications">0</h3>
-                <p>Applications</p>
-            </div>
+    <!-- Right Column -->
+    <div class="dashboard-right">
+      <!-- Smart Apply Section -->
+      <div class="glass-card smart-apply-card">
+        <div class="smart-apply-header">
+          <h3><i class="fas fa-magic"></i> Smart Apply</h3>
+          <div class="threshold-control">
+            <label
+              >Match Threshold: <span id="threshold-value">70</span>%</label
+            >
+            <input
+              type="range"
+              id="threshold-slider"
+              min="50"
+              max="95"
+              value="70"
+              step="5"
+            />
+          </div>
         </div>
-        <div class="glass-card stat-card">
-            <i class="fas fa-star"></i>
-            <div class="stat-info">
-                <h3 id="shortlisted-count">0</h3>
-                <p>Shortlisted</p>
-            </div>
+        <button id="smart-apply-btn" class="btn-primary btn-glow">
+          <i class="fas fa-rocket"></i> Auto-Apply to Top Matches
+        </button>
+        <div id="smart-apply-status"></div>
+      </div>
+
+      <!-- Job Recommendations -->
+      <div class="glass-card recommendations-card">
+        <h3><i class="fas fa-briefcase"></i> Top Job Recommendations</h3>
+        <div id="recommendations-list" class="recommendations-list">
+          <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i> Finding best matches...
+          </div>
         </div>
-        <div class="glass-card stat-card">
-            <i class="fas fa-calendar-check"></i>
-            <div class="stat-info">
-                <h3 id="interview-count">0</h3>
-                <p>Interviews</p>
-            </div>
+      </div>
+
+      <!-- Skill Gaps -->
+      <div class="glass-card skill-gaps-card">
+        <h3>
+          <i class="fas fa-exclamation-triangle"></i> In-Demand Skills You're
+          Missing
+        </h3>
+        <div id="skill-gaps-list" class="skill-gaps-list">
+          <p>Analyzing market trends...</p>
         </div>
-        <div class="glass-card stat-card">
-            <i class="fas fa-percentage"></i>
-            <div class="stat-info">
-                <h3 id="success-rate">0%</h3>
-                <p>Success Rate</p>
-            </div>
+      </div>
+
+      <!-- ── AI Interviews ─────────────────────────────────────── -->
+      <div class="glass-card" id="ai-interviews-card" style="display:none; border:1px solid rgba(167,139,250,0.35); background:rgba(109,40,217,0.08);">
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;">
+          <span style="font-size:1.4rem;">🤖</span>
+          <h3 style="margin:0;color:#c4b5fd;">AI Interviews</h3>
+          <span id="ai-interview-count-badge" style="background:#7c3aed;color:#fff;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;margin-left:auto;"></span>
         </div>
+        <div id="ai-interviews-list"></div>
+      </div>
+
+      <!-- Notifications -->
+      <div class="glass-card notifications-card">
+        <div class="notif-header-row">
+          <h3><i class="fas fa-bell"></i> Notifications <span id="notif-unread-badge" class="notif-badge" style="display:none"></span></h3>
+          <button class="notif-mark-all-btn" onclick="markAllRead()" title="Mark all as read">
+            <i class="fas fa-check-double"></i> Mark all read
+          </button>
+        </div>
+        <div id="notifications-list" class="notifications-list">
+          <p class="no-data">No new notifications</p>
+        </div>
+      </div>
     </div>
-
-    <!-- Main Content Grid -->
-    <div class="dashboard-grid">
-        <!-- Left Column -->
-        <div class="dashboard-left">
-            <!-- AI Career Coach -->
-            <div class="glass-card coach-card">
-                <h3><i class="fas fa-robot"></i> AI Career Coach</h3>
-                <div class="radar-container">
-                    <canvas id="skillRadarChart" width="300" height="300"></canvas>
-                </div>
-                <div class="coach-insights" id="coach-insights">
-                    <p>Loading insights...</p>
-                </div>
-            </div>
-
-            <!-- Career Trajectory -->
-            <div class="glass-card trajectory-card">
-                <h3><i class="fas fa-route"></i> Career Trajectory</h3>
-                <div id="trajectory-content">
-                    <div class="trajectory-item">
-                        <span class="label">Predicted Track:</span>
-                        <span class="value" id="predicted-track">--</span>
-                    </div>
-                    <div class="trajectory-item">
-                        <span class="label">Current Stage:</span>
-                        <span class="value" id="current-stage">--</span>
-                    </div>
-                    <div class="trajectory-item">
-                        <span class="label">Next Role:</span>
-                        <span class="value highlight" id="next-role">--</span>
-                    </div>
-                    <div class="recommended-skills" id="recommended-skills">
-                        <p>Recommended skills to learn:</p>
-                        <div class="skill-tags" id="skill-tags"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right Column -->
-        <div class="dashboard-right">
-            <!-- Smart Apply Section -->
-            <div class="glass-card smart-apply-card">
-                <div class="smart-apply-header">
-                    <h3><i class="fas fa-magic"></i> Smart Apply</h3>
-                    <div class="threshold-control">
-                        <label>Match Threshold: <span id="threshold-value">70</span>%</label>
-                        <input type="range" id="threshold-slider" min="50" max="95" value="70" step="5">
-                    </div>
-                </div>
-                <button id="smart-apply-btn" class="btn-primary btn-glow">
-                    <i class="fas fa-rocket"></i> Auto-Apply to Top Matches
-                </button>
-                <div id="smart-apply-status"></div>
-            </div>
-
-            <!-- Job Recommendations -->
-            <div class="glass-card recommendations-card">
-                <h3><i class="fas fa-briefcase"></i> Top Job Recommendations</h3>
-                <div id="recommendations-list" class="recommendations-list">
-                    <div class="loading-spinner">
-                        <i class="fas fa-spinner fa-spin"></i> Finding best matches...
-                    </div>
-                </div>
-            </div>
-
-            <!-- Skill Gaps -->
-            <div class="glass-card skill-gaps-card">
-                <h3><i class="fas fa-exclamation-triangle"></i> In-Demand Skills You're Missing</h3>
-                <div id="skill-gaps-list" class="skill-gaps-list">
-                    <p>Analyzing market trends...</p>
-                </div>
-            </div>
-
-            <!-- Notifications -->
-            <div class="glass-card notifications-card">
-                <h3><i class="fas fa-bell"></i> Recent Notifications</h3>
-                <div id="notifications-list" class="notifications-list">
-                    <p>No new notifications</p>
-                </div>
-            </div>
-        </div>
-    </div>
+  </div>
 </div>
 
+<!-- ── Floating AI Advisor Bubble ───────────────────────────────────────────── -->
+<div id="advisor-bubble" onclick="toggleAdvisorChat()" style="
+  position:fixed;bottom:2rem;right:2rem;z-index:8888;
+  width:60px;height:60px;border-radius:50%;
+  background:linear-gradient(135deg,#48bbff,#a855f7);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;box-shadow:0 8px 30px rgba(72,187,255,.5);
+  font-size:1.6rem;transition:transform .25s;
+  animation:bubblePulse 2.5s ease-in-out infinite;
+" title="Open AI Career Advisor">🤖
+  <span id="advisor-notif-dot" style="
+    position:absolute;top:2px;right:2px;width:14px;height:14px;
+    background:#ef4444;border-radius:50%;border:2px solid #0f172a;
+    font-size:.55rem;color:#fff;display:flex;align-items:center;justify-content:center;
+    font-weight:900;">1</span>
+</div>
+
+<!-- Quick chat mini-panel -->
+<div id="advisor-mini-panel" style="
+  display:none;position:fixed;bottom:5.5rem;right:2rem;z-index:8887;
+  width:320px;background:rgba(10,15,30,0.96);
+  border:1px solid rgba(72,187,255,0.25);border-radius:1.25rem;
+  backdrop-filter:blur(16px);
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+  overflow:hidden;animation:slideUp .25s ease;
+">
+  <div style="
+    padding:1rem 1.25rem;
+    background:linear-gradient(135deg,rgba(72,187,255,.1),rgba(168,85,247,.1));
+    border-bottom:1px solid rgba(72,187,255,.15);
+    display:flex;align-items:center;gap:.75rem;
+  ">
+    <span style="font-size:1.3rem;">🤖</span>
+    <div>
+      <div style="font-weight:700;color:#f0f9ff;font-size:.9rem;">AI Career Advisor</div>
+      <div style="font-size:.72rem;color:#64748b;">Powered by Gemini</div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:.5rem;">
+      <a href="/student/career-advisor/" style="
+        font-size:.72rem;color:#48bbff;text-decoration:none;
+        padding:.2rem .5rem;border:1px solid rgba(72,187,255,.3);
+        border-radius:6px;font-weight:600;
+      ">Full Page</a>
+      <button onclick="toggleAdvisorChat()" style="
+        background:none;border:none;color:#64748b;cursor:pointer;font-size:1rem;padding:.2rem;
+      ">✕</button>
+    </div>
+  </div>
+  <div id="mini-chat-msgs" style="
+    height:220px;overflow-y:auto;padding:1rem;
+    display:flex;flex-direction:column;gap:.75rem;
+  ">
+    <div style="display:flex;gap:.6rem;align-items:flex-start;">
+      <span style="font-size:1rem;">🤖</span>
+      <div style="background:rgba(72,187,255,.08);border:1px solid rgba(72,187,255,.15);
+        border-radius:10px;padding:.6rem .9rem;font-size:.83rem;color:#cbd5e1;line-height:1.55;
+        border-top-left-radius:3px;">
+        Hi! Ask me anything about your career — skills to learn, jobs to target, how to improve your profile, and more.
+      </div>
+    </div>
+  </div>
+  <div style="padding:.75rem;border-top:1px solid rgba(72,187,255,.1);display:flex;gap:.5rem;">
+    <input id="mini-chat-input" type="text"
+      placeholder="Ask your career question…"
+      style="flex:1;background:rgba(15,23,42,.8);border:1px solid rgba(72,187,255,.25);
+        border-radius:10px;color:#e2e8f0;padding:.55rem .85rem;font-size:.83rem;outline:none;"
+      onkeydown="if(event.key==='Enter') sendMiniChat()"
+    />
+    <button onclick="sendMiniChat()" style="
+      background:linear-gradient(135deg,#48bbff,#a855f7);
+      border:none;border-radius:10px;padding:.55rem .9rem;
+      color:#fff;cursor:pointer;font-size:.9rem;
+    "><i class="fas fa-paper-plane"></i></button>
+  </div>
+</div>
+
+<style>
+@keyframes bubblePulse {
+  0%,100% { box-shadow:0 8px 30px rgba(72,187,255,.5); }
+  50%      { box-shadow:0 8px 40px rgba(168,85,247,.7); }
+}
+@keyframes slideUp {
+  from { opacity:0;transform:translateY(10px); }
+  to   { opacity:1;transform:translateY(0); }
+}
+</style>
+
 <script>
-const API_BASE = "http://127.0.0.1:8000/api";
-let studentId = localStorage.getItem('student_id');
-let radarChart;
+// ── Floating AI Advisor mini-chat ─────────────────────────────────────────────
+let miniChatHistory = [];
+let miniPanelOpen   = false;
 
-// Check authentication
-if (!studentId) {
-    window.location.href = '/student/login/';
+function toggleAdvisorChat() {
+  const panel = document.getElementById('advisor-mini-panel');
+  const dot   = document.getElementById('advisor-notif-dot');
+  miniPanelOpen = !miniPanelOpen;
+  panel.style.display = miniPanelOpen ? 'block' : 'none';
+  if (miniPanelOpen) {
+    dot.style.display = 'none';
+    document.getElementById('mini-chat-input').focus();
+  }
+  document.getElementById('advisor-bubble').style.transform = miniPanelOpen ? 'scale(0.9)' : 'scale(1)';
 }
 
-// Load dashboard data
-async function loadDashboard() {
+async function sendMiniChat() {
+  const input = document.getElementById('mini-chat-input');
+  const msg   = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  appendMiniMsg('user', msg);
+  miniChatHistory.push({ role: 'user', content: msg });
+
+  // Typing indicator
+  const msgs = document.getElementById('mini-chat-msgs');
+  const typingEl = document.createElement('div');
+  typingEl.id = 'mini-typing';
+  typingEl.innerHTML = `<span style="color:#64748b;font-size:.8rem;">🤖 thinking…</span>`;
+  typingEl.style.paddingLeft = '.4rem';
+  msgs.appendChild(typingEl);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const r = await fetch(`${API_BASE}/student/${studentId}/career-advisor/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, history: miniChatHistory.slice(-6) }),
+    });
+    const d = await r.json();
+    typingEl.remove();
+    const reply = d.reply || 'Sorry, I couldn\'t generate a response right now.';
+    appendMiniMsg('assistant', reply);
+    miniChatHistory.push({ role: 'assistant', content: reply });
+  } catch (e) {
+    typingEl.remove();
+    appendMiniMsg('assistant', '⚠️ Network error. Please try again.');
+  }
+}
+
+function appendMiniMsg(role, content) {
+  const msgs = document.getElementById('mini-chat-msgs');
+  const isUser = role === 'user';
+  const div  = document.createElement('div');
+  div.style.cssText = `display:flex;gap:.6rem;align-items:flex-start;${isUser ? 'flex-direction:row-reverse;' : ''}`;
+  div.innerHTML = `
+    <span style="font-size:.9rem;flex-shrink:0;">${isUser ? '👤' : '🤖'}</span>
+    <div style="
+      background:${isUser ? 'rgba(168,85,247,.12)' : 'rgba(72,187,255,.08)'};
+      border:1px solid ${isUser ? 'rgba(168,85,247,.2)' : 'rgba(72,187,255,.15)'};
+      border-radius:10px;padding:.55rem .8rem;font-size:.82rem;
+      color:#cbd5e1;line-height:1.55;max-width:85%;
+      ${isUser ? 'border-top-right-radius:3px;' : 'border-top-left-radius:3px;'}
+    ">${content.replace(/\n/g,'<br>')}</div>
+  `;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+</script>
+
+<script>
+  // Remove this line entirely, OR use:
+  window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
+  let studentId = localStorage.getItem("student_id");
+  let radarChart;
+
+  // Check authentication
+  if (!studentId) {
+    window.location.href = "/student/login/";
+  }
+
+  // Load dashboard data
+  async function loadDashboard() {
     try {
-        const response = await fetch(`${API_BASE}/student/${studentId}/dashboard/`);
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            updateDashboard(data.data);
-        }
-    } catch (error) {
-        console.error('Error loading dashboard:', error);
-    }
-}
+      const response = await fetch(
+        `${API_BASE}/student/${studentId}/dashboard/`,
+      );
+      const data = await response.json();
 
-function updateDashboard(data) {
+      if (data.status === "success") {
+        updateDashboard(data.data);
+      }
+    } catch (error) {
+      console.error("Error loading dashboard:", error);
+    }
+    // Also load AI interviews directly (catches older notifications beyond the 10-item limit)
+    loadAIInterviewsDirect();
+  }
+
+  // Load AI interviews from dedicated endpoint (reliable, works even if migration pending)
+  async function loadAIInterviewsDirect() {
+    try {
+      const r    = await fetch(`${API_BASE}/student/${studentId}/ai-interviews/`);
+      const data = await r.json();
+      if (data.status === 'success' && data.interviews && data.interviews.length > 0) {
+        renderAIInterviewsDirect(data.interviews);
+      }
+    } catch (e) {
+      // Silently ignore — notification-based fallback still works
+    }
+  }
+
+  function renderAIInterviewsDirect(interviews) {
+    const card  = document.getElementById('ai-interviews-card');
+    const list  = document.getElementById('ai-interviews-list');
+    const badge = document.getElementById('ai-interview-count-badge');
+    card.style.display = 'block';
+    badge.textContent  = interviews.length + ' pending';
+    list.innerHTML = interviews.map(iv => `
+      <div style="background:rgba(109,40,217,0.15);border:1px solid rgba(167,139,250,0.3);
+        border-radius:12px;padding:1rem 1.2rem;margin-bottom:.75rem;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:700;color:#e2e8f0;font-size:.95rem;">
+              ${iv.job_title} <span style="color:#a78bfa;font-size:.8rem;">@ ${iv.company_name}</span>
+            </div>
+            ${iv.answers_given > 0 ? `<div style="color:#94a3b8;font-size:.78rem;margin-top:.2rem;">
+              <i class="fas fa-check-circle" style="color:#34d399;"></i>
+              ${iv.answers_given} of ${iv.questions_total} questions answered — resume anytime
+            </div>` : ''}
+            ${iv.deadline ? `<div style="color:#94a3b8;font-size:.78rem;margin-top:.25rem;">
+              <i class="fas fa-clock" style="color:#f87171;"></i>
+              Deadline: <strong style="color:#fca5a5;">${iv.deadline}</strong>
+            </div>` : ''}
+          </div>
+          <a href="${iv.interview_url}"
+             style="display:inline-flex;align-items:center;gap:.45rem;
+               background:linear-gradient(135deg,#7c3aed,#a855f7);
+               color:#fff;text-decoration:none;padding:.55rem 1.2rem;
+               border-radius:8px;font-size:.88rem;font-weight:700;
+               white-space:nowrap;box-shadow:0 4px 14px rgba(124,58,237,.4);">
+            🤖 ${iv.answers_given > 0 ? 'Continue Interview' : 'Start Interview'}
+          </a>
+        </div>
+      </div>`).join('');
+  }
+
+  function updateDashboard(data) {
+    // Detect new notifications (toast system)
+    detectNewNotifications(data.recent_notifications);
+
     // Update header
-    document.getElementById('student-name').textContent = data.profile_summary?.name || 'Student';
-    
+    document.getElementById("student-name").textContent =
+      data.profile_summary?.name || "Student";
+
     // Update trust score
     const trustScore = Math.round(data.profile_summary?.trust_score || 0);
-    document.querySelector('.score-value').textContent = trustScore;
-    document.getElementById('trust-score-display').style.background = 
-        `conic-gradient(#48bbff ${trustScore * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
-    
+    document.querySelector(".score-value").textContent = trustScore;
+    document.getElementById("trust-score-display").style.background =
+      `conic-gradient(#48bbff ${trustScore * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
+
     // Update stats
-    document.getElementById('total-applications').textContent = data.applications?.total || 0;
-    document.getElementById('shortlisted-count').textContent = data.applications?.shortlisted || 0;
-    document.getElementById('interview-count').textContent = data.applications?.interviews || 0;
-    document.getElementById('success-rate').textContent = 
-        Math.round(data.applications?.success_rate || 0) + '%';
-    
+    document.getElementById("total-applications").textContent =
+      data.applications?.total || 0;
+    document.getElementById("shortlisted-count").textContent =
+      data.applications?.shortlisted || 0;
+    document.getElementById("interview-count").textContent =
+      data.applications?.interviews || 0;
+    document.getElementById("success-rate").textContent =
+      Math.round(data.applications?.success_rate || 0) + "%";
+
     // Update radar chart
     updateRadarChart(data);
-    
+
     // Update coach insights
-    document.getElementById('coach-insights').innerHTML = `
-        <div class="insight-item">
-            <i class="fas fa-info-circle"></i>
-            <span>${data.profile_summary?.next_milestone || 'Complete your profile'}</span>
-        </div>
-        <div class="insight-item">
-            <i class="fas fa-check-circle"></i>
-            <span>Profile ${Math.round(data.profile_summary?.profile_complete || 0)}% complete</span>
-        </div>
+    const profilePct = Math.round(data.profile_summary?.profile_complete || 0);
+    const milestone  = data.profile_summary?.next_milestone || "Keep building your profile";
+    document.getElementById("coach-insights").innerHTML = `
+      <div class="insight-item">
+        <i class="fas fa-tasks" style="color:#48bbff;"></i>
+        <span>${milestone}</span>
+      </div>
+      <div class="insight-item">
+        <i class="fas fa-shield-alt" style="color:#a855f7;"></i>
+        <span>Trust Score: <strong style="color:#f0f9ff;">${Math.round(data.profile_summary?.trust_score || 0)}/100</strong></span>
+      </div>
+      <div class="insight-item">
+        <i class="fas fa-percentage" style="color:#22c55e;"></i>
+        <span>Profile <strong style="color:#f0f9ff;">${profilePct}%</strong> complete</span>
+      </div>
+      <div style="margin-top:.75rem;">
+        <a href="/student/career-advisor/" style="
+          display:inline-flex;align-items:center;gap:.4rem;
+          background:linear-gradient(135deg,rgba(72,187,255,.15),rgba(168,85,247,.15));
+          border:1px solid rgba(72,187,255,.3);color:#93c5fd;
+          text-decoration:none;padding:.45rem 1rem;border-radius:8px;font-size:.82rem;font-weight:600;">
+          💬 Ask AI Advisor for personalised advice →
+        </a>
+      </div>
     `;
-    
+
     // Update trajectory
     if (data.career_trajectory) {
-        document.getElementById('predicted-track').textContent = 
-            data.career_trajectory.predicted_track?.replace('_', ' ').toUpperCase() || '--';
-        document.getElementById('current-stage').textContent = 
-            data.career_trajectory.current_stage || '--';
-        document.getElementById('next-role').textContent = 
-            data.career_trajectory.next_role || '--';
-        
-        // Update recommended skills
-        const skillsContainer = document.getElementById('skill-tags');
-        skillsContainer.innerHTML = '';
-        if (data.career_trajectory.recommended_skills_to_add) {
-            data.career_trajectory.recommended_skills_to_add.forEach(skill => {
-                skillsContainer.innerHTML += `<span class="skill-tag">${skill}</span>`;
-            });
-        }
+      const ct = data.career_trajectory;
+      document.getElementById('trajectory-loading').style.display = 'none';
+      document.getElementById('trajectory-content').style.display = 'block';
+
+      document.getElementById('predicted-track').textContent = ct.predicted_track || '--';
+      document.getElementById('current-stage').textContent   = ct.current_stage   || '--';
+      document.getElementById('next-role').textContent       = ct.next_role        || '--';
+
+      // Confidence badge
+      if (ct.confidence) {
+        const badge = document.getElementById('trajectory-confidence-badge');
+        badge.textContent = ct.confidence + ' Confidence';
+        badge.style.display = 'inline-block';
+        badge.style.background =
+          ct.confidence === 'High'   ? 'rgba(34,197,94,0.12)'  :
+          ct.confidence === 'Medium' ? 'rgba(251,146,60,0.12)' : 'rgba(239,68,68,0.12)';
+        badge.style.borderColor =
+          ct.confidence === 'High'   ? 'rgba(34,197,94,0.35)'  :
+          ct.confidence === 'Medium' ? 'rgba(251,146,60,0.35)' : 'rgba(239,68,68,0.35)';
+        badge.style.color =
+          ct.confidence === 'High' ? '#86efac' : ct.confidence === 'Medium' ? '#fdba74' : '#fca5a5';
+      }
+
+      // Career summary
+      if (ct.career_summary) {
+        document.getElementById('career-summary').textContent = ct.career_summary;
+        document.getElementById('career-summary-box').style.display = 'block';
+      }
+
+      // Goals
+      if (ct.goal_6_months) {
+        document.getElementById('goal-6m').textContent = ct.goal_6_months;
+        document.getElementById('goal-6m-box').style.display = 'block';
+      }
+      if (ct.goal_1_year) {
+        document.getElementById('goal-1y').textContent = ct.goal_1_year;
+        document.getElementById('goal-1y-box').style.display = 'block';
+      }
+
+      // Recommended skills
+      const skillsContainer = document.getElementById('skill-tags');
+      skillsContainer.innerHTML = '';
+      const skills = ct.recommended_skills_to_add || ct.recommended_skills || [];
+      skills.forEach(skill => {
+        skillsContainer.innerHTML += `<span class="skill-tag">${skill}</span>`;
+      });
     }
-    
+
     // Update recommendations
     updateRecommendations(data.recommendations);
-    
+
     // Update skill gaps
     updateSkillGaps(data.skill_analytics?.most_demanded_missing_skills);
-    
+
+    // Update AI interviews card (from notifications)
+    updateAIInterviews(data.recent_notifications);
+
     // Update notifications
     updateNotifications(data.recent_notifications);
-}
+    // Hire Readiness
+    if (data.hire_readiness) {
+      const hr = data.hire_readiness;
+      document.getElementById("readiness-score").textContent = hr.score;
+      document.getElementById("readiness-days").textContent = hr.days_estimate;
+      document.getElementById("readiness-label").textContent =
+        hr.label + " – estimated " + hr.days_estimate + " days to hire";
+      // Factors
+      document.getElementById("factor-profile").textContent =
+        hr.factors.profile_completeness + "%";
+      document.getElementById("factor-demand").textContent =
+        hr.factors.skill_demand_fit + "%";
+      document.getElementById("factor-activity").textContent =
+        hr.factors.application_activity + "%";
+      document.getElementById("factor-match").textContent =
+        hr.factors.average_match_score + "%";
+      document.getElementById("factor-trust").textContent =
+        hr.factors.trust_score + "%";
+    }
+  }
 
-function updateRadarChart(data) {
-    const ctx = document.getElementById('skillRadarChart').getContext('2d');
-    
+  // ── AI Interviews section ─────────────────────────────────────────────────
+  function updateAIInterviews(notifications) {
+    const card   = document.getElementById('ai-interviews-card');
+    const list   = document.getElementById('ai-interviews-list');
+    const badge  = document.getElementById('ai-interview-count-badge');
+    if (!notifications) return;
+
+    // Pull every ai_interview notification that has an interview URL
+    const interviews = notifications.filter(n => n.type === 'ai_interview' && n.data?.interview_url);
+
+    if (interviews.length === 0) {
+      card.style.display = 'none';
+      return;
+    }
+
+    card.style.display = 'block';
+    badge.textContent  = interviews.length + ' pending';
+
+    list.innerHTML = interviews.map(n => {
+      const d          = n.data;
+      const deadline   = d.deadline_str || (d.expires_at ? new Date(d.expires_at).toLocaleString('en-BD') : 'No deadline');
+      const company    = d.company_name  || '';
+      const jobTitle   = d.job_title     || '';
+      return `
+        <div style="background:rgba(109,40,217,0.15);border:1px solid rgba(167,139,250,0.3);
+          border-radius:12px;padding:1rem 1.2rem;margin-bottom:.75rem;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:700;color:#e2e8f0;font-size:.95rem;">
+                ${jobTitle} <span style="color:#a78bfa;font-size:.8rem;">@ ${company}</span>
+              </div>
+              <div style="color:#94a3b8;font-size:.78rem;margin-top:.25rem;">
+                <i class="fas fa-clock" style="color:#f87171;"></i>
+                Deadline: <strong style="color:#fca5a5;">${deadline}</strong>
+              </div>
+            </div>
+            <a href="${d.interview_url}"
+               style="display:inline-flex;align-items:center;gap:.45rem;
+                 background:linear-gradient(135deg,#7c3aed,#a855f7);
+                 color:#fff;text-decoration:none;padding:.55rem 1.2rem;
+                 border-radius:8px;font-size:.88rem;font-weight:700;
+                 white-space:nowrap;box-shadow:0 4px 14px rgba(124,58,237,.4);">
+              🤖 Start Interview
+            </a>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function updateRadarChart(data) {
+    const ctx = document.getElementById("skillRadarChart").getContext("2d");
+
     if (radarChart) {
-        radarChart.destroy();
+      radarChart.destroy();
     }
-    
-    radarChart = new Chart(ctx, {
-        type: 'radar',
-        data: {
-            labels: ['Skills', 'CGPA', 'Projects', 'Activity', 'Trust'],
-            datasets: [{
-                label: 'Your Profile',
-                data: [
-                    data.skill_analytics?.verified_skills_count * 20 || 50,
-                    75, // CGPA normalized
-                    data.applications?.total > 0 ? 80 : 40,
-                    data.profile_summary?.profile_complete || 50,
-                    data.profile_summary?.trust_score || 50
-                ],
-                backgroundColor: 'rgba(72, 187, 255, 0.2)',
-                borderColor: '#48bbff',
-                pointBackgroundColor: '#48bbff',
-                pointBorderColor: '#fff',
-                pointHoverBackgroundColor: '#fff',
-                pointHoverBorderColor: '#48bbff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                r: {
-                    beginAtZero: true,
-                    max: 100,
-                    ticks: {
-                        display: false
-                    },
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
-                    },
-                    pointLabels: {
-                        color: '#cbd5e1',
-                        font: {
-                            size: 11
-                        }
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
-                }
-            }
-        }
-    });
-}
 
-function updateRecommendations(recommendations) {
-    const container = document.getElementById('recommendations-list');
-    
+    radarChart = new Chart(ctx, {
+      type: "radar",
+      data: {
+        labels: ["Skills", "CGPA", "Projects", "Activity", "Trust"],
+        datasets: [
+          {
+            label: "Your Profile",
+            data: [
+              data.skill_analytics?.verified_skills_count * 20 || 50,
+              75, // CGPA normalized
+              data.applications?.total > 0 ? 80 : 40,
+              data.profile_summary?.profile_complete || 50,
+              data.profile_summary?.trust_score || 50,
+            ],
+            backgroundColor: "rgba(72, 187, 255, 0.2)",
+            borderColor: "#48bbff",
+            pointBackgroundColor: "#48bbff",
+            pointBorderColor: "#fff",
+            pointHoverBackgroundColor: "#fff",
+            pointHoverBorderColor: "#48bbff",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              display: false,
+            },
+            grid: {
+              color: "rgba(255, 255, 255, 0.1)",
+            },
+            pointLabels: {
+              color: "#cbd5e1",
+              font: {
+                size: 11,
+              },
+            },
+          },
+        },
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+      },
+    });
+  }
+
+  function updateRecommendations(recommendations) {
+    const container = document.getElementById("recommendations-list");
+
     if (!recommendations || recommendations.length === 0) {
-        container.innerHTML = '<p class="no-data">No recommendations yet. Complete your profile to get matched!</p>';
-        return;
+      container.innerHTML =
+        '<p class="no-data">🎉 You\'ve applied to all available jobs! Check back when new jobs are posted.</p>';
+      return;
     }
-    
-    container.innerHTML = recommendations.map(job => `
+
+    container.innerHTML = recommendations
+      .map(
+        (job) => `
         <div class="job-card" data-job-id="${job.job_id}">
             <div class="job-header">
                 <h4>${job.title}</h4>
@@ -293,7 +813,7 @@ function updateRecommendations(recommendations) {
             </div>
             <p class="company-name"><i class="fas fa-building"></i> ${job.company}</p>
             <div class="job-meta">
-                <span><i class="fas fa-map-marker-alt"></i> ${job.salary?.range || 'Not specified'}</span>
+                <span><i class="fas fa-map-marker-alt"></i> ${job.salary?.range || "Not specified"}</span>
                 <span><i class="fas fa-exclamation-circle"></i> ${job.skill_gaps} skill gaps</span>
             </div>
             <div class="job-actions">
@@ -305,18 +825,23 @@ function updateRecommendations(recommendations) {
                 </button>
             </div>
         </div>
-    `).join('');
-}
+    `,
+      )
+      .join("");
+  }
 
-function updateSkillGaps(skillGaps) {
-    const container = document.getElementById('skill-gaps-list');
-    
+  function updateSkillGaps(skillGaps) {
+    const container = document.getElementById("skill-gaps-list");
+
     if (!skillGaps || skillGaps.length === 0) {
-        container.innerHTML = '<p class="no-data">Great! You have all the in-demand skills.</p>';
-        return;
+      container.innerHTML =
+        '<p class="no-data">Great! You have all the in-demand skills.</p>';
+      return;
     }
-    
-    container.innerHTML = skillGaps.map(([skill, count]) => `
+
+    container.innerHTML = skillGaps
+      .map(
+        ([skill, count]) => `
         <div class="skill-gap-item">
             <span class="skill-name">${skill}</span>
             <div class="demand-bar">
@@ -324,180 +849,422 @@ function updateSkillGaps(skillGaps) {
             </div>
             <span class="demand-count">${count} jobs</span>
         </div>
-    `).join('');
-}
+    `,
+      )
+      .join("");
+  }
 
-function updateNotifications(notifications) {
-    const container = document.getElementById('notifications-list');
-    
+  function updateNotifications(notifications) {
+    const container = document.getElementById("notifications-list");
+    const badge     = document.getElementById("notif-unread-badge");
+
     if (!notifications || notifications.length === 0) {
-        container.innerHTML = '<p class="no-data">No new notifications</p>';
-        return;
+      container.innerHTML = '<p class="no-data">No new notifications</p>';
+      if (badge) badge.style.display = 'none';
+      return;
     }
-    
-    container.innerHTML = notifications.map(notif => `
-        <div class="notification-item ${notif.read ? 'read' : 'unread'}">
-            <div class="notif-icon">
-                <i class="fas ${getNotificationIcon(notif.type)}"></i>
-            </div>
-            <div class="notif-content">
-                <h5>${notif.title}</h5>
-                <p>${notif.message}</p>
-                <span class="notif-time">${formatTime(notif.created_at)}</span>
-            </div>
-        </div>
-    `).join('');
-}
 
-function getNotificationIcon(type) {
+    const unreadCount = notifications.filter(n => !n.read).length;
+    if (badge) {
+      badge.textContent = unreadCount;
+      badge.style.display = unreadCount > 0 ? 'inline' : 'none';
+    }
+
+    container.innerHTML = notifications.map((notif) => {
+      const icon   = getNotificationIcon(notif.type);
+      const color  = getNotificationColor(notif.type);
+      const action = getNotificationAction(notif);
+
+      // Extra detail chips (date/time/company for scheduled interviews)
+      let chips = '';
+      if (notif.data) {
+        if (notif.data.interview_date) chips += `<span class="notif-chip">📅 ${notif.data.interview_date}</span>`;
+        if (notif.data.interview_time) chips += `<span class="notif-chip">⏰ ${notif.data.interview_time}</span>`;
+        if (notif.data.company_name)   chips += `<span class="notif-chip">🏢 ${notif.data.company_name}</span>`;
+        // In-person interview extras
+        if (notif.type === 'interview_scheduled' && notif.data.meeting_type === 'in_person') {
+          if (notif.data.location)       chips += `<span class="notif-chip">📍 ${notif.data.location}</span>`;
+          if (notif.data.contact_person) chips += `<span class="notif-chip">👤 ${notif.data.contact_person}</span>`;
+        }
+      }
+
+      return `
+        <div class="notification-item ${notif.read ? 'read' : 'unread'}" data-id="${notif.id}">
+          <div class="notif-icon" style="color:${color}">
+            <i class="fas ${icon}"></i>
+          </div>
+          <div class="notif-content">
+            <h5>${notif.title}</h5>
+            <p>${notif.message}</p>
+            ${chips ? `<div class="notif-chips">${chips}</div>` : ''}
+            ${action ? `<div class="notif-action-row">${action}</div>` : ''}
+            <span class="notif-time">${formatTime(notif.created_at)}</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function getNotificationAction(notif) {
+    const d = notif.data || {};
+    switch (notif.type) {
+      case 'ai_interview':
+        if (d.interview_url) return `
+          <a href="${d.interview_url}" class="notif-action-btn notif-btn-primary">
+            <i class="fas fa-robot"></i> Start AI Interview
+          </a>`;
+        break;
+      case 'vetting_invitation':
+        if (d.test_url) return `
+          <a href="${d.test_url}" class="notif-action-btn notif-btn-warning">
+            <i class="fas fa-code"></i> Take Assessment
+          </a>`;
+        break;
+      case 'interview_scheduled':
+        if (d.meeting_type === 'in_person') {
+          return `<span class="notif-chip" style="color:#94a3b8;font-size:0.75rem;"><i class="fas fa-building"></i> In-Person — arrive on time</span>`;
+        }
+        if (d.meeting_link) return `
+          <a href="${d.meeting_link}" target="_blank" class="notif-action-btn notif-btn-success">
+            <i class="fas fa-video"></i> Join Meeting
+          </a>`;
+        return `<span class="notif-chip" style="color:#94a3b8;font-size:0.75rem;">Meeting link will be shared by company</span>`;
+      case 'shortlisted':
+        return `
+          <a href="/student/jobs/" class="notif-action-btn notif-btn-info">
+            <i class="fas fa-briefcase"></i> View Jobs
+          </a>`;
+      case 'status_interview':
+        return `
+          <span class="notif-chip" style="color:#34d399;">✓ Interview invitation sent</span>`;
+    }
+    return '';
+  }
+
+  function getNotificationIcon(type) {
     const icons = {
-        'auto_applied': 'fa-magic',
-        'shortlisted': 'fa-star',
-        'interview_scheduled': 'fa-calendar',
-        'match': 'fa-briefcase'
+      ai_interview:        'fa-robot',
+      auto_applied:        'fa-magic',
+      shortlisted:         'fa-star',
+      interview_scheduled: 'fa-calendar-check',
+      vetting_invitation:  'fa-code',
+      match:               'fa-briefcase',
+      status_rejected:     'fa-times-circle',
+      status_interview:    'fa-calendar-alt',
     };
     return icons[type] || 'fa-bell';
-}
+  }
 
-function formatTime(timestamp) {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = Math.floor((now - date) / 1000 / 60); // minutes
-    
-    if (diff < 60) return `${diff}m ago`;
-    if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
-    return `${Math.floor(diff / 1440)}d ago`;
-}
+  function getNotificationColor(type) {
+    const colors = {
+      ai_interview:        '#a78bfa',
+      shortlisted:         '#fbbf24',
+      interview_scheduled: '#34d399',
+      vetting_invitation:  '#f97316',
+      status_rejected:     '#ef4444',
+      auto_applied:        '#48bbff',
+      match:               '#48bbff',
+    };
+    return colors[type] || '#94a3b8';
+  }
 
-// Smart Apply
-document.getElementById('smart-apply-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('smart-apply-btn');
-    const threshold = document.getElementById('threshold-slider').value;
-    const statusDiv = document.getElementById('smart-apply-status');
-    
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-    btn.disabled = true;
-    
+  async function markAllRead() {
     try {
+      await fetch(`${API_BASE}/notifications/${studentId}/mark-all-read/`, { method: 'POST' });
+      const badge = document.getElementById('notif-unread-badge');
+      if (badge) badge.style.display = 'none';
+      document.querySelectorAll('.notification-item.unread').forEach(el => {
+        el.classList.remove('unread');
+        el.classList.add('read');
+      });
+    } catch(e) { console.error('markAllRead failed', e); }
+  }
+
+  function formatTime(timestamp) {
+    // Ensure UTC timestamps are parsed correctly
+    // Django isoformat() returns '+00:00' but some older strings may be naive
+    let ts = timestamp;
+    if (ts && !ts.includes('+') && !ts.endsWith('Z') && !ts.includes('-', 10)) {
+      ts += 'Z'; // Treat naive UTC datetime as UTC
+    }
+    const date = new Date(ts);
+    if (isNaN(date)) return timestamp; // fallback if parse fails
+
+    const now = new Date();
+    const diffMs  = now - date;
+    const diffMin = Math.floor(diffMs / 1000 / 60);
+
+    if (diffMin < 1)   return 'just now';
+    if (diffMin < 60)  return `${diffMin}m ago`;
+    if (diffMin < 1440) return `${Math.floor(diffMin / 60)}h ago`;
+
+    // Older than 24h — show readable date + time in local timezone
+    return date.toLocaleDateString('en-BD', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true
+    });
+  }
+
+  // Smart Apply
+  document
+    .getElementById("smart-apply-btn")
+    .addEventListener("click", async () => {
+      const btn = document.getElementById("smart-apply-btn");
+      const threshold = document.getElementById("threshold-slider").value;
+      const statusDiv = document.getElementById("smart-apply-status");
+
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+      btn.disabled = true;
+
+      try {
         const response = await fetch(`${API_BASE}/smart-apply/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                student_id: studentId,
-                threshold: parseInt(threshold),
-                max_applications: 5
-            })
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_id: studentId,
+            threshold: parseInt(threshold),
+            max_applications: 5,
+          }),
         });
-        
+
         const data = await response.json();
-        
-        if (data.status === 'success') {
-            statusDiv.innerHTML = `
+
+        if (data.status === "success") {
+          statusDiv.innerHTML = `
                 <div class="success-message">
                     <i class="fas fa-check-circle"></i>
                     Successfully applied to ${data.applied_count} jobs!
                 </div>
             `;
-            loadDashboard(); // Refresh data
+          loadDashboard(); // Refresh data
         } else {
-            statusDiv.innerHTML = `<div class="error-message">${data.message}</div>`;
+          statusDiv.innerHTML = `<div class="error-message">${data.message}</div>`;
         }
-    } catch (error) {
+      } catch (error) {
         statusDiv.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
-    } finally {
-        btn.innerHTML = '<i class="fas fa-rocket"></i> Auto-Apply to Top Matches';
+      } finally {
+        btn.innerHTML =
+          '<i class="fas fa-rocket"></i> Auto-Apply to Top Matches';
         btn.disabled = false;
-    }
-});
+      }
+    });
 
-// Threshold slider
-document.getElementById('threshold-slider').addEventListener('input', (e) => {
-    document.getElementById('threshold-value').textContent = e.target.value;
-});
+  // Threshold slider
+  document.getElementById("threshold-slider").addEventListener("input", (e) => {
+    document.getElementById("threshold-value").textContent = e.target.value;
+  });
 
-// Apply to job
-async function applyToJob(jobId) {
+  // Apply to job
+  async function applyToJob(jobId) {
     try {
-        const response = await fetch(`${API_BASE}/apply/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                student_id: studentId,
-                job_id: jobId
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            showNotification('Application submitted successfully!', 'success');
-            loadDashboard();
-        } else {
-            showNotification(data.message || 'Application failed', 'error');
-        }
+      const response = await fetch(`${API_BASE}/apply/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: studentId,
+          job_id: jobId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        showNotification("Application submitted successfully!", "success");
+        loadDashboard();
+      } else {
+        showNotification(data.message || "Application failed", "error");
+      }
     } catch (error) {
-        showNotification('Error submitting application', 'error');
+      showNotification("Error submitting application", "error");
     }
-}
+  }
 
-function viewJobDetail(jobId) {
+  function viewJobDetail(jobId) {
     window.location.href = `/student/job-detail/?id=${jobId}`;
-}
+  }
 
-function showNotification(message, type) {
-    const notif = document.createElement('div');
+  function showNotification(message, type) {
+    const notif = document.createElement("div");
     notif.className = `notification ${type}`;
-    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    notif.innerHTML = `<i class="fas ${type === "success" ? "fa-check-circle" : "fa-exclamation-circle"}"></i> ${message}`;
     notif.style.cssText = `
         position: fixed;
         top: 100px;
         right: 20px;
         padding: 1rem 2rem;
         border-radius: 0.5rem;
-        background: ${type === 'success' ? 'rgba(72, 187, 255, 0.9)' : 'rgba(255, 88, 88, 0.9)'};
+        background: ${type === "success" ? "rgba(72, 187, 255, 0.9)" : "rgba(255, 88, 88, 0.9)"};
         color: white;
         z-index: 10000;
         animation: slideIn 0.3s ease;
     `;
     document.body.appendChild(notif);
-    
+
     setTimeout(() => notif.remove(), 3000);
-}
+  }
 
-// Load data on page load
-loadDashboard();
+  // Load data on page load
+  loadDashboard();
+  checkVettingNotifications(); // FIXED: Call the correct function
 
-// Refresh every 30 seconds
-setInterval(loadDashboard, 30000);
+  // Check for pending vetting assessments
+  async function checkVettingAssessments() {
+    try {
+      const response = await fetch(
+        `${API_BASE}/student/${studentId}/applications/`,
+      );
+      const data = await response.json();
+
+      if (data.status === "success" && data.applied_job_ids) {
+        // Check each application for vetting sessions
+        for (const jobId of data.applied_job_ids) {
+          try {
+            const appResponse = await fetch(
+              `${API_BASE}/applications/?job_id=${jobId}`,
+            );
+            const appData = await appResponse.json();
+
+            if (appData.status === "success" && appData.applications) {
+              const myApp = appData.applications.find(
+                (a) => a.student_id === studentId,
+              );
+              if (myApp && myApp.status === "shortlisted") {
+                // Check if there's a vetting session
+                const vetResponse = await fetch(
+                  `${API_BASE}/vetting/job/${jobId}/vetting-dashboard/`,
+                );
+                const vetData = await vetResponse.json();
+
+                if (vetData.status === "success") {
+                  // Show notification if assessment exists and not completed
+                  document.getElementById(
+                    "vetting-alert-container",
+                  ).style.display = "block";
+                  document.getElementById("vetting-job-title").textContent =
+                    `Complete your technical assessment for ${vetData.job_title}`;
+                  // You'll need to store the token somewhere accessible or modify API to return it
+                  document.getElementById("vetting-start-btn").href =
+                    `/vetting/pending/`; // Generic link, customize as needed
+                  break; // Show only first pending assessment
+                }
+              }
+            }
+          } catch (e) {
+            console.log("No vetting for job", jobId);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error checking vetting:", error);
+    }
+  }
+
+  // Alternative simpler version - checks notifications for vetting invitations
+  async function checkVettingNotifications() {
+    try {
+      const response = await fetch(
+        `${API_BASE}/notifications/${studentId}/student/`,
+      );
+      const data = await response.json();
+
+      if (data.status === "success" && data.notifications) {
+        const vettingNotif = data.notifications.find(
+          (n) => n.type === "vetting_invitation" && !n.read,
+        );
+
+        if (vettingNotif && vettingNotif.data && vettingNotif.data.test_url) {
+          document.getElementById("vetting-alert-container").style.display =
+            "block";
+          document.getElementById("vetting-job-title").textContent =
+            vettingNotif.title;
+          document.getElementById("vetting-start-btn").href =
+            vettingNotif.data.test_url;
+        }
+      }
+    } catch (error) {
+      console.error("Error checking notifications:", error);
+    }
+  }
+
+  // ── Notification toast system ──────────────────────────────────
+  let _knownNotifIds = new Set();      // IDs seen since page load
+  let _toastInitialized = false;       // skip toasts on first load
+
+  // Toast container (injected once)
+  const _toastContainer = document.createElement('div');
+  _toastContainer.id = 'notif-toast-container';
+  document.body.appendChild(_toastContainer);
+
+  function showNotifToast(notif) {
+    const toast = document.createElement('div');
+    toast.className = 'notif-toast';
+    const color = getNotificationColor(notif.type);
+    toast.style.borderLeftColor = color;
+    toast.innerHTML = `
+      <span class="toast-close" onclick="dismissToast(this)">✕</span>
+      <div class="toast-title">${notif.title}</div>
+      <div class="toast-msg">${notif.message.substring(0, 100)}${notif.message.length > 100 ? '…' : ''}</div>
+    `;
+    _toastContainer.appendChild(toast);
+    // Auto-dismiss after 6 seconds
+    setTimeout(() => dismissToast(toast.querySelector('.toast-close')), 6000);
+  }
+
+  function dismissToast(closeBtn) {
+    const toast = closeBtn.closest('.notif-toast');
+    if (!toast) return;
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 350);
+  }
+
+  function detectNewNotifications(notifications) {
+    if (!notifications) return;
+    const incoming = notifications.filter(n => !n.read);
+    if (!_toastInitialized) {
+      // First load — just record existing IDs, don't toast
+      incoming.forEach(n => _knownNotifIds.add(n.id));
+      _toastInitialized = true;
+      return;
+    }
+    // Show toast for any notification ID we haven't seen before
+    incoming.forEach(n => {
+      if (!_knownNotifIds.has(n.id)) {
+        _knownNotifIds.add(n.id);
+        showNotifToast(n);
+      }
+    });
+  }
+
+  // Refresh every 30 seconds
+  setInterval(loadDashboard, 30000);
 </script>
 
 <style>
-.dashboard-container {
+  .dashboard-container {
     padding: 2rem 0;
-}
+  }
 
-.welcome-header {
+  .welcome-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 2rem;
     margin-bottom: 2rem;
-}
+  }
 
-.welcome-text h1 {
+  .welcome-text h1 {
     font-size: 2rem;
     margin-bottom: 0.5rem;
-}
+  }
 
-.welcome-text p {
+  .welcome-text p {
     color: #94a3b8;
-}
+  }
 
-.trust-score-badge {
+  .trust-score-badge {
     text-align: center;
-}
+  }
 
-.score-circle {
+  .score-circle {
     width: 100px;
     height: 100px;
     border-radius: 50%;
@@ -505,49 +1272,49 @@ setInterval(loadDashboard, 30000);
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: conic-gradient(#48bbff 0deg, rgba(255,255,255,0.1) 0deg);
+    background: conic-gradient(#48bbff 0deg, rgba(255, 255, 255, 0.1) 0deg);
     position: relative;
-}
+  }
 
-.score-circle::before {
-    content: '';
+  .score-circle::before {
+    content: "";
     position: absolute;
     width: 80px;
     height: 80px;
     background: rgba(15, 30, 55, 0.9);
     border-radius: 50%;
-}
+  }
 
-.score-value {
+  .score-value {
     font-size: 1.8rem;
     font-weight: 700;
     color: #48bbff;
     position: relative;
     z-index: 1;
-}
+  }
 
-.score-label {
+  .score-label {
     font-size: 0.7rem;
     color: #94a3b8;
     position: relative;
     z-index: 1;
-}
+  }
 
-.stats-row {
+  .stats-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 1.5rem;
     margin-bottom: 2rem;
-}
+  }
 
-.stat-card {
+  .stat-card {
     display: flex;
     align-items: center;
     gap: 1rem;
     padding: 1.5rem;
-}
+  }
 
-.stat-card i {
+  .stat-card i {
     font-size: 2rem;
     color: #48bbff;
     width: 50px;
@@ -557,141 +1324,210 @@ setInterval(loadDashboard, 30000);
     justify-content: center;
     background: rgba(72, 187, 255, 0.1);
     border-radius: 1rem;
-}
+  }
 
-.stat-info h3 {
+  .stat-info h3 {
     font-size: 1.8rem;
     color: #48bbff;
-}
+  }
 
-.stat-info p {
+  .quick-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+
+  .action-card:hover {
+    transform: translateY(-5px);
+    border-color: #48bbff;
+    background: rgba(72, 187, 255, 0.1);
+  }
+
+  .action-card i {
+    font-size: 2rem;
+    color: #48bbff;
+    margin-bottom: 0.8rem;
+  }
+
+  .action-card span {
+    font-weight: 600;
+    color: #f0f9ff;
+  }
+
+  @media (max-width: 768px) {
+    .quick-actions {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .stat-info p {
     color: #94a3b8;
     font-size: 0.9rem;
-}
+  }
 
-.dashboard-grid {
+  .dashboard-grid {
     display: grid;
     grid-template-columns: 350px 1fr;
     gap: 2rem;
-}
+  }
 
-.coach-card, .trajectory-card, .smart-apply-card, .recommendations-card, 
-.skill-gaps-card, .notifications-card {
+  .coach-card,
+  .trajectory-card,
+  .smart-apply-card,
+  .recommendations-card,
+  .skill-gaps-card,
+  .notifications-card {
     padding: 1.5rem;
     margin-bottom: 1.5rem;
-}
+  }
 
-.coach-card h3, .trajectory-card h3, .smart-apply-card h3,
-.recommendations-card h3, .skill-gaps-card h3, .notifications-card h3 {
+  .coach-card h3,
+  .trajectory-card h3,
+  .smart-apply-card h3,
+  .recommendations-card h3,
+  .skill-gaps-card h3,
+  .notifications-card h3 {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 1rem;
     font-size: 1.1rem;
-}
+  }
 
-.coach-card h3 i, .trajectory-card h3 i, .smart-apply-card h3 i,
-.recommendations-card h3 i, .skill-gaps-card h3 i, .notifications-card h3 i {
+  .coach-card h3 i,
+  .trajectory-card h3 i,
+  .smart-apply-card h3 i,
+  .recommendations-card h3 i,
+  .skill-gaps-card h3 i,
+  .notifications-card h3 i {
     color: #48bbff;
-}
+  }
 
-.radar-container {
+  .radar-container {
     max-width: 250px;
     margin: 0 auto 1rem;
-}
+  }
 
-.coach-insights .insight-item {
+  .coach-insights .insight-item {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0;
     color: #cbd5e1;
     font-size: 0.9rem;
-}
+  }
 
-.coach-insights i {
+  .coach-insights i {
     color: #48bbff;
-}
+  }
 
-.trajectory-item {
+  .trajectory-item {
     display: flex;
     justify-content: space-between;
     padding: 0.8rem 0;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-}
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
 
-.trajectory-item .label {
+  .trajectory-item .label {
     color: #94a3b8;
-}
+  }
 
-.trajectory-item .value {
+  .trajectory-item .value {
     color: #f0f9ff;
     font-weight: 600;
-}
+  }
 
-.trajectory-item .value.highlight {
+  .trajectory-item .value.highlight {
     color: #48bbff;
-}
+  }
 
-.recommended-skills {
+  .recommended-skills {
     margin-top: 1rem;
-}
+  }
 
-.recommended-skills p {
+  .recommended-skills p {
     color: #94a3b8;
     font-size: 0.9rem;
     margin-bottom: 0.5rem;
-}
+  }
 
-.skill-tags {
+  .skill-tags {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-}
+  }
 
-.skill-tag {
+  .skill-tag {
     background: rgba(72, 187, 255, 0.2);
     color: #48bbff;
     padding: 0.3rem 0.8rem;
     border-radius: 2rem;
     font-size: 0.8rem;
-}
+  }
 
-.smart-apply-header {
+  .smart-apply-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1rem;
     flex-wrap: wrap;
     gap: 1rem;
-}
+  }
 
-.threshold-control {
+  #vetting-alert-container {
+    animation: slideIn 0.5s ease;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .threshold-control {
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
-}
+  }
 
-.threshold-control label {
+  .threshold-control label {
     font-size: 0.9rem;
     color: #94a3b8;
-}
+  }
 
-.threshold-control input[type="range"] {
+  .threshold-control input[type="range"] {
     width: 150px;
-}
+  }
 
-#smart-apply-btn {
+  #smart-apply-btn {
     width: 100%;
     padding: 1rem;
     font-size: 1.1rem;
-}
+  }
 
-#smart-apply-status {
+  #smart-apply-status {
     margin-top: 1rem;
-}
+  }
 
-.success-message {
+  .success-message {
     background: rgba(72, 187, 255, 0.2);
     color: #48bbff;
     padding: 1rem;
@@ -699,142 +1535,244 @@ setInterval(loadDashboard, 30000);
     display: flex;
     align-items: center;
     gap: 0.5rem;
-}
+  }
 
-.error-message {
+  .error-message {
     background: rgba(255, 88, 88, 0.2);
     color: #ff5858;
     padding: 1rem;
     border-radius: 0.5rem;
-}
+  }
 
-.recommendations-list {
+  .recommendations-list {
     max-height: 400px;
     overflow-y: auto;
-}
+  }
 
-.job-card {
+  .job-card {
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(72, 187, 255, 0.2);
     border-radius: 1rem;
     padding: 1rem;
     margin-bottom: 1rem;
     transition: all 0.3s;
-}
+  }
 
-.job-card:hover {
+  .job-card:hover {
     border-color: #48bbff;
     transform: translateX(5px);
-}
+  }
 
-.job-header {
+  .job-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 0.5rem;
-}
+  }
 
-.job-header h4 {
+  .job-header h4 {
     font-size: 1rem;
     color: #f0f9ff;
-}
+  }
 
-.match-score {
+  .match-score {
     background: linear-gradient(135deg, #48bbff, #a855f7);
     color: white;
     padding: 0.3rem 0.8rem;
     border-radius: 2rem;
     font-size: 0.8rem;
     font-weight: 600;
-}
+  }
 
-.company-name {
+  .company-name {
     color: #94a3b8;
     font-size: 0.9rem;
     margin-bottom: 0.5rem;
-}
+  }
 
-.job-meta {
+  .job-meta {
     display: flex;
     gap: 1rem;
     color: #64748b;
     font-size: 0.8rem;
     margin-bottom: 0.8rem;
-}
+  }
 
-.job-actions {
+  .job-actions {
     display: flex;
     gap: 0.5rem;
-}
+  }
 
-.btn-sm {
+  .btn-sm {
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
-}
+  }
 
-.skill-gaps-list {
+  .skill-gaps-list {
     max-height: 200px;
     overflow-y: auto;
-}
+  }
 
-.skill-gap-item {
+  .skill-gap-item {
     display: flex;
     align-items: center;
     gap: 1rem;
     padding: 0.8rem 0;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-}
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
 
-.skill-name {
+  .skill-name {
     width: 100px;
     color: #f0f9ff;
     font-size: 0.9rem;
-}
+  }
 
-.demand-bar {
+  .demand-bar {
     flex: 1;
     height: 6px;
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 3px;
     overflow: hidden;
-}
+  }
 
-.demand-fill {
+  .demand-fill {
     height: 100%;
     background: linear-gradient(90deg, #48bbff, #a855f7);
     border-radius: 3px;
     transition: width 0.5s ease;
-}
+  }
 
-.demand-count {
+  .demand-count {
     width: 60px;
     text-align: right;
     color: #94a3b8;
     font-size: 0.8rem;
-}
+  }
 
-.notifications-list {
-    max-height: 250px;
+  .notif-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+  .notif-header-row h3 { margin: 0; display: flex; align-items: center; gap: 0.5rem; }
+  .notif-badge {
+    background: #ef4444;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 99px;
+    vertical-align: middle;
+  }
+  .notif-mark-all-btn {
+    background: rgba(72,187,255,0.1);
+    border: 1px solid rgba(72,187,255,0.25);
+    color: #48bbff;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .notif-mark-all-btn:hover { background: rgba(72,187,255,0.2); }
+
+  .notif-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.4rem 0;
+  }
+  .notif-chip {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.75rem;
+    color: #cbd5e1;
+  }
+  .notif-action-row {
+    margin: 0.55rem 0 0.2rem;
+  }
+  .notif-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 1rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .notif-action-btn:hover { opacity: 0.85; }
+  .notif-btn-primary { background: linear-gradient(135deg,#7c3aed,#a855f7); color:#fff; }
+  .notif-btn-warning { background: linear-gradient(135deg,#d97706,#f59e0b); color:#fff; }
+  .notif-btn-success { background: linear-gradient(135deg,#059669,#34d399); color:#fff; }
+  .notif-btn-info    { background: linear-gradient(135deg,#0369a1,#38bdf8); color:#fff; }
+
+  /* Toast popup */
+  #notif-toast-container {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    pointer-events: none;
+  }
+  .notif-toast {
+    background: rgba(15,23,42,0.95);
+    border: 1px solid rgba(99,102,241,0.4);
+    border-left: 4px solid #6366f1;
+    border-radius: 10px;
+    padding: 0.9rem 1.2rem;
+    min-width: 300px;
+    max-width: 380px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    pointer-events: all;
+    animation: toastIn 0.35s ease;
+  }
+  @keyframes toastIn {
+    from { transform: translateX(110%); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+  }
+  .notif-toast.toast-exit {
+    animation: toastOut 0.3s ease forwards;
+  }
+  @keyframes toastOut {
+    to { transform: translateX(110%); opacity: 0; }
+  }
+  .toast-title { font-weight: 700; font-size: 0.88rem; color: #e2e8f0; margin-bottom: 0.25rem; }
+  .toast-msg   { font-size: 0.78rem; color: #94a3b8; }
+  .toast-close { float: right; cursor: pointer; color: #64748b; margin-left: 0.5rem; font-size: 1rem; line-height: 1; }
+
+  .notifications-list {
+    max-height: 520px;
     overflow-y: auto;
-}
+    scrollbar-width: thin;
+    scrollbar-color: rgba(72,187,255,0.3) transparent;
+  }
 
-.notification-item {
+  .notification-item {
     display: flex;
     gap: 1rem;
     padding: 1rem;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     transition: background 0.3s;
-}
+  }
 
-.notification-item:hover {
+  .notification-item:hover {
     background: rgba(72, 187, 255, 0.05);
-}
+  }
 
-.notification-item.unread {
+  .notification-item.unread {
     border-left: 3px solid #48bbff;
-}
+  }
 
-.notif-icon {
+  .notif-icon {
     width: 40px;
     height: 40px;
     background: rgba(72, 187, 255, 0.1);
@@ -843,62 +1781,174 @@ setInterval(loadDashboard, 30000);
     align-items: center;
     justify-content: center;
     color: #48bbff;
-}
+  }
 
-.notif-content h5 {
+  .notif-content h5 {
     font-size: 0.95rem;
     margin-bottom: 0.3rem;
     color: #f0f9ff;
-}
+  }
 
-.notif-content p {
+  .notif-content p {
     font-size: 0.85rem;
     color: #94a3b8;
     margin-bottom: 0.3rem;
-}
+  }
 
-.notif-time {
+  .notif-time {
     font-size: 0.75rem;
     color: #64748b;
-}
+  }
 
-.no-data {
+  .no-data {
     text-align: center;
     color: #64748b;
     padding: 2rem;
-}
+  }
 
-.loading-spinner {
+  .loading-spinner {
     text-align: center;
     color: #48bbff;
     padding: 2rem;
-}
+  }
 
-@media (max-width: 968px) {
+  @media (max-width: 968px) {
     .dashboard-grid {
-        grid-template-columns: 1fr;
+      grid-template-columns: 1fr;
     }
-    
-    .stats-row {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .welcome-header {
-        flex-direction: column;
-        text-align: center;
-        gap: 1rem;
-    }
-}
 
-@media (max-width: 768px) {
     .stats-row {
-        grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, 1fr);
     }
-    
+
+    .welcome-header {
+      flex-direction: column;
+      text-align: center;
+      gap: 1rem;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .stats-row {
+      grid-template-columns: 1fr;
+    }
+
     .smart-apply-header {
-        flex-direction: column;
-        align-items: flex-start;
+      flex-direction: column;
+      align-items: flex-start;
     }
-}
+  }
+  /* Interview Details in Notifications */
+  .interview-details {
+    background: rgba(72, 187, 255, 0.1);
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    border-left: 3px solid #48bbff;
+  }
+
+  .interview-detail {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    margin-bottom: 0.35rem;
+  }
+
+  .interview-detail:last-child {
+    margin-bottom: 0;
+  }
+
+  .interview-detail i {
+    color: #48bbff;
+    width: 20px;
+    font-size: 0.8rem;
+  }
+
+  .meeting-link {
+    color: #48bbff;
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .meeting-link:hover {
+    text-decoration: underline;
+  }
+
+  .notification-item.unread {
+    background: rgba(72, 187, 255, 0.05);
+    border-left: 3px solid #48bbff;
+  }
+
+  .readiness-card {
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+  }
+  .readiness-display {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+  .readiness-gauge {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  .gauge-circle {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: conic-gradient(#48bbff 0deg, #1e293b 0deg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #f0f9ff;
+  }
+  .gauge-circle span:first-child {
+    font-size: 1.8rem;
+  }
+  .gauge-circle span:last-child {
+    font-size: 0.7rem;
+    color: #94a3b8;
+  }
+  .readiness-days {
+    text-align: center;
+  }
+  .readiness-days span:first-child {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #48bbff;
+    display: block;
+  }
+  .readiness-days span:last-child {
+    color: #94a3b8;
+    font-size: 0.9rem;
+  }
+  .readiness-details {
+    flex: 1;
+    min-width: 200px;
+  }
+  .factor-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.9rem;
+    color: #cbd5e1;
+  }
+  .factor-row span:last-child {
+    color: #48bbff;
+    font-weight: 600;
+  }
+  .readiness-label {
+    margin-top: 1rem;
+    font-weight: 600;
+    color: #f0f9ff;
+    font-size: 1.05rem;
+  }
 </style>
 {% endblock %}

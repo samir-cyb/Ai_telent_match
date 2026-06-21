@@ -1,0 +1,95 @@
+{% extends "base.html" %} {% block title %}Leaderboard | AI Talent Match
+{%endblock %} {% block content %}
+<div class="container leaderboard-container">
+  <h1><i class="fas fa-trophy"></i> University Leaderboard</h1>
+  <div class="filter-bar">
+    <input
+      type="text"
+      id="university-filter"
+      placeholder="Filter by university..."
+    />
+    <button class="btn-primary" onclick="loadLeaderboard()">Search</button>
+  </div>
+  <div id="leaderboard-table" class="glass-card">
+    <div class="loading">Loading...</div>
+  </div>
+</div>
+<script>
+  const API_BASE = "http://127.0.0.1:8000/api";
+  function loadLeaderboard() {
+    const uni = document.getElementById("university-filter").value;
+    const url = `${API_BASE}/leaderboard/?${uni ? "university=" + encodeURIComponent(uni) : ""}`;
+    fetch(url)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.status === "success") {
+          renderTable(data.leaderboard);
+        }
+      });
+  }
+  function renderTable(entries) {
+    const container = document.getElementById("leaderboard-table");
+    if (!entries.length) {
+      container.innerHTML = '<p class="no-data">No entries found.</p>';
+      return;
+    }
+    let html = `<table>
+            <thead><tr><th>Rank</th><th>Student</th><th>University</th><th>Points</th></tr></thead><tbody>`;
+    entries.forEach((entry) => {
+      const medal =
+        entry.rank === 1
+          ? "🥇"
+          : entry.rank === 2
+            ? "🥈"
+            : entry.rank === 3
+              ? "🥉"
+              : `#${entry.rank}`;
+      html += `<tr>
+                <td>${medal}</td>
+                <td>${entry.student_name}</td>
+                <td>${entry.university}</td>
+                <td>${entry.points}</td>
+            </tr>`;
+    });
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+  }
+  loadLeaderboard();
+</script>
+<style>
+  .leaderboard-container {
+    padding: 2rem;
+  }
+  .filter-bar {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .filter-bar input {
+    flex: 1;
+    padding: 0.8rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(72, 187, 255, 0.3);
+    background: rgba(0, 0, 0, 0.2);
+    color: white;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th,
+  td {
+    padding: 0.8rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  th {
+    color: #48bbff;
+  }
+  .no-data {
+    text-align: center;
+    padding: 2rem;
+    color: #64748b;
+  }
+</style>
+{% endblock %}
