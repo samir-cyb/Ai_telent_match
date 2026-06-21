@@ -10,7 +10,8 @@ from core.views import (
     applicant_documents, company_ai_agent, company_agent_run_detail,
     company_interview_result,
     CandidateInterviewPageView, SubmitAnswerView, InterviewDonePageView,
-    admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView, admin_login_page, ApplicationsListView
+    admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView, admin_login_page, ApplicationsListView,
+    student_career_advisor_page, company_skill_heatmap,
 )
 
 urlpatterns = [
@@ -30,11 +31,13 @@ urlpatterns = [
     path('student/job-detail/', student_job_detail, name='student_job_detail'),
     path('student/jobs/', student_jobs, name='student_jobs'),
     path('api/auth/student/logout/', StudentLogoutView.as_view(), name='student_logout'),
+    path('student/career-advisor/', student_career_advisor_page, name='career_advisor'),
     
     # Company
     path('company/dashboard/', company_dashboard, name='company_dashboard'),
     path('company/post-job/', company_post_job, name='company_post_job'),
     path('company/applicants/', company_applicants, name='company_applicants'),
+    path('company/skill-heatmap/', company_skill_heatmap, name='company_skill_heatmap'),
     path('company/applicant/<uuid:application_id>/documents/', applicant_documents, name='applicant_documents'),
     path('company/ai-agent/', company_ai_agent, name='company_ai_agent'),
     path('company/agent-run/<uuid:run_id>/', company_agent_run_detail, name='company_agent_run_detail'),

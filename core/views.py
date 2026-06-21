@@ -250,6 +250,12 @@ def company_applicants(request):
 
 
 @company_login_required
+def company_skill_heatmap(request):
+    company_id = request.session.get('company_id')
+    return render(request, 'company/skill_heatmap.html', {'company_id': company_id})
+
+
+@company_login_required
 def applicant_documents(request, application_id):
     """Show a student's CV and LinkedIn PDF to the company."""
     company_id = request.session.get('company_id')
@@ -443,7 +449,7 @@ class StudentProfileView(View):
         
         # Get career trajectory prediction
         current_skills = [ss.skill.name for ss in StudentSkill.objects.filter(student=student)]
-        trajectory = self._predict_trajectory(current_skills, student.projects.count())
+        trajectory = self._predict_trajectory(current_skills, student.projects.count(), student=student)
         
         profile = {
             'id': str(student.id),
@@ -510,50 +516,91 @@ class StudentProfileView(View):
         
         return JsonResponse({'status': 'success', 'data': profile})
     
-    def _predict_trajectory(self, skills, project_count):
-        """Simple rule-based career trajectory prediction - FIXED for case-insensitive matching"""
-        tech_stacks = {
-            'web_dev': ['JavaScript', 'React', 'Node.js', 'Python', 'Django', 'HTML', 'CSS', 'SQL', 'AWS', 'Docker'],
-            'ai_ml': ['Python', 'TensorFlow', 'PyTorch', 'SQL', 'Statistics', 'AWS', 'Data Science'],
-            'mobile': ['Swift', 'Kotlin', 'React Native', 'Flutter'],
-            'data': ['Python', 'SQL', 'Pandas', 'Tableau', 'AWS']
-        }
-        
-        # FIX: Convert user skills to lowercase for case-insensitive comparison
-        skills_lower = [s.lower() for s in skills] if skills else []
-        
-        matches = {}
-        for field, req_skills in tech_stacks.items():
-            # FIX: Convert required skills to lowercase for comparison
-            req_skills_lower = [s.lower() for s in req_skills]
-            matches[field] = len(set(skills_lower) & set(req_skills_lower)) / len(req_skills)
-        
-        best_match = max(matches, key=matches.get)
-        confidence = matches[best_match]
-        
-        roles = {
-            'web_dev': ['Junior Full Stack', 'Full Stack Engineer', 'Senior Architect'],
-            'ai_ml': ['ML Engineer Intern', 'Data Scientist', 'AI Researcher', 'ML Lead', 'DL Engineer'],
-            'mobile': ['Mobile Dev Intern', 'iOS/Android Developer', 'Mobile Lead'],
-            'data': ['Data Analyst', 'Data Engineer', 'Analytics Manager']
-        }
-        
-        stage = min(project_count // 3, 2)  # 0, 1, or 2
-        
-        # FIX: Case-insensitive skill comparison for recommendations
-        skills_lower_set = set(s.lower() for s in skills) if skills else set()
-        recommended = [
-            skill for skill in tech_stacks[best_match] 
-            if skill.lower() not in skills_lower_set
-        ][:3]
+    def _predict_trajectory(self, skills, project_count, student=None):
+        """Gemini-powered career trajectory — uses skills + experience + applied jobs + skill gaps."""
+        from google import genai as _genai
+        try:
+            experiences = []
+            applied_job_titles = []
+            department = ''
+            cgpa = None
+            if student:
+                department = student.department or ''
+                cgpa = float(student.cgpa) if student.cgpa else None
+                experiences = [
+                    f"{e.role} at {e.company_name} ({e.start_date} – {e.end_date or 'Present'})"
+                    for e in student.experiences.all()
+                ]
+                applied_job_titles = list(
+                    Application.objects.filter(student=student)
+                    .select_related('job')
+                    .values_list('job__title', flat=True)[:20]
+                )
 
-        return {
-            'predicted_track': best_match,
-            'confidence': f"{confidence*100:.1f}%",
-            'current_stage': ['Entry', 'Mid-level', 'Senior'][stage],
-            'next_role': roles[best_match][stage] if stage < 3 else 'Staff/Principal',
-            'recommended_skills_to_add': recommended
-        }
+            prompt = f"""You are a career trajectory AI. Analyze this student profile and return ONLY valid JSON.
+
+STUDENT PROFILE:
+- Department: {department}
+- CGPA: {cgpa}
+- Skills: {', '.join(skills) if skills else 'None listed'}
+- Projects: {project_count} projects
+- Experience: {'; '.join(experiences) if experiences else 'No experience listed'}
+- Jobs Applied To: {', '.join(applied_job_titles) if applied_job_titles else 'None yet'}
+
+Based on ALL of the above (not just skills), determine:
+1. The most accurate career track for THIS specific student
+2. Their current career stage
+3. The most realistic next role title
+4. Top 3 skills to add next
+5. A 1-sentence career summary
+6. A 6-month goal
+7. A 1-year goal
+
+Return ONLY this JSON (no markdown, no explanation):
+{{
+  "predicted_track": "short label like 'AI/ML Engineer' or 'Full Stack Developer' or 'Data Analyst' or 'Mobile Developer' or 'DevOps Engineer' or 'Backend Developer' etc.",
+  "confidence": "High / Medium / Low",
+  "current_stage": "Entry / Mid-level / Senior",
+  "next_role": "specific job title",
+  "recommended_skills_to_add": ["skill1", "skill2", "skill3"],
+  "career_summary": "One sentence describing this student's career direction.",
+  "goal_6_months": "Concrete 6-month goal",
+  "goal_1_year": "Concrete 1-year goal"
+}}"""
+
+            
+            resp = _client.models.generate_content(model='gemini-2.5-flash-lite', contents=prompt)
+            raw = resp.text.strip()
+            if raw.startswith('```'):
+                raw = raw.split('```')[1]
+                if raw.startswith('json'):
+                    raw = raw[4:]
+            import json as _json
+            result = _json.loads(raw.strip())
+            return result
+        except Exception as e:
+            print(f"[Trajectory Gemini error] {e}")
+            # Fallback: simple rule-based
+            skills_lower = set(s.lower() for s in (skills or []))
+            track_scores = {
+                'Full Stack Developer': len(skills_lower & {'javascript','react','node.js','python','django','html','css'}),
+                'AI/ML Engineer': len(skills_lower & {'python','tensorflow','pytorch','machine learning','data science','nlp'}),
+                'Mobile Developer': len(skills_lower & {'swift','kotlin','flutter','react native','android','ios'}),
+                'Data Analyst': len(skills_lower & {'sql','pandas','tableau','excel','power bi','statistics'}),
+                'DevOps Engineer': len(skills_lower & {'docker','kubernetes','aws','ci/cd','linux','terraform'}),
+            }
+            best = max(track_scores, key=track_scores.get) if any(track_scores.values()) else 'Full Stack Developer'
+            stage = ['Entry', 'Mid-level', 'Senior'][min(project_count // 3, 2)]
+            return {
+                'predicted_track': best,
+                'confidence': 'Medium',
+                'current_stage': stage,
+                'next_role': f'Junior {best}',
+                'recommended_skills_to_add': ['Docker', 'AWS', 'System Design'],
+                'career_summary': f'Building towards a {best} career.',
+                'goal_6_months': 'Complete 2 projects and earn a certification.',
+                'goal_1_year': f'Land a junior {best} role.',
+            }
 
     @method_decorator(csrf_exempt)
     def post(self, request):
@@ -1055,7 +1102,7 @@ class StudentDashboardView(View):
         
         # Career trajectory prediction
         current_skills = [ss.skill.name for ss in StudentSkill.objects.filter(student=student)]
-        trajectory = self._predict_trajectory(current_skills, student.projects.count())
+        trajectory = self._predict_trajectory(current_skills, student.projects.count(), student=student)
         
         dashboard = {
             'profile_summary': {
@@ -1104,45 +1151,9 @@ class StudentDashboardView(View):
             return "Take skill assessments to verify your expertise"
         return "You're profile-ready! Start applying to recommended jobs"
     
-    def _predict_trajectory(self, skills, project_count):
-        """Simple rule-based career trajectory prediction"""
-        tech_stacks = {
-            'web_dev': ['JavaScript', 'React', 'Node.js', 'Python', 'Django'],
-            'ai_ml': ['Python', 'TensorFlow', 'PyTorch', 'SQL', 'Statistics'],
-            'mobile': ['Swift', 'Kotlin', 'React Native', 'Flutter'],
-            'data': ['Python', 'SQL', 'Pandas', 'Tableau', 'AWS']
-        }
-        
-        matches = {}
-        for field, req_skills in tech_stacks.items():
-            matches[field] = len(set(skills) & set(req_skills)) / len(req_skills)
-        
-        best_match = max(matches, key=matches.get)
-        confidence = matches[best_match]
-        
-        roles = {
-            'web_dev': ['Junior Full Stack', 'Full Stack Engineer', 'Senior Architect'],
-            'ai_ml': ['ML Engineer Intern', 'Data Scientist', 'AI Researcher'],
-            'mobile': ['Mobile Dev Intern', 'iOS/Android Developer', 'Mobile Lead'],
-            'data': ['Data Analyst', 'Data Engineer', 'Analytics Manager']
-        }
-        
-        stage = min(project_count // 3, 2)  # 0, 1, or 2
-        
-        # FIX: Case-insensitive skill comparison for recommendations
-        skills_lower_set = set(s.lower() for s in skills) if skills else set()
-        recommended = [
-            skill for skill in tech_stacks[best_match] 
-            if skill.lower() not in skills_lower_set
-        ][:3]
-
-        return {
-            'predicted_track': best_match,
-            'confidence': f"{confidence*100:.1f}%",
-            'current_stage': ['Entry', 'Mid-level', 'Senior'][stage],
-            'next_role': roles[best_match][stage] if stage < 3 else 'Staff/Principal',
-            'recommended_skills_to_add': recommended
-        }
+    def _predict_trajectory(self, skills, project_count, student=None):
+        """Delegate to StudentProfileView._predict_trajectory (Gemini-powered)."""
+        return StudentProfileView()._predict_trajectory(skills, project_count, student=student)
 
 class JobsListView(View):
     def get(self, request):
@@ -2279,6 +2290,231 @@ class StudentAIInterviewsView(View):
             data = []
 
         return JsonResponse({'status': 'success', 'interviews': data})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CareerAdvisorChatView(View):
+    """Gemini-powered career advisor chatbot for students."""
+
+    def post(self, request, student_id):
+        from google import genai as _genai
+        import json as _json
+        student = get_object_or_404(Student, id=student_id)
+        try:
+            body = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+        user_message = body.get('message', '').strip()
+        history      = body.get('history', [])   # [{role, content}]
+        if not user_message:
+            return JsonResponse({'status': 'error', 'message': 'Empty message'}, status=400)
+
+        # Build student context
+        skills = [ss.skill.name for ss in StudentSkill.objects.filter(student=student).select_related('skill')]
+        experiences = [
+            f"{e.role} at {e.company_name}"
+            for e in student.experiences.all()
+        ]
+        applied_titles = list(
+            Application.objects.filter(student=student)
+            .select_related('job').values_list('job__title', flat=True)[:10]
+        )
+        context = f"""You are an expert AI Career Advisor for students. Be concise, specific, and encouraging.
+
+STUDENT PROFILE:
+- Name: {student.name}
+- Department: {student.department or 'Not specified'}
+- CGPA: {student.cgpa or 'Not specified'}
+- Skills: {', '.join(skills) if skills else 'None listed'}
+- Experience: {'; '.join(experiences) if experiences else 'No experience yet'}
+- Jobs Applied To: {', '.join(applied_titles) if applied_titles else 'None yet'}
+- Trust Score: {student.trust_score or 0:.0f}/100
+- Projects: {student.projects.count()} projects
+
+Always give personalized advice based on this specific student's profile.
+Keep responses under 200 words. Use bullet points when listing items. Be direct and actionable."""
+
+        # Build conversation for Gemini
+        conv_parts = [context, "\n\nCONVERSATION:"]
+        for h in history[-6:]:   # last 6 turns max
+            role = "Student" if h.get('role') == 'user' else "Advisor"
+            conv_parts.append(f"{role}: {h.get('content','')}")
+        conv_parts.append(f"Student: {user_message}")
+        conv_parts.append("Advisor:")
+
+        try:
+            
+            resp = _client.models.generate_content(
+                model='gemini-2.5-flash-lite',
+                contents='\n'.join(conv_parts)
+            )
+            reply = resp.text.strip()
+        except Exception as e:
+            reply = f"Sorry, I'm having trouble connecting right now. Please try again in a moment. (Error: {e})"
+
+        return JsonResponse({'status': 'success', 'reply': reply})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ReportInterviewCheatingView(View):
+    """Student's browser reports a cheating violation during AI interview."""
+
+    def post(self, request, token):
+        import json as _json
+        interview = get_object_or_404(AIInterview, token=token)
+
+        # Security: must be the right student
+        student_id = request.session.get('student_id')
+        if not student_id or str(interview.application.student.id) != str(student_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        try:
+            data = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+        log = interview.cheating_log or {
+            'tab_switches': 0, 'fullscreen_exits': 0,
+            'copy_pastes': 0, 'violations': [], 'auto_submitted': False
+        }
+        violation_type = data.get('type', 'unknown')
+        log['violations'].append({
+            'type': violation_type,
+            'at': data.get('at', ''),
+            'count': data.get('count', 1),
+        })
+        if violation_type == 'tab_switch':
+            log['tab_switches'] = log.get('tab_switches', 0) + 1
+        elif violation_type == 'fullscreen_exit':
+            log['fullscreen_exits'] = log.get('fullscreen_exits', 0) + 1
+        elif violation_type == 'copy_paste':
+            log['copy_pastes'] = log.get('copy_pastes', 0) + 1
+
+        auto_submit = data.get('auto_submit', False)
+        if auto_submit:
+            log['auto_submitted'] = True
+
+        interview.cheating_log = log
+        interview.save(update_fields=['cheating_log'])
+
+        # Notify company if cheating flagged
+        total_violations = log.get('tab_switches', 0) + log.get('fullscreen_exits', 0) + log.get('copy_pastes', 0)
+        if total_violations >= 3 or auto_submit:
+            student = interview.application.student
+            company = interview.application.job.company
+            Notification.objects.create(
+                user_id=company.id,
+                user_type='company',
+                type='warning',
+                title='⚠️ Cheating Detected — AI Interview',
+                message=(
+                    f"{student.name} triggered {total_violations} violations "
+                    f"(tab switches: {log.get('tab_switches',0)}, "
+                    f"fullscreen exits: {log.get('fullscreen_exits',0)}, "
+                    f"copy-paste: {log.get('copy_pastes',0)}) "
+                    f"during their AI interview for {interview.application.job.title}."
+                ),
+                data={
+                    'interview_id': str(interview.id),
+                    'student_name': student.name,
+                    'job_title': interview.application.job.title,
+                    'cheating_log': log,
+                }
+            )
+
+        return JsonResponse({'status': 'success', 'total_violations': total_violations})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class SkillDemandHeatmapView(View):
+    """Returns skill demand analytics for company dashboard heatmap."""
+
+    def get(self, request, company_id):
+        from django.db.models import Count
+        from datetime import timedelta
+        from django.utils import timezone as tz
+
+        company = get_object_or_404(Company, id=company_id)
+
+        # All active jobs on platform
+        active_jobs = Job.objects.filter(status='active').prefetch_related('required_skills')
+        week_ago    = tz.now() - timedelta(days=7)
+        recent_jobs = Job.objects.filter(status='active', created_at__gte=week_ago).prefetch_related('required_skills')
+
+        # All student skills
+        all_student_skills = list(
+            StudentSkill.objects.select_related('skill').values_list('skill__name', flat=True)
+        )
+        student_skill_counts = {}
+        for s in all_student_skills:
+            k = s.lower()
+            student_skill_counts[k] = student_skill_counts.get(k, 0) + 1
+
+        # Build skill demand from all jobs
+        skill_demand = {}
+        for job in active_jobs:
+            for skill in job.required_skills.all():
+                k = skill.name.lower()
+                skill_demand[k] = skill_demand.get(k, 0) + 1
+
+        # Department breakdown
+        dept_skills = {}
+        for job in active_jobs:
+            dept = job.department or 'General'
+            if dept not in dept_skills:
+                dept_skills[dept] = {}
+            for skill in job.required_skills.all():
+                k = skill.name
+                dept_skills[dept][k] = dept_skills[dept].get(k, 0) + 1
+
+        # Weekly trend
+        weekly_demand = {}
+        for job in recent_jobs:
+            for skill in job.required_skills.all():
+                k = skill.name.lower()
+                weekly_demand[k] = weekly_demand.get(k, 0) + 1
+
+        # Top 10 skills
+        top10 = sorted(skill_demand.items(), key=lambda x: x[1], reverse=True)[:10]
+
+        # Supply vs demand gap (top 10 by gap)
+        gap_data = []
+        for skill_name, demand_count in top10:
+            supply = student_skill_counts.get(skill_name, 0)
+            gap_data.append({
+                'skill': skill_name.title(),
+                'demand': demand_count,
+                'supply': supply,
+                'gap': max(0, demand_count - supply),
+            })
+
+        # Department breakdown — top 5 skills per dept
+        dept_breakdown = {}
+        for dept, skills_dict in dept_skills.items():
+            top5 = sorted(skills_dict.items(), key=lambda x: x[1], reverse=True)[:5]
+            dept_breakdown[dept] = [{'skill': s, 'count': c} for s, c in top5]
+
+        # Weekly trending (skills with demand in last 7 days)
+        weekly_top = sorted(weekly_demand.items(), key=lambda x: x[1], reverse=True)[:10]
+
+        return JsonResponse({
+            'status': 'success',
+            'top10': [{'skill': s.title(), 'count': c} for s, c in top10],
+            'gap_data': gap_data,
+            'dept_breakdown': dept_breakdown,
+            'weekly_trend': [{'skill': s.title(), 'count': c} for s, c in weekly_top],
+            'total_active_jobs': active_jobs.count(),
+            'total_students': Student.objects.count(),
+        })
+
+
+def student_career_advisor_page(request):
+    """Render the full-page Career Advisor chatbot."""
+    student_id = request.session.get('student_id')
+    if not student_id:
+        return redirect(f'/student/login/?next=/student/career-advisor/')
+    return render(request, 'student/career_advisor.html', {'student_id': student_id})
 
 
 @method_decorator(csrf_exempt, name='dispatch')

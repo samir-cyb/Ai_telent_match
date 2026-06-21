@@ -45,13 +45,9 @@ Match{%endblock %} {% block content %}
       <i class="fas fa-user-edit"></i>
       <span>Update Profile</span>
     </a>
-    <a
-      href="/student/dashboard/"
-      class="glass-card action-card"
-      onclick="alert('Feature coming soon!')"
-    >
-      <i class="fas fa-brain"></i>
-      <span>AI Coach</span>
+    <a href="/student/career-advisor/" class="glass-card action-card">
+      <i class="fas fa-robot"></i>
+      <span>AI Advisor</span>
     </a>
   </div>
 
@@ -93,33 +89,86 @@ Match{%endblock %} {% block content %}
     <div class="dashboard-left">
       <!-- AI Career Coach -->
       <div class="glass-card coach-card">
-        <h3><i class="fas fa-robot"></i> AI Career Coach</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+          <h3 style="margin:0;"><i class="fas fa-robot"></i> AI Career Coach</h3>
+          <a href="/student/career-advisor/" style="
+            background:linear-gradient(135deg,#48bbff,#a855f7);
+            color:#fff;text-decoration:none;padding:.35rem .9rem;
+            border-radius:8px;font-size:.78rem;font-weight:700;
+            box-shadow:0 2px 10px rgba(72,187,255,.3);">
+            💬 Ask Advisor
+          </a>
+        </div>
         <div class="radar-container">
           <canvas id="skillRadarChart" width="300" height="300"></canvas>
         </div>
         <div class="coach-insights" id="coach-insights">
-          <p>Loading insights...</p>
+          <div class="insight-item">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Loading AI insights...</span>
+          </div>
         </div>
       </div>
 
       <!-- Career Trajectory -->
       <div class="glass-card trajectory-card">
-        <h3><i class="fas fa-route"></i> Career Trajectory</h3>
-        <div id="trajectory-content">
-          <div class="trajectory-item">
-            <span class="label">Predicted Track:</span>
-            <span class="value" id="predicted-track">--</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;">
+          <h3 style="margin:0;"><i class="fas fa-route"></i> Career Trajectory</h3>
+          <span id="trajectory-confidence-badge" style="
+            background:rgba(72,187,255,0.12);border:1px solid rgba(72,187,255,0.3);
+            color:#48bbff;font-size:.72rem;font-weight:700;padding:.25rem .65rem;border-radius:999px;
+            display:none;"></span>
+        </div>
+        <div id="trajectory-loading" style="text-align:center;padding:1.5rem 0;color:#64748b;">
+          <i class="fas fa-spinner fa-spin"></i> Gemini is analysing your profile…
+        </div>
+        <div id="trajectory-content" style="display:none;">
+          <!-- Track + Stage -->
+          <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+            <div style="flex:1;min-width:130px;background:rgba(72,187,255,0.08);border:1px solid rgba(72,187,255,0.2);
+              border-radius:12px;padding:.85rem 1rem;">
+              <div style="font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;">Predicted Track</div>
+              <div id="predicted-track" style="font-size:1rem;font-weight:700;color:#e2e8f0;">--</div>
+            </div>
+            <div style="flex:1;min-width:130px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.2);
+              border-radius:12px;padding:.85rem 1rem;">
+              <div style="font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;">Current Stage</div>
+              <div id="current-stage" style="font-size:1rem;font-weight:700;color:#c4b5fd;">--</div>
+            </div>
           </div>
-          <div class="trajectory-item">
-            <span class="label">Current Stage:</span>
-            <span class="value" id="current-stage">--</span>
+          <!-- Next Role -->
+          <div style="background:linear-gradient(135deg,rgba(72,187,255,0.08),rgba(168,85,247,0.08));
+            border:1px solid rgba(72,187,255,0.2);border-radius:12px;padding:.85rem 1rem;margin-bottom:1rem;">
+            <div style="font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;">🎯 Next Role</div>
+            <div id="next-role" style="font-size:1.05rem;font-weight:700;color:#48bbff;">--</div>
           </div>
-          <div class="trajectory-item">
-            <span class="label">Next Role:</span>
-            <span class="value highlight" id="next-role">--</span>
+          <!-- Career Summary -->
+          <div id="career-summary-box" style="display:none;
+            background:rgba(15,23,42,0.6);border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem;
+            border-left:3px solid #48bbff;">
+            <div style="font-size:.72rem;color:#64748b;margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em;">Gemini's Take</div>
+            <p id="career-summary" style="color:#94a3b8;font-size:.85rem;line-height:1.6;margin:0;"></p>
           </div>
-          <div class="recommended-skills" id="recommended-skills">
-            <p>Recommended skills to learn:</p>
+          <!-- Goals -->
+          <div style="display:flex;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap;">
+            <div id="goal-6m-box" style="display:none;flex:1;min-width:140px;
+              background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.2);
+              border-radius:10px;padding:.7rem .9rem;">
+              <div style="font-size:.7rem;color:#64748b;margin-bottom:.25rem;">📅 6-Month Goal</div>
+              <p id="goal-6m" style="color:#86efac;font-size:.82rem;line-height:1.5;margin:0;"></p>
+            </div>
+            <div id="goal-1y-box" style="display:none;flex:1;min-width:140px;
+              background:rgba(251,146,60,0.06);border:1px solid rgba(251,146,60,0.2);
+              border-radius:10px;padding:.7rem .9rem;">
+              <div style="font-size:.7rem;color:#64748b;margin-bottom:.25rem;">🏆 1-Year Goal</div>
+              <p id="goal-1y" style="color:#fdba74;font-size:.82rem;line-height:1.5;margin:0;"></p>
+            </div>
+          </div>
+          <!-- Recommended skills -->
+          <div>
+            <div style="font-size:.75rem;color:#64748b;margin-bottom:.5rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">
+              Skills to Learn Next
+            </div>
             <div class="skill-tags" id="skill-tags"></div>
           </div>
         </div>
@@ -198,6 +247,165 @@ Match{%endblock %} {% block content %}
     </div>
   </div>
 </div>
+
+<!-- ── Floating AI Advisor Bubble ───────────────────────────────────────────── -->
+<div id="advisor-bubble" onclick="toggleAdvisorChat()" style="
+  position:fixed;bottom:2rem;right:2rem;z-index:8888;
+  width:60px;height:60px;border-radius:50%;
+  background:linear-gradient(135deg,#48bbff,#a855f7);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;box-shadow:0 8px 30px rgba(72,187,255,.5);
+  font-size:1.6rem;transition:transform .25s;
+  animation:bubblePulse 2.5s ease-in-out infinite;
+" title="Open AI Career Advisor">🤖
+  <span id="advisor-notif-dot" style="
+    position:absolute;top:2px;right:2px;width:14px;height:14px;
+    background:#ef4444;border-radius:50%;border:2px solid #0f172a;
+    font-size:.55rem;color:#fff;display:flex;align-items:center;justify-content:center;
+    font-weight:900;">1</span>
+</div>
+
+<!-- Quick chat mini-panel -->
+<div id="advisor-mini-panel" style="
+  display:none;position:fixed;bottom:5.5rem;right:2rem;z-index:8887;
+  width:320px;background:rgba(10,15,30,0.96);
+  border:1px solid rgba(72,187,255,0.25);border-radius:1.25rem;
+  backdrop-filter:blur(16px);
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+  overflow:hidden;animation:slideUp .25s ease;
+">
+  <div style="
+    padding:1rem 1.25rem;
+    background:linear-gradient(135deg,rgba(72,187,255,.1),rgba(168,85,247,.1));
+    border-bottom:1px solid rgba(72,187,255,.15);
+    display:flex;align-items:center;gap:.75rem;
+  ">
+    <span style="font-size:1.3rem;">🤖</span>
+    <div>
+      <div style="font-weight:700;color:#f0f9ff;font-size:.9rem;">AI Career Advisor</div>
+      <div style="font-size:.72rem;color:#64748b;">Powered by Gemini</div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:.5rem;">
+      <a href="/student/career-advisor/" style="
+        font-size:.72rem;color:#48bbff;text-decoration:none;
+        padding:.2rem .5rem;border:1px solid rgba(72,187,255,.3);
+        border-radius:6px;font-weight:600;
+      ">Full Page</a>
+      <button onclick="toggleAdvisorChat()" style="
+        background:none;border:none;color:#64748b;cursor:pointer;font-size:1rem;padding:.2rem;
+      ">✕</button>
+    </div>
+  </div>
+  <div id="mini-chat-msgs" style="
+    height:220px;overflow-y:auto;padding:1rem;
+    display:flex;flex-direction:column;gap:.75rem;
+  ">
+    <div style="display:flex;gap:.6rem;align-items:flex-start;">
+      <span style="font-size:1rem;">🤖</span>
+      <div style="background:rgba(72,187,255,.08);border:1px solid rgba(72,187,255,.15);
+        border-radius:10px;padding:.6rem .9rem;font-size:.83rem;color:#cbd5e1;line-height:1.55;
+        border-top-left-radius:3px;">
+        Hi! Ask me anything about your career — skills to learn, jobs to target, how to improve your profile, and more.
+      </div>
+    </div>
+  </div>
+  <div style="padding:.75rem;border-top:1px solid rgba(72,187,255,.1);display:flex;gap:.5rem;">
+    <input id="mini-chat-input" type="text"
+      placeholder="Ask your career question…"
+      style="flex:1;background:rgba(15,23,42,.8);border:1px solid rgba(72,187,255,.25);
+        border-radius:10px;color:#e2e8f0;padding:.55rem .85rem;font-size:.83rem;outline:none;"
+      onkeydown="if(event.key==='Enter') sendMiniChat()"
+    />
+    <button onclick="sendMiniChat()" style="
+      background:linear-gradient(135deg,#48bbff,#a855f7);
+      border:none;border-radius:10px;padding:.55rem .9rem;
+      color:#fff;cursor:pointer;font-size:.9rem;
+    "><i class="fas fa-paper-plane"></i></button>
+  </div>
+</div>
+
+<style>
+@keyframes bubblePulse {
+  0%,100% { box-shadow:0 8px 30px rgba(72,187,255,.5); }
+  50%      { box-shadow:0 8px 40px rgba(168,85,247,.7); }
+}
+@keyframes slideUp {
+  from { opacity:0;transform:translateY(10px); }
+  to   { opacity:1;transform:translateY(0); }
+}
+</style>
+
+<script>
+// ── Floating AI Advisor mini-chat ─────────────────────────────────────────────
+let miniChatHistory = [];
+let miniPanelOpen   = false;
+
+function toggleAdvisorChat() {
+  const panel = document.getElementById('advisor-mini-panel');
+  const dot   = document.getElementById('advisor-notif-dot');
+  miniPanelOpen = !miniPanelOpen;
+  panel.style.display = miniPanelOpen ? 'block' : 'none';
+  if (miniPanelOpen) {
+    dot.style.display = 'none';
+    document.getElementById('mini-chat-input').focus();
+  }
+  document.getElementById('advisor-bubble').style.transform = miniPanelOpen ? 'scale(0.9)' : 'scale(1)';
+}
+
+async function sendMiniChat() {
+  const input = document.getElementById('mini-chat-input');
+  const msg   = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  appendMiniMsg('user', msg);
+  miniChatHistory.push({ role: 'user', content: msg });
+
+  // Typing indicator
+  const msgs = document.getElementById('mini-chat-msgs');
+  const typingEl = document.createElement('div');
+  typingEl.id = 'mini-typing';
+  typingEl.innerHTML = `<span style="color:#64748b;font-size:.8rem;">🤖 thinking…</span>`;
+  typingEl.style.paddingLeft = '.4rem';
+  msgs.appendChild(typingEl);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const r = await fetch(`${API_BASE}/student/${studentId}/career-advisor/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, history: miniChatHistory.slice(-6) }),
+    });
+    const d = await r.json();
+    typingEl.remove();
+    const reply = d.reply || 'Sorry, I couldn\'t generate a response right now.';
+    appendMiniMsg('assistant', reply);
+    miniChatHistory.push({ role: 'assistant', content: reply });
+  } catch (e) {
+    typingEl.remove();
+    appendMiniMsg('assistant', '⚠️ Network error. Please try again.');
+  }
+}
+
+function appendMiniMsg(role, content) {
+  const msgs = document.getElementById('mini-chat-msgs');
+  const isUser = role === 'user';
+  const div  = document.createElement('div');
+  div.style.cssText = `display:flex;gap:.6rem;align-items:flex-start;${isUser ? 'flex-direction:row-reverse;' : ''}`;
+  div.innerHTML = `
+    <span style="font-size:.9rem;flex-shrink:0;">${isUser ? '👤' : '🤖'}</span>
+    <div style="
+      background:${isUser ? 'rgba(168,85,247,.12)' : 'rgba(72,187,255,.08)'};
+      border:1px solid ${isUser ? 'rgba(168,85,247,.2)' : 'rgba(72,187,255,.15)'};
+      border-radius:10px;padding:.55rem .8rem;font-size:.82rem;
+      color:#cbd5e1;line-height:1.55;max-width:85%;
+      ${isUser ? 'border-top-right-radius:3px;' : 'border-top-left-radius:3px;'}
+    ">${content.replace(/\n/g,'<br>')}</div>
+  `;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+</script>
 
 <script>
   // Remove this line entirely, OR use:
@@ -304,36 +512,80 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
     updateRadarChart(data);
 
     // Update coach insights
+    const profilePct = Math.round(data.profile_summary?.profile_complete || 0);
+    const milestone  = data.profile_summary?.next_milestone || "Keep building your profile";
     document.getElementById("coach-insights").innerHTML = `
-        <div class="insight-item">
-            <i class="fas fa-info-circle"></i>
-            <span>${data.profile_summary?.next_milestone || "Complete your profile"}</span>
-        </div>
-        <div class="insight-item">
-            <i class="fas fa-check-circle"></i>
-            <span>Profile ${Math.round(data.profile_summary?.profile_complete || 0)}% complete</span>
-        </div>
+      <div class="insight-item">
+        <i class="fas fa-tasks" style="color:#48bbff;"></i>
+        <span>${milestone}</span>
+      </div>
+      <div class="insight-item">
+        <i class="fas fa-shield-alt" style="color:#a855f7;"></i>
+        <span>Trust Score: <strong style="color:#f0f9ff;">${Math.round(data.profile_summary?.trust_score || 0)}/100</strong></span>
+      </div>
+      <div class="insight-item">
+        <i class="fas fa-percentage" style="color:#22c55e;"></i>
+        <span>Profile <strong style="color:#f0f9ff;">${profilePct}%</strong> complete</span>
+      </div>
+      <div style="margin-top:.75rem;">
+        <a href="/student/career-advisor/" style="
+          display:inline-flex;align-items:center;gap:.4rem;
+          background:linear-gradient(135deg,rgba(72,187,255,.15),rgba(168,85,247,.15));
+          border:1px solid rgba(72,187,255,.3);color:#93c5fd;
+          text-decoration:none;padding:.45rem 1rem;border-radius:8px;font-size:.82rem;font-weight:600;">
+          💬 Ask AI Advisor for personalised advice →
+        </a>
+      </div>
     `;
 
     // Update trajectory
     if (data.career_trajectory) {
-      document.getElementById("predicted-track").textContent =
-        data.career_trajectory.predicted_track
-          ?.replace("_", " ")
-          .toUpperCase() || "--";
-      document.getElementById("current-stage").textContent =
-        data.career_trajectory.current_stage || "--";
-      document.getElementById("next-role").textContent =
-        data.career_trajectory.next_role || "--";
+      const ct = data.career_trajectory;
+      document.getElementById('trajectory-loading').style.display = 'none';
+      document.getElementById('trajectory-content').style.display = 'block';
 
-      // Update recommended skills
-      const skillsContainer = document.getElementById("skill-tags");
-      skillsContainer.innerHTML = "";
-      if (data.career_trajectory.recommended_skills_to_add) {
-        data.career_trajectory.recommended_skills_to_add.forEach((skill) => {
-          skillsContainer.innerHTML += `<span class="skill-tag">${skill}</span>`;
-        });
+      document.getElementById('predicted-track').textContent = ct.predicted_track || '--';
+      document.getElementById('current-stage').textContent   = ct.current_stage   || '--';
+      document.getElementById('next-role').textContent       = ct.next_role        || '--';
+
+      // Confidence badge
+      if (ct.confidence) {
+        const badge = document.getElementById('trajectory-confidence-badge');
+        badge.textContent = ct.confidence + ' Confidence';
+        badge.style.display = 'inline-block';
+        badge.style.background =
+          ct.confidence === 'High'   ? 'rgba(34,197,94,0.12)'  :
+          ct.confidence === 'Medium' ? 'rgba(251,146,60,0.12)' : 'rgba(239,68,68,0.12)';
+        badge.style.borderColor =
+          ct.confidence === 'High'   ? 'rgba(34,197,94,0.35)'  :
+          ct.confidence === 'Medium' ? 'rgba(251,146,60,0.35)' : 'rgba(239,68,68,0.35)';
+        badge.style.color =
+          ct.confidence === 'High' ? '#86efac' : ct.confidence === 'Medium' ? '#fdba74' : '#fca5a5';
       }
+
+      // Career summary
+      if (ct.career_summary) {
+        document.getElementById('career-summary').textContent = ct.career_summary;
+        document.getElementById('career-summary-box').style.display = 'block';
+      }
+
+      // Goals
+      if (ct.goal_6_months) {
+        document.getElementById('goal-6m').textContent = ct.goal_6_months;
+        document.getElementById('goal-6m-box').style.display = 'block';
+      }
+      if (ct.goal_1_year) {
+        document.getElementById('goal-1y').textContent = ct.goal_1_year;
+        document.getElementById('goal-1y-box').style.display = 'block';
+      }
+
+      // Recommended skills
+      const skillsContainer = document.getElementById('skill-tags');
+      skillsContainer.innerHTML = '';
+      const skills = ct.recommended_skills_to_add || ct.recommended_skills || [];
+      skills.forEach(skill => {
+        skillsContainer.innerHTML += `<span class="skill-tag">${skill}</span>`;
+      });
     }
 
     // Update recommendations
