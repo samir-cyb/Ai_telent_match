@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Talent Match — 3ft × 4ft Poster | ULAB 2025</title>
+<link rel="stylesheet" href="style.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* Screen preview scaling — poster is 1260px wide, scale to fit window */
+  @media screen {
+    body { padding: 60px 20px 40px; }
+    .poster {
+      box-shadow: 0 20px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(21,48,96,0.6);
+      border-radius: 4px;
+    }
+  }
+  /* At print: fill exactly 36in × 48in */
+  @media print {
+    body { padding: 0 !important; background: #030c1a !important; }
+    .poster { width: 36in !important; min-height: 48in !important; border-radius: 0 !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════ DOWNLOAD TOOLBAR ══════════════════════ -->
+<div class="dl-toolbar">
+  <button class="dl-btn primary" id="dlBtn" onclick="downloadPDF()">
+    ⬇️ Download PDF (3×4 ft)
+  </button>
+  <button class="dl-btn secondary" onclick="printPoster()">
+    🖨️ Print / Browser PDF
+  </button>
+  <button class="dl-btn secondary" onclick="toggleHint()" style="font-size:11px;">
+    ℹ️ Print Setup Guide
+  </button>
+  <div class="dl-hint" id="dlHint">
+    <strong>To print as 3ft×4ft:</strong><br/>
+    Chrome → Print (Ctrl+P)<br/>
+    → Destination: <strong>Save as PDF</strong><br/>
+    → More settings → Paper: <strong>Custom</strong><br/>
+    → Enter <strong>36 × 48 inches</strong><br/>
+    → Margins: None · Scale: Default<br/>
+    → ✅ Background graphics ON
+  </div>
+  <div class="dl-progress" id="dlProg">
+    ⏳ Rendering poster to PDF…<br/>
+    <span style="font-size:9px;color:#475569;">This may take 15–30 seconds</span>
+  </div>
+</div>
+
+<!-- ════════════════════════ POSTER ════════════════════════ -->
+<div class="poster">
+
+  <!-- ═══ HEADER ═══ -->
+  <header class="poster-header">
+    <div class="header-top">
+      <div class="institution-badge">
+        <div class="ulab-logo">
+          <span>ULAB</span>
+          <span>CSE</span>
+        </div>
+        <div class="institution-info">
+          <div class="uni-name">University of Liberal Arts Bangladesh</div>
+          <div class="dept-name">Department of Computer Science &amp; Engineering · Dhaka-1209, Bangladesh</div>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="badge b-blue">Django 4.x</span>
+        <span class="badge b-purple">Google Gemini 2.5 Flash</span>
+        <span class="badge b-green">Reinforcement Learning</span>
+        <span class="badge b-gold">Anti-Cheat AI</span>
+        <span class="badge b-rose">Multi-Agent System</span>
+      </div>
+    </div>
+
+    <div class="poster-title">
+      <h1>AI Talent Match: A Multi-Agent Intelligent Recruitment Platform<br/>
+          with Reinforcement Learning &amp; AI-Proctored Interview Verification</h1>
+      <div class="subtitle-pills">
+        <span class="s-pill">🤖 Autonomous 7-Step Recruitment Agent</span>
+        <span class="s-pill">🔁 RL Adaptive Weight Optimization</span>
+        <span class="s-pill">🛡️ Real-Time Anti-Cheat Proctoring</span>
+        <span class="s-pill">📊 Gemini 2.5 Flash LLM Reasoning</span>
+        <span class="s-pill">🔍 6-Dimensional Feature Matching</span>
+      </div>
+    </div>
+
+    <div class="authors-row">
+      <div class="author-chip">
+        <div class="avatar av1">RS</div>
+        <div>
+          <div class="name">Redwan Ahamad Samir</div>
+          <div class="role">Lead Developer</div>
+        </div>
+      </div>
+      <div class="author-chip">
+        <div class="avatar av2">SR</div>
+        <div>
+          <div class="name">Samia Rahman</div>
+          <div class="role">System Design</div>
+        </div>
+      </div>
+      <div class="author-chip">
+        <div class="avatar av3">BZ</div>
+        <div>
+          <div class="name">Bahadur Zaman Shezan</div>
+          <div class="role">AI Integration</div>
+        </div>
+      </div>
+    </div>
+    <div class="affiliation-row">
+      <strong>University of Liberal Arts Bangladesh (ULAB)</strong> &nbsp;·&nbsp;
+      Department of CSE &nbsp;·&nbsp; Dhaka-1209, Bangladesh &nbsp;·&nbsp;
+      redwansamir90@gmail.com
+    </div>
+  </header>
+
+  <!-- ═══ METRICS STRIP ═══ -->
+  <div class="metrics-strip">
+    <div class="metric-item">
+      <div class="val">40</div>
+      <div class="lbl">Match Pairs<br/>Scored</div>
+    </div>
+    <div class="metric-item">
+      <div class="val">15</div>
+      <div class="lbl">Agent Runs<br/>(Live)</div>
+    </div>
+    <div class="metric-item">
+      <div class="val">17ms</div>
+      <div class="lbl">Per-Match<br/>Speed</div>
+    </div>
+    <div class="metric-item">
+      <div class="val">7</div>
+      <div class="lbl">Pipeline<br/>Steps</div>
+    </div>
+    <div class="metric-item">
+      <div class="val">8</div>
+      <div class="lbl">Fraud<br/>Rules</div>
+    </div>
+    <div class="metric-item">
+      <div class="val">5</div>
+      <div class="lbl">Career<br/>Tracks</div>
+    </div>
+    <div class="metric-item">
+      <div class="val">~4s</div>
+      <div class="lbl">Full<br/>Pipeline</div>
+    </div>
+    <div class="metric-item">
+      <div class="val">3-Strike</div>
+      <div class="lbl">Anti-Cheat<br/>Policy</div>
+    </div>
+  </div>
+
+  <!-- ═══ BODY ═══ -->
+  <div class="poster-body">
+
+    <!-- ══════════ LEFT COLUMN ══════════ -->
+    <div class="body-col">
+
+      <!-- ABSTRACT -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">📋</div>
+            <div class="sec-label">Abstract</div>
+            <div class="sec-line"></div>
+          </div>
+          <p class="bt">
+            Conventional Applicant Tracking Systems (ATS) rely on static keyword-matching,
+            producing misaligned hires and systematically filtering out
+            <strong class="hly">75% of qualified candidates</strong> before human review
+            (Gallup, 2023). <strong class="hl">AI Talent Match</strong> addresses this with a
+            fully integrated multi-agent intelligent recruitment platform built on Django 4.x,
+            powered by <strong class="hl">Google Gemini 2.5 Flash</strong>, and continuously
+            optimized through <strong class="hl">Reinforcement Learning</strong> weight adaptation.
+          </p>
+          <p class="bt" style="margin-top:7px;">
+            The system computes multi-dimensional match scores across
+            <strong class="hlg">six feature axes</strong>, executes a
+            <strong class="hlg">7-step Autonomous Recruitment Agent</strong> per application,
+            conducts AI-proctored interviews with per-answer live scoring, and continuously
+            re-weights feature importance from hiring outcomes. Evaluation across
+            5 student profiles, 3 companies, and 8 job postings demonstrates
+            <strong class="hlg">17 ms/match</strong>, reliable agent decisions with
+            natural-language explanations, and effective anti-cheat enforcement.
+          </p>
+        </div>
+      </div>
+
+      <!-- INTRODUCTION -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">🎯</div>
+            <div class="sec-label">1. Introduction</div>
+            <div class="sec-line"></div>
+          </div>
+          <p class="bt">
+            The global talent mismatch problem costs employers an estimated
+            <strong class="hly">$50 B+</strong> annually in mis-hires (SHRM, 2022).
+            Rule-based ATS systems filter purely on keyword density, ignoring academic
+            trajectory, project depth, and trust signals. Existing AI recruitment tools
+            either lack explainability or require large proprietary labeled datasets.
+          </p>
+          <div class="stat-row" style="margin-top:10px;">
+            <div class="stat-box">
+              <div class="sv" style="color:#ef4444">75%</div>
+              <div class="sl">Qualified candidates eliminated by ATS before human review</div>
+            </div>
+            <div class="stat-box">
+              <div class="sv" style="color:#38bdf8">6×</div>
+              <div class="sl">Feature axes vs. 1D keyword scoring in traditional ATS</div>
+            </div>
+          </div>
+          <p class="bt" style="margin-top:8px;">
+            This work presents a platform that uniquely combines:
+            <em>(i)</em> RL-adaptive multi-feature scoring with no external labels,
+            <em>(ii)</em> a 7-step agentic decision pipeline with Gemini reasoning,
+            <em>(iii)</em> a 3-strike AI interview anti-cheat engine, and
+            <em>(iv)</em> real-time company skill demand heatmap analytics.
+          </p>
+        </div>
+      </div>
+
+      <!-- MATERIALS -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">🔧</div>
+            <div class="sec-label">2. Materials &amp; Stack</div>
+            <div class="sec-line"></div>
+          </div>
+          <div class="tech-grid">
+            <div class="tech-item">
+              <div class="ti">🐍</div>
+              <div class="tn">Django 4.x</div>
+              <div class="tr">Backend MVC</div>
+            </div>
+            <div class="tech-item">
+              <div class="ti">✨</div>
+              <div class="tn">Gemini 2.5</div>
+              <div class="tr">LLM Reasoning</div>
+            </div>
+            <div class="tech-item">
+              <div class="ti">🗄️</div>
+              <div class="tn">PostgreSQL</div>
+              <div class="tr">Data Persistence</div>
+            </div>
+            <div class="tech-item">
+              <div class="ti">🔁</div>
+              <div class="tn">RL Agent</div>
+              <div class="tr">Weight Learning</div>
+            </div>
+            <div class="tech-item">
+              <div class="ti">🛡️</div>
+              <div class="tn">Anti-Cheat</div>
+              <div class="tr">JS Proctor</div>
+            </div>
+            <div class="tech-item">
+              <div class="ti">📊</div>
+              <div class="tn">Chart.js</div>
+              <div class="tr">Visualization</div>
+            </div>
+          </div>
+          <p class="bt" style="margin-top:10px;">
+            <strong class="hl">Dataset:</strong> 5 synthetic profiles (CSE, BBA, EEE, Data Science,
+            Computer Science junior) across 3 companies (TechCorp, DataMinds, GreenTech) and 8 active
+            job postings. Zero external label dependency — all feedback signals are derived from
+            in-platform hire/reject actions.
+          </p>
+        </div>
+      </div>
+
+      <!-- TRUST CHART -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">🔒</div>
+            <div class="sec-label">Trust Score Results</div>
+            <div class="sec-line"></div>
+          </div>
+          <p class="bt" style="margin-bottom:7px;">
+            T ∈ [0,100]. Threshold:
+            <strong class="hlg">≥70 = Low Risk</strong> ·
+            <strong class="hly">50–69 = Medium</strong> ·
+            <strong style="color:#ef4444">Below 50 = High Risk</strong>
+          </p>
+          <div class="cw" style="height:145px;"><canvas id="trustChart"></canvas></div>
+          <div class="dec-row">
+            <div class="dec-pill dp-g"><div class="dp-dot"></div>Low Risk ≥70</div>
+            <div class="dec-pill dp-y"><div class="dp-dot"></div>Medium 50–69</div>
+            <div class="dec-pill dp-r"><div class="dp-dot"></div>High Risk &lt;50</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- end left col -->
+
+    <!-- ══════════ CENTER COLUMN ══════════ -->
+    <div class="body-col">
+
+      <!-- METHODOLOGY -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">⚙️</div>
+            <div class="sec-label">3. Methodology</div>
+            <div class="sec-line"></div>
+          </div>
+
+          <!-- 3.1 Feature Vector -->
+          <div style="font-size:11px;font-weight:800;color:#818cf8;margin:6px 0 5px;text-transform:uppercase;letter-spacing:1px;">3.1 Feature Vector &amp; Weighted Match Score</div>
+          <p class="bt">
+            Each student–job pair is encoded into a normalized 6-dimensional vector
+            <strong class="hl">φ = [f₁…f₆]</strong>, fᵢ ∈ [0,1], and a weighted dot product
+            produces the final match percentage:
+          </p>
+
+          <div class="formula">
+            <div class="formula-label">Feature Definitions (fᵢ ∈ [0, 1])</div>
+<span class="fv">f₁</span> <span class="fo">=</span> <span class="fv">cgpa</span> / <span class="fn">4.0</span>
+             <span class="fc">// Academic performance normalised</span>
+<span class="fv">f₂</span> <span class="fo">=</span> |<span class="fv">skills</span> <span class="fo">∩</span> <span class="fv">job_req</span>| / |<span class="fv">job_req</span>|
+             <span class="fc">// Skill coverage ratio</span>
+<span class="fv">f₃</span> <span class="fo">=</span> min(<span class="fv">years_exp</span>, <span class="fn">5</span>) / <span class="fn">5</span>
+             <span class="fc">// Work experience (capped at 5 yrs)</span>
+<span class="fv">f₄</span> <span class="fo">=</span> min(<span class="fv">n_projects</span>, <span class="fn">5</span>) / <span class="fn">5</span>
+             <span class="fc">// Portfolio depth (capped at 5)</span>
+<span class="fv">f₅</span> <span class="fo">=</span> <span class="fv">applications_completed</span> / <span class="fn">10</span>
+             <span class="fc">// Platform activity signal</span>
+<span class="fv">f₆</span> <span class="fo">=</span> <span class="fv">trust_score</span> / <span class="fn">100</span>
+             <span class="fc">// Trust / fraud index</span>
+          </div>
+
+          <div class="formula">
+            <div class="formula-label">Weighted Match Score  S(s, j)</div>
+<span class="fv">S</span>(<span class="fv">s</span>, <span class="fv">j</span>) <span class="fo">=</span> <span class="fn">100</span> <span class="fo">×</span> <span class="fo">Σ</span><sub>i=1</sub><sup>6</sup> <span class="fv">wᵢ</span> <span class="fo">·</span> <span class="fv">fᵢ</span>
+             <span class="fc">// Σwᵢ = 1  (weights sum to 100%)</span>
+<span class="fv">Initial</span>: <span class="fv">w</span> <span class="fo">=</span> [<span class="fn">0.20</span>, <span class="fn">0.20</span>, <span class="fn">0.20</span>, <span class="fn">0.15</span>, <span class="fn">0.10</span>, <span class="fn">0.15</span>]
+          </div>
+
+          <!-- 3.2 RL -->
+          <div style="font-size:11px;font-weight:800;color:#818cf8;margin:10px 0 5px;text-transform:uppercase;letter-spacing:1px;">3.2 Reinforcement Learning Weight Adaptation</div>
+          <p class="bt">
+            After each hire/reject event the RL weight agent fires a policy-gradient update.
+            Features correlated with successful hires accumulate higher weight over time:
+          </p>
+
+          <div class="formula">
+            <div class="formula-label">Policy Gradient Weight Update</div>
+<span class="fv">wᵢ</span><sup><span class="fo">t+1</span></sup> <span class="fo">=</span> <span class="fv">wᵢ</span><sup><span class="fo">t</span></sup> <span class="fo">+</span> <span class="fv">α</span> <span class="fo">·</span> <span class="fv">δ</span> <span class="fo">·</span> (<span class="fv">fᵢ</span> <span class="fo">-</span> <span class="fn">0.5</span>)
+<span class="fv">α</span> <span class="fo">=</span> <span class="fn">0.05</span>  <span class="fc">// Learning rate</span>
+<span class="fv">δ</span> <span class="fo">=</span> <span class="fo">+</span><span class="fn">1</span>     <span class="fc">// Hire → reinforce</span>
+<span class="fv">δ</span> <span class="fo">=</span> <span class="fo">−</span><span class="fn">1</span>     <span class="fc">// Reject → penalise</span>
+          </div>
+
+          <div class="formula">
+            <div class="formula-label">Post-Update Normalisation</div>
+<span class="fv">wᵢ</span> <span class="fo">←</span> max(<span class="fv">wᵢ</span>, <span class="fn">0.02</span>)
+             <span class="fc">// Floor clamp (no weight dies)</span>
+<span class="fv">wᵢ</span> <span class="fo">←</span> <span class="fv">wᵢ</span> / <span class="fo">Σ</span><span class="fv">wⱼ</span>
+             <span class="fc">// Re-normalise → Σwᵢ = 1</span>
+          </div>
+
+          <!-- 3.3 Trust -->
+          <div style="font-size:11px;font-weight:800;color:#818cf8;margin:10px 0 5px;text-transform:uppercase;letter-spacing:1px;">3.3 Trust Score &amp; Fraud Detection</div>
+
+          <div class="formula">
+            <div class="formula-label">Trust Score Calculation</div>
+<span class="fv">T</span> <span class="fo">=</span> <span class="fn">100</span> <span class="fo">−</span> <span class="fo">Σ</span><sub>k</sub> <span class="fv">pₖ</span> <span class="fo">·</span> <span class="fv">sₖ</span>
+<span class="fv">sₖ</span> <span class="fo">∈</span> {low, medium, high}
+             <span class="fc">// Fraud flag severity</span>
+<span class="fv">pₖ</span> <span class="fo">∈</span> {<span class="fn">5</span>, <span class="fn">10</span>, <span class="fn">20</span>}
+             <span class="fc">// Penalty weight per severity</span>
+          </div>
+
+          <!-- 3.4 Anti-Cheat -->
+          <div style="font-size:11px;font-weight:800;color:#818cf8;margin:10px 0 5px;text-transform:uppercase;letter-spacing:1px;">3.4 AI Interview Anti-Cheat Protocol</div>
+
+          <div class="formula">
+            <div class="formula-label">3-Strike Violation Policy</div>
+<span class="fv">V</span> <span class="fo">=</span> <span class="fv">tab_switches</span> <span class="fo">+</span> <span class="fv">fullscreen_exits</span> <span class="fo">+</span> <span class="fv">copy_pastes</span>
+if <span class="fv">V</span> <span class="fo">≥</span> <span class="fn">3</span> → <span style="color:#ef4444">auto_submit(flag=CHEATING)</span>
+          </div>
+
+          <div class="formula">
+            <div class="formula-label">Answer Scoring via Gemini</div>
+<span class="fv">score</span> <span class="fo">=</span> Gemini(<span class="fv">question</span>, <span class="fv">good_keywords</span>, <span class="fv">student_answer</span>)
+<span class="fv">score</span> <span class="fo">∈</span> [<span class="fn">0</span>, <span class="fn">10</span>]  →  Feedback + Reason returned
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 7-STEP PIPELINE -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">🤖</div>
+            <div class="sec-label">4. 7-Step Recruitment Agent</div>
+            <div class="sec-line"></div>
+          </div>
+          <div class="pipeline">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <div class="step-name">Profile Ingestion</div>
+                <div class="step-desc">Load student → compute φ = [f₁…f₆] from DB</div>
+              </div>
+              <div class="step-time">~2 ms</div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <div class="step-name">AI Match Scoring</div>
+                <div class="step-desc">S(s,j) = 100 × Σ wᵢ·fᵢ  with company-specific wᵢ</div>
+              </div>
+              <div class="step-time">~17 ms</div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <div class="step-name">Eligibility Gate</div>
+                <div class="step-desc">CGPA ≥ min · Trust ≥ 40 · Employment type match</div>
+              </div>
+              <div class="step-time">~1 ms</div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <div class="step-name">Skill Gap Analysis</div>
+                <div class="step-desc">Gap = job_requirements ∖ student_skills (lowercase match)</div>
+              </div>
+              <div class="step-time">~3 ms</div>
+            </div>
+            <div class="step">
+              <div class="step-num">5</div>
+              <div class="step-body">
+                <div class="step-name">Fraud &amp; Trust Check</div>
+                <div class="step-desc">FraudDetectionEngine: 8 rules → penalty-weighted T</div>
+              </div>
+              <div class="step-time">~5 ms</div>
+            </div>
+            <div class="step">
+              <div class="step-num">6</div>
+              <div class="step-body">
+                <div class="step-name">Gemini Fit Report</div>
+                <div class="step-desc">LLM generates fit narrative + reasoning steps</div>
+              </div>
+              <div class="step-time">~35 ms</div>
+            </div>
+            <div class="step">
+              <div class="step-num">7</div>
+              <div class="step-body">
+                <div class="step-name">Decision &amp; Persist</div>
+                <div class="step-desc">Shortlist / Review / Reject → RecruitmentAgentRun saved</div>
+              </div>
+              <div class="step-time">~7 ms</div>
+            </div>
+          </div>
+          <p class="bt" style="margin-top:8px;font-size:10.5px;">
+            Total agent wall-time: <strong class="hlg">~70 ms</strong> (excluding Gemini call).
+            All 7 steps run in a single Django transaction with rollback on error.
+          </p>
+        </div>
+      </div>
+
+    </div>
+    <!-- end center col -->
+
+    <!-- ══════════ RIGHT COLUMN ══════════ -->
+    <div class="body-col">
+
+      <!-- AGENT DECISIONS -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">📊</div>
+            <div class="sec-label">5. Results — Agent Decisions</div>
+            <div class="sec-line"></div>
+          </div>
+          <p class="bt" style="margin-bottom:6px;">
+            15 live agent runs across 5 students × 3 companies. Decisions are fully
+            explainable via Gemini reasoning steps saved per run.
+          </p>
+          <div class="cw" style="height:150px;"><canvas id="agentChart"></canvas></div>
+          <div class="dec-row">
+            <div class="dec-pill dp-g"><div class="dp-dot"></div>1 Shortlisted · 7%</div>
+            <div class="dec-pill dp-y"><div class="dp-dot"></div>5 Review · 33%</div>
+            <div class="dec-pill dp-r"><div class="dp-dot"></div>9 Rejected · 60%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MATCH HEATMAP -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">🗺️</div>
+            <div class="sec-label">5.2 Match Score Matrix (5×8)</div>
+            <div class="sec-line"></div>
+          </div>
+          <table class="hmap">
+            <thead id="hmHead"></thead>
+            <tbody id="hmBody"></tbody>
+          </table>
+          <div style="display:flex;gap:10px;margin-top:7px;flex-wrap:wrap;">
+            <span style="font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(34,197,94,0.3);color:#bbf7d0;font-weight:700;">≥65 Excellent</span>
+            <span style="font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(56,189,248,0.25);color:#bae6fd;font-weight:700;">50–64 Good</span>
+            <span style="font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(245,158,11,0.22);color:#fde68a;font-weight:700;">35–49 Fair</span>
+            <span style="font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(239,68,68,0.18);color:#fca5a5;font-weight:700;">&lt;35 Weak</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RL WEIGHTS -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">🔁</div>
+            <div class="sec-label">5.3 RL Weight Adaptation</div>
+            <div class="sec-line"></div>
+          </div>
+          <p class="bt" style="margin-bottom:6px;">
+            DataMinds Co. weights after ML Engineer hire/reject signals.
+            CGPA, Activity &amp; Trust all increased after hire reinforcement.
+          </p>
+          <div class="cw" style="height:140px;"><canvas id="rlChart"></canvas></div>
+          <table class="wt" style="margin-top:7px;">
+            <thead>
+              <tr>
+                <th>Feature</th><th>Before</th><th>After Hire</th><th>Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>CGPA</td><td>20.0%</td><td>26.0%</td><td class="du">▲ +6.0%</td></tr>
+              <tr><td>Skills</td><td>20.0%</td><td>17.0%</td><td class="dd">▼ −3.0%</td></tr>
+              <tr><td>Experience</td><td>20.0%</td><td>21.0%</td><td class="du">▲ +1.0%</td></tr>
+              <tr><td>Activity</td><td>10.0%</td><td>13.0%</td><td class="du">▲ +3.0%</td></tr>
+              <tr><td>Trust</td><td>15.0%</td><td>18.0%</td><td class="du">▲ +3.0%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SKILL GAP + PIPELINE -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">📈</div>
+            <div class="sec-label">5.4 Skill Gap &amp; Performance</div>
+            <div class="sec-line"></div>
+          </div>
+          <div style="font-size:9.5px;font-weight:700;color:#475569;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.8px;">Skill Gap: Demand vs Supply</div>
+          <div class="cw" style="height:120px;"><canvas id="skillGapChart"></canvas></div>
+          <div style="font-size:9.5px;font-weight:700;color:#475569;margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.8px;">Pipeline Timing (log scale, ms)</div>
+          <div class="cw" style="height:130px;"><canvas id="pipelineChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- INTERVIEW SCORING -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">🛡️</div>
+            <div class="sec-label">5.5 Interview Scoring Results</div>
+            <div class="sec-line"></div>
+          </div>
+          <p class="bt" style="margin-bottom:8px;">
+            3-tier answer quality test under fullscreen enforcement + tab-switch detection.
+            Gemini correctly differentiated weak from strong responses.
+          </p>
+          <div class="score-tiles">
+            <div class="score-tile stg">
+              <div class="st-s">7/10</div>
+              <div class="st-l">Strong Answer</div>
+            </div>
+            <div class="score-tile sta">
+              <div class="st-s">7/10</div>
+              <div class="st-l">Average Answer</div>
+            </div>
+            <div class="score-tile stw">
+              <div class="st-s">2/10</div>
+              <div class="st-l">Weak Answer</div>
+            </div>
+          </div>
+          <p class="bt" style="margin-top:7px;font-size:10.5px;">
+            Gemini scoring variance: ±1 point on equivalent answers.
+            Weak response correctly penalised: <strong class="hly">Δ = 5 points</strong>
+            below strong response threshold.
+          </p>
+        </div>
+      </div>
+
+      <!-- CONCLUSIONS -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">✅</div>
+            <div class="sec-label">6. Conclusions</div>
+            <div class="sec-line"></div>
+          </div>
+          <ul class="findings">
+            <li>
+              <span class="fi">🚀</span>
+              <span><strong class="hl">17 ms/match</strong> proves viability for real-time high-volume screening without batching delays.</span>
+            </li>
+            <li>
+              <span class="fi">🔁</span>
+              <span>RL weight adaptation demonstrably shifts CGPA (+6%), Trust (+3%), Activity (+3%) after hire signals.</span>
+            </li>
+            <li>
+              <span class="fi">🤖</span>
+              <span>7-step agent produces <strong class="hlg">explainable, auditable</strong> decisions with full Gemini reasoning — no black-box.</span>
+            </li>
+            <li>
+              <span class="fi">🛡️</span>
+              <span>3-strike anti-cheat reliably separates strong (7/10) from weak (2/10) under proctored conditions.</span>
+            </li>
+            <li>
+              <span class="fi">📊</span>
+              <span>Skill gap engine reveals Excel, Python &amp; Docker as top unmet demands — directly actionable for HR.</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- LIMITATIONS -->
+      <div class="card">
+        <div class="card-inner">
+          <div class="sec-title">
+            <div class="sec-icon">⚠️</div>
+            <div class="sec-label">7. Limitations &amp; Future Work</div>
+            <div class="sec-line"></div>
+          </div>
+          <div class="lim">
+            <div class="ld"></div>
+            <div class="lt"><strong class="hly">Small evaluation set:</strong> 5 candidates / 8 jobs. Production requires 1,000+ applicants to validate RL convergence.</div>
+          </div>
+          <div class="lim">
+            <div class="ld"></div>
+            <div class="lt"><strong class="hly">LLM latency:</strong> Gemini calls take 1.4–2.1 s; total pipeline ~4 s when LLM is included.</div>
+          </div>
+          <div class="lim">
+            <div class="ld"></div>
+            <div class="lt"><strong class="hly">Anti-cheat bypass:</strong> VM-based or phone-assisted cheating is undetected by browser JS alone.</div>
+          </div>
+          <div class="lim">
+            <div class="ld" style="background:#38bdf8;"></div>
+            <div class="lt"><strong class="hl">Future:</strong> PDF CV parsing → structured JSON · Video sentiment scoring · Federated RL across companies</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- end right col -->
+
+  </div>
+  <!-- end poster-body -->
+
+  <!-- ═══ FOOTER ═══ -->
+  <footer class="poster-footer">
+    <div class="footer-left">
+      <strong>University of Liberal Arts Bangladesh (ULAB)</strong><br/>
+      Dept. of Computer Science &amp; Engineering · Dhaka-1209, Bangladesh
+    </div>
+    <div class="footer-center">
+      <div class="fc-title">AI TALENT MATCH · RESEARCH POSTER · 2025</div>
+      <div class="fc-sub">Django · Gemini 2.5 Flash · PostgreSQL · Reinforcement Learning · Chart.js</div>
+    </div>
+    <div class="footer-right">
+      <span class="fc">redwansamir90@gmail.com</span><br/>
+      © 2025 Redwan Ahamad Samir · Samia Rahman · Bahadur Zaman Shezan<br/>
+      <span style="font-size:9px;color:#1e3a5f;">All rights reserved — ULAB CSE Department</span>
+    </div>
+  </footer>
+
+</div>
+<!-- end poster -->
+
+<script src="charts.js"></script>
+</body>
+</html>

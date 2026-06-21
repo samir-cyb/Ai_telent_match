@@ -2344,7 +2344,7 @@ Keep responses under 200 words. Use bullet points when listing items. Be direct 
         conv_parts.append("Advisor:")
 
         try:
-           
+            
             resp = _client.models.generate_content(
                 model='gemini-2.5-flash-lite',
                 contents='\n'.join(conv_parts)

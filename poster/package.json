@@ -1,0 +1,12 @@
+{
+  "name": "ai-talent-match-poster",
+  "version": "1.0.0",
+  "description": "AI Talent Match Academic Poster Builder — 3ft × 4ft",
+  "main": "build_poster.js",
+  "scripts": {
+    "build": "node build_poster.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "^3.12.0"
+  }
+}
