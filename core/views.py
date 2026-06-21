@@ -2246,8 +2246,7 @@ class SmartJobRecommendationsView(View):
 # ==================== SUPER ADMIN SETUP ====================
 # ==================== SUPER ADMIN SETUP ====================
 # Hardcoded super admin credentials
-#SUPER_ADMIN_EMAIL = "redwansamir90@gmail.com"
-#SUPER_ADMIN_PASSWORD = ""
+
 SUPER_ADMIN_EMAIL = os.getenv('SUPER_ADMIN_EMAIL', '')
 SUPER_ADMIN_PASSWORD = os.getenv('SUPER_ADMIN_PASSWORD', '')
 def ensure_super_admin_exists():

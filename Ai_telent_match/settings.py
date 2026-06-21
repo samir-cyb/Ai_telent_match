@@ -98,7 +98,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 #API_key=os.getenv('API_KEY')
-#GITHUB_TOKEN = ""
+
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN', '')
 
 LANGUAGE_CODE = 'en-us'
@@ -144,7 +144,6 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'shezan348@gmail.com'
-#EMAIL_HOST_PASSWORD = ''
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = 'AI Talent Match <noreply@aitalentmatch.com>'
 
@@ -165,5 +164,5 @@ LOGGING = {
 }
 
 # Gemini API key
-#GEMINI_API_KEY = ""   # use your key
+
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')

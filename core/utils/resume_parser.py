@@ -6,7 +6,7 @@ from PIL import Image
 from django.conf import settings
 
 # Initialize the client using the modern SDK layout
-client = genai.Client(api_key='')
+client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 class ResumeParser:
     def __init__(self):
