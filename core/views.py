@@ -19,13 +19,14 @@ from .utils.ai_engine import AIMatchingEngine
 from .utils.github_scraper import GitHubValidator
 from .utils.fraud_detector import FraudDetectionEngine
 from .utils.resume_parser import ResumeParser
-
+#4444444
 from datetime import datetime, date, time
 from django.db import transaction
 from .utils.email_helpers import send_application_confirmation_email, send_auto_apply_email, send_hired_email, send_rejected_email, send_shortlist_email, send_interview_email
 from core.utils.ai_effectiveness import analyze_effectiveness
 from django.shortcuts import render
 from core.utils.points import award_points
+import os
 # ==================== PAGE RENDERING VIEWS ====================
 
 def landing_page(request):
