@@ -2,9 +2,10 @@ import json
 import io
 from google import genai
 from google.genai import types
+from django.conf import settings
 
 # Reuse the same client as resume_parser
-
+client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 
 class LinkedInParser:

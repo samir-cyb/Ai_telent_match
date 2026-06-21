@@ -8,11 +8,13 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.utils import timezone
 from datetime import timedelta
 from django.db import transaction
-from django.shortcuts import redirect  # Add this if not present
+from django.shortcuts import redirect
+from requests import session  # Add this if not present
 
 from core.models import Job, Student, Application, Company
 from .models import VettingChallenge, VettingSession, VettingResult, CodeSubmission
 from .services import QuestionGenerator, CodeExecutor, CodeGrader
+from core.utils.points import award_points
 
 # ==================== COMPANY VIEWS ====================
 
@@ -614,6 +616,7 @@ class SubmitTestView(View):
                     code_quality_issues=grading['details'].get('quality_issues', []),
                     passed=grading['passed']
                 )
+            
 
                 # Update session
                 session.status = 'completed'
@@ -639,6 +642,8 @@ class SubmitTestView(View):
                         'passed': grading['passed']
                     }
                 )
+                if grading['passed']:
+                    award_points(session.student, 'assessment_passed')
 
                 result_url = f'/vetting/result/{result.id}/'
                 return JsonResponse({
@@ -911,7 +916,9 @@ class SubmitQuizView(View):
                     code_quality_issues=[],
                     passed=passed,
                 )
-
+                if passed:
+                    award_points(session.student, 'assessment_passed')
+                    
                 session.status = 'completed'
                 session.completed_at = timezone.now()
                 session.save()

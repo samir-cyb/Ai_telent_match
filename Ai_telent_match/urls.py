@@ -7,13 +7,11 @@ from core.views import (
     InterviewSlotAvailabilityView, landing_page, about_us, services,
     student_login, student_register, student_dashboard, student_profile, student_job_detail, student_jobs,
     company_login, company_register, company_dashboard, company_post_job, company_applicants,
-    applicant_documents, company_ai_agent, company_agent_run_detail,
-    company_interview_result,
-    CandidateInterviewPageView, SubmitAnswerView, InterviewDonePageView,
-    admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView, admin_login_page, ApplicationsListView,
-    student_career_advisor_page, company_skill_heatmap,
+    applicant_documents, company_ai_agent, WeightAgentDataView,
+    admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView, admin_login_page, ApplicationsListView
 )
-
+from core.views import company_ai_agent
+from core.views import student_leaderboard
 urlpatterns = [
     path('', landing_page, name='landing'),
     path('about/', about_us, name='about'),
@@ -31,22 +29,14 @@ urlpatterns = [
     path('student/job-detail/', student_job_detail, name='student_job_detail'),
     path('student/jobs/', student_jobs, name='student_jobs'),
     path('api/auth/student/logout/', StudentLogoutView.as_view(), name='student_logout'),
-    path('student/career-advisor/', student_career_advisor_page, name='career_advisor'),
     
     # Company
     path('company/dashboard/', company_dashboard, name='company_dashboard'),
     path('company/post-job/', company_post_job, name='company_post_job'),
     path('company/applicants/', company_applicants, name='company_applicants'),
-    path('company/skill-heatmap/', company_skill_heatmap, name='company_skill_heatmap'),
     path('company/applicant/<uuid:application_id>/documents/', applicant_documents, name='applicant_documents'),
     path('company/ai-agent/', company_ai_agent, name='company_ai_agent'),
-    path('company/agent-run/<uuid:run_id>/', company_agent_run_detail, name='company_agent_run_detail'),
-    path('company/interview/<uuid:interview_id>/result/', company_interview_result, name='company_interview_result'),
-
-    # Candidate interview (token-based)
-    path('interview/<str:token>/',        CandidateInterviewPageView.as_view(), name='candidate_interview'),
-    path('interview/<str:token>/submit/', SubmitAnswerView.as_view(), name='submit_answer'),
-    path('interview/<str:token>/done/',   InterviewDonePageView.as_view(), name='interview_done'),
+    path('company/ai-agent/', company_ai_agent, name='company_ai_agent'),
     path('api/auth/company/logout/', CompanyLogoutView.as_view(), name='company_logout'),
     
     # Admin
@@ -57,6 +47,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('applications/', ApplicationsListView.as_view()),
     path('job/<uuid:job_id>/slot-availability/', InterviewSlotAvailabilityView.as_view()),
+    path('student/leaderboard/', student_leaderboard, name='student_leaderboard'),
     # API
     path('api/', include('core.urls')),
     

@@ -3,6 +3,8 @@ from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
 from datetime import datetime, timedelta
 from django.utils import timezone
+from django.db.models import Avg, Count   # <-- added for the new method
+
 class Skill(models.Model):
     CATEGORY_CHOICES = [
         # Technology
@@ -209,6 +211,115 @@ class Student(models.Model):
         self.trust_score = trust
         self.save()
         return trust
+
+    def calculate_hire_readiness(self):
+        """
+        Returns a dict: {
+            'score': int (0-100),
+            'days_estimate': int,
+            'label': str,
+            'factors': dict
+        }
+        """
+        # 1. Profile completeness (0-1)
+        profile_score = float(self.profile_complete_score or 0)
+
+        # 2. Skill demand fit – compare student's skills with top demanded skills
+        from core.models import Skill
+        top_skills = Skill.objects.annotate(
+            job_count=Count('job__required_skills')
+        ).order_by('-job_count').values_list('name', flat=True)[:20]
+        top_skills_set = set(top_skills)
+        student_skill_names = {ss.skill.name for ss in self.student_skills.select_related('skill')}
+        matched = len(student_skill_names & top_skills_set)
+        total_skills = len(student_skill_names)
+        demand_score = (matched / max(total_skills, 1)) if total_skills > 0 else 0.0
+
+        # 3. Application activity – applications per week, average match score
+        from django.utils import timezone
+        from datetime import timedelta
+        week_ago = timezone.now() - timedelta(days=7)
+        recent_apps = self.applications.filter(applied_at__gte=week_ago).count()
+        avg_match = float(self.applications.aggregate(avg=Avg('match_score'))['avg'] or 0)
+        # Encourage activity: more recent apps = better (capped at 10 per week)
+        activity_score = min(recent_apps / 5, 1.0) if recent_apps > 0 else 0.0
+        # Match score contribution (normalized 0-1)
+        match_score = avg_match / 100.0
+
+        # 4. External validation – trust score, GitHub, LinkedIn
+        trust = float(self.trust_score or 0) / 100.0
+        github_bonus = 0.1 if self.github_verified else 0.0
+        linkedin_bonus = 0.05 if self.linkedin_url else 0.0
+
+        # Weighted combination (adjust weights as needed)
+        weights = {
+            'profile': 0.25,
+            'demand': 0.20,
+            'activity': 0.15,
+            'match': 0.20,
+            'trust': 0.15,
+            'github': 0.05,
+            'linkedin': 0.05,
+        }
+        raw_score = (
+            profile_score * weights['profile'] +
+            demand_score * weights['demand'] +
+            activity_score * weights['activity'] +
+            match_score * weights['match'] +
+            trust * weights['trust'] +
+            github_bonus * weights['github'] +
+            linkedin_bonus * weights['linkedin']
+        )
+        # Normalise to 0-100
+        raw_score = min(1.0, raw_score) * 100
+        score = int(round(raw_score))
+
+        # Map score to days estimate
+        if score >= 90:
+            days = 7 + (14-7) * (1 - (score-90)/10)  # 7-14
+            label = "Excellent"
+        elif score >= 70:
+            days = 15 + (30-15) * (1 - (score-70)/20)  # 15-30
+            label = "Good"
+        elif score >= 50:
+            days = 31 + (60-31) * (1 - (score-50)/20)  # 31-60
+            label = "Fair"
+        elif score >= 30:
+            days = 61 + (90-61) * (1 - (score-30)/20)  # 61-90
+            label = "Needs Improvement"
+        else:
+            days = 91 + (180-91) * (1 - (score)/30)  # 91-180
+            label = "Significant Gaps"
+
+        days_estimate = int(round(days))
+
+        return {
+            'score': score,
+            'days_estimate': days_estimate,
+            'label': label,
+            'factors': {
+                'profile_completeness': round(profile_score * 100),
+                'skill_demand_fit': round(demand_score * 100),
+                'application_activity': round(activity_score * 100),
+                'average_match_score': round(match_score * 100),
+                'trust_score': round(trust * 100),
+            }
+        }
+
+class LeaderboardEntry(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.OneToOneField(Student, on_delete=models.CASCADE, related_name='leaderboard')
+    total_points = models.IntegerField(default=0)
+    university = models.CharField(max_length=200, blank=True)  # derived from student.university_id or profile
+    last_updated = models.DateTimeField(auto_now=True)
+    awarded_actions = models.JSONField(default=list)  # list of action strings already awarded
+
+    class Meta:
+        ordering = ['-total_points']
+
+    def __str__(self):
+        return f"{self.student.name} - {self.total_points} pts"
+    
 
 class StudentSkill(models.Model):
     PROFICIENCY_LEVELS = [
@@ -450,6 +561,7 @@ class Admin(models.Model):
     
     def __str__(self):
         return f"{self.email} ({'Super' if self.is_super_admin else 'Admin'})"
+
 class InterviewSlot(models.Model):
     """Pre-defined interview slots set by company"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -665,3 +777,4 @@ class InterviewNotification(models.Model):
     notification_type = models.CharField(max_length=50)  # scheduled, reminder, cancelled, updated
     sent_at = models.DateTimeField(auto_now_add=True)
     read_at = models.DateTimeField(null=True, blank=True)
+    

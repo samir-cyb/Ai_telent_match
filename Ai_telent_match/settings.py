@@ -98,6 +98,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 #API_key=os.getenv('API_KEY')
+#GITHUB_TOKEN = ""
+GITHUB_TOKEN = os.getenv('GITHUB_TOKEN', '')
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
@@ -131,3 +133,37 @@ REST_FRAMEWORK = {
 # CORS Settings
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+# ========== EMAIL CONFIGURATION ==========
+# Development: print emails to console (no real sending)
+#EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# For production, uncomment and replace with your SMTP credentials:
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'shezan348@gmail.com'
+#EMAIL_HOST_PASSWORD = ''
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = 'AI Talent Match <noreply@aitalentmatch.com>'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django.core.mail': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+}
+
+# Gemini API key
+#GEMINI_API_KEY = ""   # use your key
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')

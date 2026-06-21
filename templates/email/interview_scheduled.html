@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <h2>📅 Interview Scheduled</h2>
+    <p>Dear {{ student_name }},</p>
+    <p>
+      Your interview for <strong>{{ job_title }}</strong> at
+      <strong>{{ company_name }}</strong> has been scheduled.
+    </p>
+    <ul>
+      <li><strong>Date:</strong> {{ interview_date }}</li>
+      <li><strong>Time:</strong> {{ interview_time }}</li>
+      <li>
+        <strong>Meeting Link:</strong>
+        <a href="{{ meeting_link }}">{{ meeting_link }}</a>
+      </li>
+    </ul>
+    <p>Please join on time. Good luck!</p>
+    <p>
+      <a
+        href="{{ dashboard_url }}"
+        style="
+          background: #48bbff;
+          color: #fff;
+          padding: 10px 20px;
+          text-decoration: none;
+          border-radius: 5px;
+        "
+        >View Details</a
+      >
+    </p>
+    <hr />
+    <p style="color: #888">AI Talent Match – Smart Hiring</p>
+  </body>
+</html>

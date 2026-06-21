@@ -2,7 +2,7 @@ import json
 import random
 from google import genai
 
-
+client = genai.Client(api_key='')
 # Variety seeds so Gemini never generates the same question
 _VARIETY_SEEDS = [
     "Focus on edge cases and real-world messy input.",

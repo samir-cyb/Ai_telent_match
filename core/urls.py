@@ -21,10 +21,6 @@ urlpatterns = [
     path('student/<uuid:student_id>/experience/', views.AddExperienceView.as_view(), name='add_experience'),
     path('student/<uuid:student_id>/preferences/', views.UpdatePreferencesView.as_view(), name='update_preferences'),
     path('student/<uuid:student_id>/applications/', views.StudentApplicationsView.as_view(), name='student_applications'),
-    path('student/<uuid:student_id>/ai-interviews/', views.StudentAIInterviewsView.as_view(), name='student_ai_interviews'),
-    path('student/<uuid:student_id>/career-advisor/', views.CareerAdvisorChatView.as_view(), name='career_advisor_chat'),
-    path('company/<uuid:company_id>/skill-heatmap/', views.SkillDemandHeatmapView.as_view(), name='skill_heatmap'),
-    path('interview/<str:token>/report-cheating/', views.ReportInterviewCheatingView.as_view(), name='report_cheating'),
     path('student/<uuid:student_id>/upload-resume/', views.UploadResumeView.as_view(), name='api_upload_resume'),
     path('student/<uuid:student_id>/upload-linkedin/', views.LinkedInPDFUploadView.as_view(), name='api_upload_linkedin'),
     path('student/<uuid:student_id>/recommendations/', views.SmartJobRecommendationsView.as_view(), name='smart_recommendations'),
@@ -43,17 +39,6 @@ urlpatterns = [
     path('application/update/', views.UpdateApplicationView.as_view(), name='update_application'),
     path('company/<uuid:company_id>/weights/', views.CompanyWeightsView.as_view(), name='company_weights'),
     path('company/<uuid:company_id>/weight-agent-data/', views.WeightAgentDataView.as_view(), name='weight_agent_data'),
-
-    # Recruitment Agent API
-    path('application/<uuid:application_id>/run-agent/', views.RunRecruitmentAgentView.as_view(), name='run_recruitment_agent'),
-    path('application/<uuid:application_id>/agent-runs/', views.AgentRunsListView.as_view(), name='agent_runs_list'),
-    path('agent-run/<uuid:run_id>/', views.AgentRunDetailAPIView.as_view(), name='agent_run_detail_api'),
-
-    # AI Interview API
-    path('agent-run/<uuid:run_id>/generate-interview/', views.GenerateInterviewView.as_view(), name='generate_interview'),
-    path('agent-run/<uuid:run_id>/interview-status/', views.GenerateInterviewView.as_view(), name='interview_status'),
-    path('interview/<uuid:interview_id>/analyze/', views.AIInterviewAnalyzeView.as_view(), name='ai_interview_analyze'),
-
     path('job/<uuid:job_id>/delete/', views.DeleteJobView.as_view(), name='delete_job'),
     # Admin endpoints
     path('admin/analytics/', views.AdminAnalyticsView.as_view(), name='admin_analytics'),
@@ -67,7 +52,6 @@ urlpatterns = [
     
     # Notifications & Scheduling
     path('notifications/<uuid:user_id>/<str:user_type>/', views.NotificationsView.as_view(), name='notifications'),
-    path('notifications/<uuid:user_id>/mark-all-read/', views.MarkAllNotificationsReadView.as_view(), name='mark_all_notifications_read'),
     #path('interview/schedule/', views.ScheduleInterviewView.as_view(), name='schedule_interview'),
     
     # Interview Slot Management
@@ -79,4 +63,7 @@ urlpatterns = [
     # Available slots for applicant
     path('job/<uuid:job_id>/available-slots/', views.AvailableSlotsView.as_view(), name='available_slots'),
     path('job/<uuid:job_id>/slot-availability/', views.InterviewSlotAvailabilityView.as_view(), name='slot_availability'),
+    path('application/<uuid:application_id>/ai-effectiveness/', views.AIEffectivenessView.as_view(), name='ai_effectiveness'),
+    path('leaderboard/', views.LeaderboardView.as_view(), name='leaderboard'),
+    
 ]
