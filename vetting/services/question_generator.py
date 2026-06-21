@@ -1,8 +1,9 @@
 import json
 import random
 from google import genai
+from django.conf import settings
 
-client = genai.Client(api_key='')
+client = genai.Client(api_key=settings.GEMINI_API_KEY)
 # Variety seeds so Gemini never generates the same question
 _VARIETY_SEEDS = [
     "Focus on edge cases and real-world messy input.",
