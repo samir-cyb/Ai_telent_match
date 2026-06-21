@@ -569,7 +569,7 @@ class AIMatchingEngine:
             'cgpa':     round(self.calculate_cgpa_score(student, job), 4),
             'projects': round(self.calculate_project_score(student), 4),
             'activity': round(self.calculate_activity_score(student), 4),
-            'trust':    round((student.trust_score or 0) / 100.0, 4),
+            'trust':    round(float(student.trust_score or 0) / 100.0, 4),
         }
 
     @staticmethod

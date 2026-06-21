@@ -600,7 +600,7 @@ class AIInterview(models.Model):
     email_sent      = models.BooleanField(default=False)
     expires_at      = models.DateTimeField(null=True, blank=True)    # Company-set deadline
     gemini_analysis = models.JSONField(null=True, blank=True)        # Full Gemini analysis result
-    cheating_log    = models.JSONField(null=True, blank=True)        # Anti-cheat violation log
+    cheating_log    = models.JSONField(null=True, blank=True, help_text='Anti-cheat violation log: tab_switches, fullscreen_exits, copy_pastes, auto_submitted')
     created_at      = models.DateTimeField(auto_now_add=True)
     completed_at    = models.DateTimeField(null=True, blank=True)
 

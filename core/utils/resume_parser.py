@@ -6,6 +6,7 @@ from PIL import Image
 
 # Initialize the client using the modern SDK layout
 
+
 class ResumeParser:
     def __init__(self):
         self.model = 'gemini-2.5-flash-lite'

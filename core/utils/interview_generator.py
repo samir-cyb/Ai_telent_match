@@ -18,6 +18,7 @@ import re
 from google import genai
 
 # Reuse the same client/key as question_generator.py
+
 _MODEL  = 'gemini-2.5-flash-lite'
 
 # ── Department-specific question flavour ──────────────────────────────────────
