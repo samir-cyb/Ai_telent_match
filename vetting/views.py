@@ -8,11 +8,12 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.utils import timezone
 from datetime import timedelta
 from django.db import transaction
-from django.shortcuts import redirect  # Add this if not present
+from django.shortcuts import redirect
 
 from core.models import Job, Student, Application, Company
 from .models import VettingChallenge, VettingSession, VettingResult, CodeSubmission
 from .services import QuestionGenerator, CodeExecutor, CodeGrader
+from core.utils.points import award_points
 
 # ==================== COMPANY VIEWS ====================
 
@@ -523,87 +524,109 @@ class SubmitTestView(View):
     
     def post(self, request, token):
         try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+        # ── PHASE 1: quick validation + anti-cheat (short transaction) ────────
+        try:
             with transaction.atomic():
                 session = get_object_or_404(
-                    VettingSession.objects.select_for_update(), 
+                    VettingSession.objects.select_for_update(),
                     access_token=token
                 )
-                
+
                 if session.status != 'in_progress':
-                    return JsonResponse({
-                        'status': 'error', 
-                        'message': 'Invalid session state'
-                    }, status=400)
-                
-                data = json.loads(request.body)
-                final_code = data.get('code', '')
-                
-                # Get anti-cheat data from request
-                tab_switches = data.get('tab_switches', 0)
-                copy_pastes = data.get('copy_pastes', 0)
-                fullscreen_exits = data.get('fullscreen_exits', 0)
-                
-                # Check for cheating (basic thresholds)
-                if tab_switches > 10 or copy_pastes > 10:
-                    # Update session with anti-cheat data
-                    session.tab_switch_count = tab_switches
-                    session.copy_paste_attempts = copy_pastes
-                    session.fullscreen_exits = fullscreen_exits
-                    session.status = 'cheating_detected'
-                    session.save()
-                    
+                    return JsonResponse({'status': 'error', 'message': 'Invalid session state'}, status=400)
+
+                # Guard: quiz/MCQ assessments must use SubmitQuizView, not this view
+                if session.challenge.assessment_type == 'mcq_written':
                     return JsonResponse({
                         'status': 'error',
-                        'message': 'Assessment flagged for review due to suspicious activity.'
+                        'message': 'This is a quiz assessment. Submit via /vetting/quiz/<token>/submit/',
+                    }, status=400)
+
+                tab_switches    = data.get('tab_switches', 0)
+                copy_pastes     = data.get('copy_pastes', 0)
+                fullscreen_exits = data.get('fullscreen_exits', 0)
+
+                if tab_switches >= 5 or copy_pastes >= 3:
+                    session.tab_switch_count    = tab_switches
+                    session.copy_paste_attempts = copy_pastes
+                    session.fullscreen_exits    = fullscreen_exits
+                    session.status = 'cheating_detected'
+                    session.save()
+                    return JsonResponse({
+                        'status': 'fraud',
+                        'message': 'Assessment auto-terminated: fraud detected.',
+                        'redirect_url': '/student/dashboard/?fraud=1',
                     }, status=403)
-                
-                # If not cheating, update anti-cheat data and save
-                session.tab_switch_count = tab_switches
+
+                # Save anti-cheat counters, mark as in-progress
+                session.tab_switch_count    = tab_switches
                 session.copy_paste_attempts = copy_pastes
-                session.fullscreen_exits = fullscreen_exits
-                session.save()  # Save anti-cheat data here
-                
-                # Final execution with all test cases
-                executor = CodeExecutor()
-                test_results = executor.run_test_cases(
-                    final_code,
-                    session.challenge.language,
-                    session.challenge.test_cases
-                )
-                
-                # Save final submission
+                session.fullscreen_exits    = fullscreen_exits
+                session.save(update_fields=['tab_switch_count', 'copy_paste_attempts', 'fullscreen_exits'])
+
+                # Snapshot the fields we need outside the transaction
+                final_code   = data.get('code', '')
+                language     = session.challenge.language
+                test_cases   = list(session.challenge.test_cases)
+                session_id   = session.id
+                app_id       = session.application_id
+                company_id   = session.challenge.job.company_id
+                student_id   = session.student_id
+                student_name = session.student.name
+                job_name     = session.challenge.title
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+        # ── PHASE 2: slow work — NO open transaction ──────────────────────────
+        # Code execution + AI grading (Gemini retries can take 14 s+).
+        # Running this outside any transaction prevents SQLite "database is locked".
+        try:
+            executor     = CodeExecutor()
+            test_results = executor.run_test_cases(final_code, language, test_cases)
+
+            grader  = CodeGrader()
+            grading = grader.grade(final_code, test_results, language)
+
+            ai_review  = grading['details'].get('ai_review', {})
+            full_report = {
+                'static_analysis':   grading['details'].get('static_analysis', {}),
+                'complexity':        grading['details'].get('complexity', {}),
+                'complexity_score':  grading['details'].get('complexity_score', 100),
+                'security':          grading['details'].get('security', {}),
+                'ai_review':         ai_review,
+                'ai_review_available': grading['details'].get('ai_review_available', True),
+                'submitted_code':    final_code,
+                'language':          language,
+            }
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return JsonResponse({'status': 'error', 'message': f'Grading failed: {e}'}, status=500)
+
+        # ── PHASE 3: save results (short transaction) ─────────────────────────
+        try:
+            with transaction.atomic():
+                session = VettingSession.objects.select_for_update().get(id=session_id)
+
                 CodeSubmission.objects.create(
                     session=session,
                     code=final_code,
-                    language=session.challenge.language,
+                    language=language,
                     is_final=True,
                     test_cases_passed=test_results['passed'],
                     total_test_cases=test_results['total']
                 )
-                
-                # 3-Layer Grading
-                grader = CodeGrader()
-                grading = grader.grade(
-                    final_code,
-                    test_results,
-                    session.challenge.language
-                )
-                
-                # Build full analysis report for storage
-                ai_review = grading['details'].get('ai_review', {})
-                full_report = {
-                    'static_analysis':  grading['details'].get('static_analysis', {}),
-                    'complexity':       grading['details'].get('complexity', {}),
-                    'security':         grading['details'].get('security', {}),
-                    'ai_review':        ai_review,
-                    'submitted_code':   final_code,
-                    'language':         session.challenge.language,
-                }
 
-                # Create result
                 result = VettingResult.objects.create(
                     session=session,
-                    application=session.application,
+                    application_id=app_id,
                     layer1_test_score=grading['layer1_test_score'],
                     layer2_static_score=grading['layer2_static_score'],
                     layer3_ai_score=grading['layer3_ai_score'],
@@ -615,75 +638,94 @@ class SubmitTestView(View):
                     passed=grading['passed']
                 )
 
-                # Update session
-                session.status = 'completed'
+                session.status       = 'completed'
                 session.completed_at = timezone.now()
                 session.save()
 
-                # Update Application with vetting score
-                app = session.application
-                app.vetting_score = grading['final_score']
-                app.save()
+                from core.models import Application as _App
+                _App.objects.filter(id=app_id).update(vetting_score=grading['final_score'])
 
-                # Notify company
                 from core.models import Notification
                 Notification.objects.create(
-                    user_id=session.challenge.job.company.id,
+                    user_id=company_id,
                     user_type='company',
                     type='vetting_completed',
-                    title=f'Assessment Completed: {session.student.name}',
-                    message=f'{session.student.name} scored {grading["final_score"]}% on the technical assessment.',
+                    title=f'Assessment Completed: {student_name}',
+                    message=f'{student_name} scored {grading["final_score"]}% on the technical assessment.',
                     data={
-                        'application_id': str(app.id),
+                        'application_id': str(app_id),
                         'score': grading['final_score'],
-                        'passed': grading['passed']
+                        'passed': grading['passed'],
                     }
                 )
 
-                result_url = f'/vetting/result/{result.id}/'
-                return JsonResponse({
-                    'status': 'success',
-                    'score': grading['final_score'],
-                    'passed': grading['passed'],
-                    'layer_breakdown': {
-                        'tests':   grading['layer1_test_score'],
-                        'quality': grading['layer2_static_score'],
-                        'ai':      grading['layer3_ai_score']
-                    },
-                    'result_url': result_url,
-                    'message': 'Assessment submitted successfully!'
-                })
-                
+            # Outside transaction — non-critical side effects
+            if grading['passed']:
+                from core.models import Student as _Student
+                award_points(_Student.objects.get(id=student_id),
+                             'assessment_passed', unique_key=str(session_id))
+
+            try:
+                from core.models import Student as _Student
+                _st = _Student.objects.get(id=student_id)
+                _pts = 15 + (10 if grading['passed'] else 0)
+                _Student.objects.filter(id=student_id).update(
+                    activity_score=min(float(_st.activity_score or 0) + _pts, 100)
+                )
+            except Exception:
+                pass
+
         except Exception as e:
             import traceback
             print(traceback.format_exc())
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+        result_url = f'/vetting/result/{result.id}/'
+        return JsonResponse({
+            'status': 'success',
+            'score': grading['final_score'],
+            'passed': grading['passed'],
+            'layer_breakdown': {
+                'tests':   grading['layer1_test_score'],
+                'quality': grading['layer2_static_score'],
+                'ai':      grading['layer3_ai_score'],
+            },
+            'result_url': result_url,
+            'message': 'Assessment submitted successfully!'
+        })
     
     def _auto_submit(self, session):
-        """Handle time expiration"""
+        """Handle time expiration — submit with last saved code, or just expire."""
+        # MCQ/quiz sessions must NOT be routed through the code grader
+        if session.challenge.assessment_type == 'mcq_written':
+            session.status = 'expired'
+            session.save(update_fields=['status'])
+            return JsonResponse({'status': 'expired', 'redirect_url': '/vetting/expired/'})
+
         if session.status == 'in_progress':
-            # Get last code submission
             last_sub = CodeSubmission.objects.filter(
                 session=session
             ).order_by('-submitted_at').first()
-            
+
             if last_sub:
-                # Submit with last code
                 class FakeRequest:
-                    def __init__(self, body):
-                        self._body = body
-                    def json(self):
-                        return json.loads(self._body)
-                
-                fake_req = FakeRequest(json.dumps({
-                    'code': last_sub.code,
-                    'tab_switches': session.tab_switch_count,
-                    'copy_pastes': session.copy_paste_attempts,
-                    'fullscreen_exits': session.fullscreen_exits
-                }))
+                    def __init__(self, body_dict):
+                        # post() reads request.body (not _body)
+                        self.body = json.dumps(body_dict).encode('utf-8')
+
+                fake_req = FakeRequest({
+                    'code':             last_sub.code,
+                    'tab_switches':     session.tab_switch_count,
+                    'copy_pastes':      session.copy_paste_attempts,
+                    'fullscreen_exits': session.fullscreen_exits,
+                })
                 return self.post(fake_req, session.access_token)
-        
-        return render(request, 'vetting/expired.html')
+
+            # No submission at all — just mark expired
+            session.status = 'expired'
+            session.save(update_fields=['status'])
+
+        return JsonResponse({'status': 'expired', 'redirect_url': '/vetting/expired/'})
     
 # ==================== STUDENT VIEWS ====================
 
@@ -698,13 +740,13 @@ class StudentPendingAssessmentsView(View):
         
         student = get_object_or_404(Student, id=student_id)
         
-        # Get all pending vetting sessions for this student
+        # Get all pending vetting sessions for this student (manual + pipeline)
         pending_sessions = VettingSession.objects.filter(
             student=student,
             status__in=['pending', 'in_progress'],
             window_end__gt=timezone.now()
-        ).select_related('challenge', 'challenge__job', 'application')
-        
+        ).select_related('challenge', 'challenge__job', 'challenge__job__company', 'application').order_by('window_end')
+
         assessments = []
         for session in pending_sessions:
             time_remaining = None
@@ -712,20 +754,39 @@ class StudentPendingAssessmentsView(View):
                 elapsed = (timezone.now() - session.started_at).total_seconds()
                 total_seconds = session.max_duration_minutes * 60
                 time_remaining = max(0, total_seconds - elapsed)
-            
+
+            challenge = session.challenge
+            # Detect if this came from the auto pipeline
+            is_pipeline = hasattr(session, 'pipeline_candidate') or (
+                # pipeline sessions have an application linked
+                session.application is not None and
+                hasattr(challenge, 'assessment_type') and
+                challenge.assessment_type == 'mcq_written' and
+                hasattr(challenge, 'ai_prompt_used') and
+                (not challenge.ai_prompt_used or 'pipeline' in (challenge.ai_prompt_used or '').lower())
+            )
+            # Detect empty questions (auto-generate failed)
+            no_questions = False
+            if challenge.assessment_type == 'mcq_written':
+                no_questions = not challenge.mcq_questions or len(challenge.mcq_questions) == 0
+            elif challenge.assessment_type == 'coding':
+                no_questions = not challenge.test_cases or len(challenge.test_cases) == 0
+
             assessments.append({
                 'session_id': str(session.id),
                 'token': session.access_token,
-                'job_title': session.challenge.job.title,
-                'company_name': session.challenge.job.company.name,
-                'challenge_title': session.challenge.title,
-                'difficulty': session.challenge.difficulty,
+                'job_title': challenge.job.title,
+                'company_name': challenge.job.company.name,
+                'challenge_title': challenge.title,
+                'difficulty': challenge.difficulty,
                 'status': session.status,
                 'window_start': session.window_start,
                 'window_end': session.window_end,
                 'time_limit_minutes': session.max_duration_minutes,
                 'time_remaining_seconds': time_remaining,
-                'test_url': f'/vetting/test/{session.access_token}/'
+                'test_url': f'/vetting/test/{session.access_token}/',
+                'is_pipeline': is_pipeline,
+                'no_questions': no_questions,
             })
         
         return render(request, 'vetting/student_pending.html', {
@@ -755,29 +816,58 @@ class VettingResultDetailView(View):
         test_results = result.test_case_results or {}
         test_details = test_results.get('details', []) if isinstance(test_results, dict) else test_results
 
+        is_mcq = (challenge.assessment_type == 'mcq_written')
+
+        # For MCQ: test_case_results is actually a list of grading_details dicts
+        if is_mcq:
+            grading_details = result.test_case_results if isinstance(result.test_case_results, list) else []
+            mcq_items     = [d for d in grading_details if d.get('type') == 'mcq']
+            written_items = [d for d in grading_details if d.get('type') == 'written']
+        else:
+            grading_details = []
+            mcq_items = []
+            written_items = []
+
+        # complexity_score may be in report (new records) or default to 100 (old records)
+        complexity_score = float(report.get('complexity_score', 100))
+        ai_review_available = report.get('ai_review_available', True)
+        tab_count = session.tab_switch_count or 0
+        paste_count = session.copy_paste_attempts or 0
+        fullscreen_count = session.fullscreen_exits or 0
+        is_suspicious = tab_count >= 5 or paste_count >= 3 or fullscreen_count >= 2
+
         ctx = {
-            'result':           result,
-            'session':          session,
-            'challenge':        challenge,
-            'final_score':      float(result.final_score),
-            'layer1':           float(result.layer1_test_score),
-            'layer2':           float(result.layer2_static_score),
-            'layer3':           float(result.layer3_ai_score or 0),
-            'passed':           result.passed,
-            'test_details':     test_details,
-            'test_total':       test_results.get('total', 0) if isinstance(test_results, dict) else len(test_details),
-            'test_passed':      test_results.get('passed', 0) if isinstance(test_results, dict) else sum(1 for t in test_details if t.get('passed')),
-            'static':           static,
-            'complexity':       complexity,
-            'security':         security,
-            'ai_review':        ai_review,
-            'submitted_code':   submitted_code,
-            'language':         language,
-            'quality_issues':   result.code_quality_issues or [],
+            'result':               result,
+            'session':              session,
+            'challenge':            challenge,
+            'final_score':          float(result.final_score),
+            'layer1':               float(result.layer1_test_score),
+            'layer2':               float(result.layer2_static_score),
+            'layer3':               float(result.layer3_ai_score or 0),
+            'complexity_score':     complexity_score,
+            'passed':               result.passed,
+            'is_mcq':               is_mcq,
+            # Coding-specific
+            'test_details':         test_details if not is_mcq else [],
+            'test_total':           test_results.get('total', 0) if isinstance(test_results, dict) else len(test_details),
+            'test_passed':          test_results.get('passed', 0) if isinstance(test_results, dict) else sum(1 for t in test_details if t.get('passed')),
+            'static':               static,
+            'complexity':           complexity,
+            'security':             security,
+            'ai_review':            ai_review,
+            'ai_review_available':  ai_review_available,
+            'submitted_code':       submitted_code,
+            'language':             language,
+            'quality_issues':       result.code_quality_issues or [],
+            # MCQ/Written-specific
+            'mcq_items':            mcq_items,
+            'written_items':        written_items,
+            'ai_feedback':          result.ai_feedback or '',
             'anti_cheat': {
-                'tab_switches':     session.tab_switch_count,
-                'copy_pastes':      session.copy_paste_attempts,
-                'fullscreen_exits': session.fullscreen_exits,
+                'tab_switches':     tab_count,
+                'copy_pastes':      paste_count,
+                'fullscreen_exits': fullscreen_count,
+                'is_suspicious':    is_suspicious,
             },
         }
         return render(request, 'vetting/result.html', ctx)
@@ -804,16 +894,17 @@ class SubmitQuizView(View):
                 copy_pastes = data.get('copy_pastes', 0)
                 fullscreen_exits = data.get('fullscreen_exits', 0)
 
-                # Anti-cheat check
-                if tab_switches > 10 or copy_pastes > 10:
+                # Anti-cheat check — >= 5 tab switches auto-terminates
+                if tab_switches >= 5 or copy_pastes >= 3:
                     session.tab_switch_count = tab_switches
                     session.copy_paste_attempts = copy_pastes
                     session.fullscreen_exits = fullscreen_exits
                     session.status = 'cheating_detected'
                     session.save()
                     return JsonResponse({
-                        'status': 'error',
-                        'message': 'Assessment flagged for review due to suspicious activity.'
+                        'status': 'fraud',
+                        'message': 'Assessment auto-terminated: fraud detected.',
+                        'redirect_url': '/student/dashboard/?fraud=1',
                     }, status=403)
 
                 session.tab_switch_count = tab_switches
@@ -911,6 +1002,8 @@ class SubmitQuizView(View):
                     code_quality_issues=[],
                     passed=passed,
                 )
+                if passed:
+                    award_points(session.student, 'assessment_passed', unique_key=str(session.id))
 
                 session.status = 'completed'
                 session.completed_at = timezone.now()
@@ -935,10 +1028,23 @@ class SubmitQuizView(View):
                     }
                 )
 
+                # ── Activity tracking: vetting test completed ──────────────
+                try:
+                    student = session.student
+                    pts = 15 + (10 if passed else 0)  # +15 completed, +10 if passed
+                    student.activity_score = min(float(student.activity_score or 0) + pts, 100)
+                    student.login_frequency = int(student.login_frequency or 0)  # no change
+                    student.save(update_fields=['activity_score'])
+                except Exception:
+                    pass
+                # ───────────────────────────────────────────────────────────
+
+                result_url = f'/vetting/result/{result.id}/'
                 return JsonResponse({
                     'status': 'success',
                     'score': final_score,
                     'passed': passed,
+                    'result_url': result_url,
                     'layer_breakdown': {
                         'mcq': layer1,
                         'written': layer3,

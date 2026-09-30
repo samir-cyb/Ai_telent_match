@@ -1,0 +1,955 @@
+{% extends "base.html" %}
+{% block title %}Auto Pipeline — {{ job_title }}{% endblock %}
+{% block content %}
+
+<style>
+/* ── Page shell ── */
+.pl-page {
+  min-height: 100vh;
+  background: #080e1a;
+  padding: 1.5rem 1rem 4rem;
+  position: relative;
+}
+.pl-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 10%, rgba(72,187,255,.07) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 80% 80%, rgba(168,85,247,.06) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+.pl-wrap { max-width: 1060px; margin: 0 auto; position: relative; z-index: 1; }
+
+/* ── Cards ── */
+.pl-card {
+  background: rgba(15,23,42,0.85);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px;
+  backdrop-filter: blur(16px);
+}
+
+/* ── Header ── */
+.pl-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+.pl-back {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  color: #475569;
+  font-size: .82rem;
+  text-decoration: none;
+  margin-bottom: .5rem;
+  transition: color .15s;
+}
+.pl-back:hover { color: #94a3b8; }
+.pl-title {
+  margin: 0;
+  font-size: 1.65rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #48bbff, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1.2;
+}
+.pl-subtitle {
+  margin: .3rem 0 0;
+  color: #475569;
+  font-size: .88rem;
+}
+.pl-cancel-btn {
+  background: rgba(239,68,68,.08);
+  border: 1px solid rgba(239,68,68,.25);
+  color: #fca5a5;
+  padding: .55rem 1.1rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: .84rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.pl-cancel-btn:hover {
+  background: rgba(239,68,68,.15);
+  border-color: rgba(239,68,68,.5);
+}
+
+/* ── Stage timeline ── */
+.pl-timeline-card {
+  padding: 1.25rem 1.75rem;
+  margin-bottom: 1.25rem;
+}
+.pl-timeline {
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.pl-stage-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .4rem;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+.pl-stage-dot {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .9rem;
+  border: 2px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+  color: #334155;
+  transition: all .35s;
+  position: relative;
+}
+.pl-stage-dot.done {
+  background: rgba(72,187,255,.15);
+  border-color: #48bbff;
+  color: #48bbff;
+}
+.pl-stage-dot.active {
+  background: rgba(168,85,247,.18);
+  border-color: #a855f7;
+  color: #a855f7;
+  box-shadow: 0 0 0 4px rgba(168,85,247,.12), 0 0 16px rgba(168,85,247,.25);
+}
+.pl-stage-lbl {
+  font-size: .68rem;
+  color: #334155;
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.pl-stage-lbl.done   { color: #48bbff; }
+.pl-stage-lbl.active { color: #a855f7; }
+.pl-stage-line {
+  flex: 1;
+  height: 2px;
+  background: rgba(255,255,255,.06);
+  min-width: 20px;
+  margin: 0 2px 18px;
+  align-self: center;
+}
+.pl-stage-line.done { background: linear-gradient(90deg, #48bbff55, #48bbff33); }
+
+/* ── Status bar ── */
+.pl-status-card {
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.pl-status-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  background: rgba(168,85,247,.1);
+  border: 1px solid rgba(168,85,247,.2);
+  flex-shrink: 0;
+}
+.pl-status-title {
+  font-weight: 700;
+  color: #e2e8f0;
+  font-size: .97rem;
+  margin: 0 0 .15rem;
+}
+.pl-status-msg {
+  color: #475569;
+  font-size: .81rem;
+  margin: 0;
+}
+.pl-deadline-pill {
+  margin-left: auto;
+  background: rgba(251,191,36,.07);
+  border: 1px solid rgba(251,191,36,.25);
+  border-radius: 10px;
+  padding: .45rem 1rem;
+  color: #fbbf24;
+  font-size: .79rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: none;
+}
+
+/* ── Action panel ── */
+.pl-action-card {
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid rgba(72,187,255,.2) !important;
+  background: rgba(72,187,255,.03) !important;
+  display: none;
+}
+.pl-action-title {
+  margin: 0 0 .3rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.pl-action-desc {
+  margin: 0 0 1.1rem;
+  font-size: .83rem;
+  color: #64748b;
+  line-height: 1.55;
+}
+.pl-action-btn {
+  background: linear-gradient(135deg, #48bbff, #a855f7);
+  border: none;
+  color: #fff;
+  padding: .7rem 1.5rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: .9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  transition: opacity .2s, transform .15s;
+}
+.pl-action-btn:hover { opacity: .9; transform: translateY(-1px); }
+.pl-action-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* ── Stats row ── */
+.pl-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: .75rem;
+  margin-bottom: 1.25rem;
+}
+.pl-stat-box {
+  background: rgba(15,23,42,.85);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 12px;
+  padding: .9rem 1rem;
+  text-align: center;
+}
+.pl-stat-val {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #e2e8f0;
+  line-height: 1;
+  margin-bottom: .2rem;
+}
+.pl-stat-lbl {
+  font-size: .7rem;
+  color: #475569;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+/* ── Candidate table ── */
+.pl-table-card {
+  padding: 1.5rem;
+}
+.pl-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+.pl-table-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.pl-select-all-wrap {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  font-size: .8rem;
+  color: #94a3b8;
+}
+.pl-table-wrap { overflow-x: auto; }
+table.pl-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.pl-table th {
+  padding: .6rem .75rem;
+  font-size: .72rem;
+  color: #475569;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.pl-table th:not(:first-child):not(:nth-child(2)) { text-align: right; }
+.pl-table th:last-child { text-align: center; }
+.pl-table th:nth-child(3) { text-align: left; }
+.cand-row {
+  border-bottom: 1px solid rgba(255,255,255,.035);
+  transition: background .15s;
+}
+.cand-row:hover { background: rgba(255,255,255,.025); }
+.cand-row.eliminated { opacity: .4; }
+.cand-row td {
+  padding: .75rem .75rem;
+  vertical-align: middle;
+}
+.cand-name { font-size: .88rem; font-weight: 600; color: #e2e8f0; }
+.cand-meta { font-size: .73rem; color: #475569; margin-top: .1rem; }
+
+.score-wrap { display: flex; align-items: center; gap: .5rem; justify-content: flex-end; }
+.score-txt  { font-size: .8rem; color: #94a3b8; white-space: nowrap; }
+.score-bar  {
+  width: 52px; height: 4px; border-radius: 2px;
+  background: rgba(255,255,255,.06); flex-shrink: 0;
+}
+.score-fill { height: 100%; border-radius: 2px; }
+
+.stage-pill {
+  font-size: .69rem; padding: .22rem .65rem; border-radius: 999px;
+  font-weight: 700; display: inline-block; white-space: nowrap;
+}
+.empty-row td {
+  padding: 3rem;
+  text-align: center;
+  color: #334155;
+  font-size: .9rem;
+}
+
+/* ── Deadline modal ── */
+.pl-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.65);
+  z-index: 3000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.pl-modal-box {
+  background: #0f1829;
+  border: 1px solid rgba(72,187,255,.2);
+  border-radius: 16px;
+  padding: 2rem;
+  min-width: 340px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 24px 80px rgba(0,0,0,.6);
+}
+.pl-modal-title {
+  margin: 0 0 .4rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #e2e8f0;
+}
+.pl-modal-desc {
+  font-size: .84rem;
+  color: #475569;
+  margin: 0 0 1.4rem;
+  line-height: 1.5;
+}
+.pl-modal label {
+  display: block;
+  font-size: .78rem;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: .35rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.pl-modal input[type=datetime-local] {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(72,187,255,.25);
+  border-radius: 10px;
+  color: #e2e8f0;
+  padding: .65rem 1rem;
+  font-size: .9rem;
+  margin-bottom: 1.5rem;
+  outline: none;
+}
+.pl-modal input[type=datetime-local]:focus {
+  border-color: #48bbff;
+  box-shadow: 0 0 0 3px rgba(72,187,255,.1);
+}
+.pl-modal-actions {
+  display: flex;
+  gap: .75rem;
+  justify-content: flex-end;
+}
+.btn-ghost {
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  color: #94a3b8;
+  padding: .6rem 1.1rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: .88rem;
+  font-weight: 600;
+  transition: all .2s;
+}
+.btn-ghost:hover { background: rgba(255,255,255,.09); color: #e2e8f0; }
+.btn-primary-grad {
+  background: linear-gradient(135deg, #48bbff, #a855f7);
+  border: none;
+  color: #fff;
+  padding: .6rem 1.35rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: .9rem;
+  transition: opacity .2s;
+}
+.btn-primary-grad:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ── Toast ── */
+#pl-toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(15,23,42,.95);
+  border: 1px solid rgba(72,187,255,.35);
+  color: #e0f2fe;
+  padding: .8rem 1.6rem;
+  border-radius: 12px;
+  font-size: .9rem;
+  font-weight: 600;
+  z-index: 9999;
+  backdrop-filter: blur(16px);
+  opacity: 0;
+  transition: all .3s;
+  white-space: nowrap;
+  pointer-events: none;
+}
+#pl-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+
+<div class="pl-page">
+<div class="pl-wrap">
+
+  <!-- Header -->
+  <div class="pl-header">
+    <div>
+      <a href="/company/applicants/?job_id={{ job_id }}" class="pl-back">
+        <i class="fas fa-arrow-left"></i> Back to Applicants
+      </a>
+      <h1 class="pl-title">🚀 Auto Pipeline</h1>
+      <p class="pl-subtitle" id="job-title-sub">{{ job_title }}</p>
+    </div>
+    <button class="pl-cancel-btn" onclick="cancelPipeline()">
+      <i class="fas fa-times-circle"></i> Cancel Pipeline
+    </button>
+  </div>
+
+  <!-- Stage Timeline -->
+  <div class="pl-card pl-timeline-card">
+    <div class="pl-timeline" id="stage-timeline">
+      <div style="color:#334155;font-size:.85rem;padding:.5rem;">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="pl-card pl-status-card" id="status-bar">
+    <div class="pl-status-icon" id="status-icon">⏳</div>
+    <div style="flex:1;min-width:0;">
+      <p class="pl-status-title" id="status-title">Loading pipeline…</p>
+      <p class="pl-status-msg"  id="status-msg"></p>
+    </div>
+    <div class="pl-deadline-pill" id="deadline-badge"></div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="pl-stats-row" id="stats-row" style="display:none;"></div>
+
+  <!-- Action panel -->
+  <div class="pl-card pl-action-card" id="action-panel"></div>
+
+  <!-- Candidate table -->
+  <div class="pl-card pl-table-card">
+    <div class="pl-table-header">
+      <h3 class="pl-table-title">
+        <i class="fas fa-users" style="color:#a855f7;font-size:.9rem;"></i>
+        Candidates
+        <span id="candidate-count" style="font-size:.8rem;color:#475569;font-weight:500;"></span>
+      </h3>
+      <div class="pl-select-all-wrap">
+        <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;">
+          <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this)"
+            style="accent-color:#a855f7;width:14px;height:14px;">
+          Select All
+        </label>
+        <span id="selected-count" style="color:#48bbff;display:none;font-weight:600;"></span>
+      </div>
+    </div>
+    <div class="pl-table-wrap">
+      <table class="pl-table">
+        <thead>
+          <tr>
+            <th style="width:32px;"></th>
+            <th style="text-align:left;">Rank</th>
+            <th style="text-align:left;">Candidate</th>
+            <th>AI Score</th>
+            <th>Vetting</th>
+            <th>Interview</th>
+            <th>Final</th>
+            <th style="text-align:center;">Stage</th>
+          </tr>
+        </thead>
+        <tbody id="candidate-tbody">
+          <tr class="empty-row"><td colspan="8">Loading candidates…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- Deadline / Vetting Config Modal -->
+<div class="pl-modal-overlay" id="deadline-modal">
+  <div class="pl-modal-box pl-modal" style="max-width:520px;">
+    <h3 class="pl-modal-title" id="modal-title">Set Deadline</h3>
+    <p class="pl-modal-desc" id="modal-desc"></p>
+
+    <!-- Vetting-only config fields (hidden for interview action) -->
+    <div id="vetting-config-fields" style="display:none;">
+      <div style="margin-bottom:1rem;">
+        <label style="display:block;font-size:.82rem;color:#94a3b8;margin-bottom:.4rem;">Assessment Type</label>
+        <div style="display:flex;gap:.6rem;">
+          <label style="flex:1;cursor:pointer;">
+            <input type="radio" name="assessment_type" value="mcq_written" checked style="accent-color:#a855f7;">
+            <span style="font-size:.85rem;color:#e2e8f0;margin-left:.25rem;">📝 MCQ + Written</span>
+          </label>
+          <label style="flex:1;cursor:pointer;">
+            <input type="radio" name="assessment_type" value="coding" style="accent-color:#48bbff;">
+            <span style="font-size:.85rem;color:#e2e8f0;margin-left:.25rem;">💻 Coding Challenge</span>
+          </label>
+        </div>
+      </div>
+
+      <div style="margin-bottom:1rem;">
+        <label style="display:block;font-size:.82rem;color:#94a3b8;margin-bottom:.4rem;">
+          Assessment Topic <span style="color:#64748b;font-weight:400;">(e.g. "Python REST APIs, Django ORM")</span>
+        </label>
+        <input type="text" id="assessment-topic"
+          placeholder="What should the questions focus on?"
+          style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+                 border-radius:8px;padding:.55rem .75rem;color:#f0f9ff;font-size:.88rem;outline:none;box-sizing:border-box;">
+      </div>
+
+      <div style="margin-bottom:1.25rem;">
+        <label style="display:block;font-size:.82rem;color:#94a3b8;margin-bottom:.4rem;">
+          Key Topics / Keywords <span style="color:#64748b;font-weight:400;">(comma-separated, optional)</span>
+        </label>
+        <input type="text" id="assessment-keywords"
+          placeholder="e.g. async, error handling, unit testing"
+          style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+                 border-radius:8px;padding:.55rem .75rem;color:#f0f9ff;font-size:.88rem;outline:none;box-sizing:border-box;">
+      </div>
+
+      <div style="padding:.75rem;background:rgba(72,187,255,.06);border:1px solid rgba(72,187,255,.15);
+                  border-radius:8px;font-size:.78rem;color:#64748b;margin-bottom:1.25rem;">
+        💡 Tip: The more specific your topic, the better Gemini generates unique questions.
+           <strong style="color:#94a3b8;">Leave blank</strong> to auto-generate from the job title.
+      </div>
+    </div>
+
+    <label style="display:block;font-size:.82rem;color:#94a3b8;margin-bottom:.4rem;">Deadline Date & Time</label>
+    <input type="datetime-local" id="deadline-input"
+      style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+             border-radius:8px;padding:.55rem .75rem;color:#f0f9ff;font-size:.88rem;outline:none;
+             box-sizing:border-box;margin-bottom:1.25rem;">
+
+    <div class="pl-modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary-grad" id="modal-confirm-btn" onclick="confirmDeadline()">
+        <i class="fas fa-paper-plane"></i> Confirm & Send
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="pl-toast"></div>
+
+<script>
+const PIPELINE_ID = "{{ pipeline_id }}";
+const JOB_ID      = "{{ job_id }}";
+const API         = (window.API_BASE || "http://127.0.0.1:8000/api");
+
+let pipelineData  = null;
+let pendingAction = null;
+let selectedIds   = new Set();
+
+const STAGES = [
+  { key:'sort_review',    icon:'🔍', label:'Sort Review'    },
+  { key:'vetting',        icon:'📝', label:'Vetting'        },
+  { key:'vetting_review', icon:'✅', label:'Vetting Review' },
+  { key:'interviewing',   icon:'🤖', label:'AI Interview'   },
+  { key:'completed',      icon:'🏆', label:'Complete'       },
+];
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function loadPipeline() {
+  try {
+    const r = await fetch(`${API}/pipeline/${PIPELINE_ID}/`);
+    const d = await r.json();
+    if (d.status !== 'ok') { showError(d.message); return; }
+    pipelineData = d;
+    renderAll(d);
+  } catch(e) {
+    showError('Network error: ' + e.message);
+  }
+}
+
+function renderAll(d) {
+  renderTimeline(d.stage);
+  renderStatusBar(d);
+  renderStats(d);
+  renderActionPanel(d);
+  renderTable(d);
+}
+
+// ── Timeline ──────────────────────────────────────────────────────────────────
+function renderTimeline(stage) {
+  const el  = document.getElementById('stage-timeline');
+  if (stage === 'cancelled') {
+    el.innerHTML = `<div style="color:#f87171;font-size:.9rem;font-weight:600;padding:.25rem 0;">
+      <i class="fas fa-ban"></i> Pipeline Cancelled</div>`;
+    return;
+  }
+  const idx = STAGES.findIndex(s => s.key === stage);
+  let html = '';
+  STAGES.forEach((s, i) => {
+    const done   = i < idx;
+    const active = i === idx;
+    const dc     = done ? 'done' : active ? 'active' : '';
+    html += `<div class="pl-stage-step">
+      <div class="pl-stage-dot ${dc}">${done ? '<i class="fas fa-check" style="font-size:.7rem;"></i>' : s.icon}</div>
+      <div class="pl-stage-lbl ${dc}">${s.label}</div>
+    </div>`;
+    if (i < STAGES.length - 1)
+      html += `<div class="pl-stage-line ${done ? 'done' : ''}"></div>`;
+  });
+  el.innerHTML = html;
+}
+
+// ── Status bar ────────────────────────────────────────────────────────────────
+function renderStatusBar(d) {
+  const active = d.candidates?.filter(c => c.stage !== 'eliminated').length || 0;
+  const msgs = {
+    sort_review:    ['🔍', 'Sort Complete — Review Required',
+                     `AI ranked ${d.total_candidates || 0} candidates. Select top ${d.vetting_top_n} to advance.`],
+    vetting:        ['📝', 'Vetting In Progress',
+                     `Tests sent. Deadline: ${fmt(d.vetting_deadline)}.`],
+    vetting_review: ['✅', 'Vetting Complete — Review Required',
+                     `Results in. Select top ${d.interview_top_n} for AI Interview.`],
+    interviewing:   ['🤖', 'AI Interviews In Progress',
+                     `Interviews sent. Deadline: ${fmt(d.interview_deadline)}.`],
+    completed:      ['🏆', 'Pipeline Complete!',
+                     'All stages done. Review the final rankings below.'],
+    cancelled:      ['⛔', 'Pipeline Cancelled',
+                     'This pipeline has been cancelled.'],
+  };
+  const [icon, title, msg] = msgs[d.stage] || ['❓','Unknown',''];
+  document.getElementById('status-icon').textContent  = icon;
+  document.getElementById('status-title').textContent = title;
+  document.getElementById('status-msg').textContent   = msg;
+
+  const badge = document.getElementById('deadline-badge');
+  if (d.stage === 'vetting' && d.vetting_deadline) {
+    badge.style.display = 'block';
+    badge.innerHTML = `<i class="fas fa-clock"></i> ${fmt(d.vetting_deadline)}`;
+  } else if (d.stage === 'interviewing' && d.interview_deadline) {
+    badge.style.display = 'block';
+    badge.innerHTML = `<i class="fas fa-clock"></i> ${fmt(d.interview_deadline)}`;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ── Stats row ─────────────────────────────────────────────────────────────────
+function renderStats(d) {
+  const row = document.getElementById('stats-row');
+  const cands = d.candidates || [];
+  if (!cands.length) { row.style.display = 'none'; return; }
+
+  const total     = cands.length;
+  const active    = cands.filter(c => c.stage !== 'eliminated').length;
+  const eliminated= total - active;
+  const avgScore  = cands.reduce((s,c) => s + (c.sort_score||0), 0) / total;
+  const topScore  = Math.max(...cands.map(c => c.sort_score||0));
+
+  row.style.display = 'grid';
+  row.innerHTML = [
+    ['Total', total],
+    ['Active', active],
+    ['Eliminated', eliminated],
+    ['Avg Score', avgScore.toFixed(1)+'%'],
+    ['Top Score', topScore.toFixed(1)+'%'],
+  ].map(([lbl,val]) => `
+    <div class="pl-stat-box">
+      <div class="pl-stat-val">${val}</div>
+      <div class="pl-stat-lbl">${lbl}</div>
+    </div>`).join('');
+}
+
+// ── Action panel ──────────────────────────────────────────────────────────────
+function renderActionPanel(d) {
+  const panel = document.getElementById('action-panel');
+  if (d.stage === 'sort_review') {
+    panel.style.display = 'block';
+    panel.innerHTML = `
+      <h3 class="pl-action-title">
+        <i class="fas fa-check-circle" style="color:#48bbff;"></i>
+        Approve Sort &amp; Send Vetting Test
+      </h3>
+      <p class="pl-action-desc">
+        Select the candidates you want to advance.
+        Top <strong style="color:#48bbff;">${d.vetting_top_n}</strong> are pre-selected.
+        A vetting test will be <strong style="color:#a855f7;">auto-generated</strong>
+        and sent to selected candidates.
+      </p>
+      <button class="pl-action-btn" onclick="openDeadlineModal('approve_sort')">
+        <i class="fas fa-paper-plane"></i>
+        Send Vetting Test to Selected (<span id="sel-count-btn">0</span>)
+      </button>`;
+    updateSelCountBtn();
+  } else if (d.stage === 'vetting_review') {
+    panel.style.display = 'block';
+    panel.innerHTML = `
+      <h3 class="pl-action-title">
+        <i class="fas fa-check-circle" style="color:#a855f7;"></i>
+        Approve Vetting &amp; Send AI Interviews
+      </h3>
+      <p class="pl-action-desc">
+        Select candidates to advance to AI Interview.
+        Top <strong style="color:#48bbff;">${d.interview_top_n}</strong> by vetting score are pre-selected.
+      </p>
+      <button class="pl-action-btn" onclick="openDeadlineModal('approve_vetting')"
+        style="background:linear-gradient(135deg,#a855f7,#48bbff);">
+        <i class="fas fa-robot"></i>
+        Send AI Interview to Selected (<span id="sel-count-btn">0</span>)
+      </button>`;
+    updateSelCountBtn();
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+// ── Candidate table ───────────────────────────────────────────────────────────
+function renderTable(d) {
+  const tbody   = document.getElementById('candidate-tbody');
+  const cands   = d.candidates || [];
+  const needsCb = d.stage === 'sort_review' || d.stage === 'vetting_review';
+  const topN    = d.stage === 'sort_review' ? d.vetting_top_n : d.interview_top_n;
+
+  document.getElementById('candidate-count').textContent = `(${cands.length})`;
+
+  if (!cands.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">No candidates yet.</td></tr>';
+    return;
+  }
+
+  selectedIds.clear();
+  tbody.innerHTML = cands.map((c, i) => {
+    const elim   = c.stage === 'eliminated';
+    const autoSel = !elim && i < topN;
+    if (autoSel && needsCb) selectedIds.add(c.application_id);
+
+    const cb = needsCb && !elim
+      ? `<input type="checkbox" data-app-id="${c.application_id}" ${autoSel?'checked':''}
+           onchange="toggleCandidate(this)"
+           style="accent-color:#a855f7;width:14px;height:14px;cursor:pointer;">`
+      : '';
+
+    return `<tr class="cand-row${elim?' eliminated':''}">
+      <td>${cb}</td>
+      <td style="color:#475569;font-size:.82rem;font-weight:600;">#${c.sort_rank||i+1}</td>
+      <td>
+        <div class="cand-name">${esc(c.student_name)}</div>
+        <div class="cand-meta">${esc(c.department||'')}${c.cgpa?' · CGPA '+c.cgpa:''}</div>
+      </td>
+      <td style="text-align:right;">${bar(c.sort_score)}</td>
+      <td style="text-align:right;">${bar(c.vetting_score)}</td>
+      <td style="text-align:right;">${bar(c.interview_score)}</td>
+      <td style="text-align:right;">${finalScore(c.final_score)}</td>
+      <td style="text-align:center;">${pill(c.stage, c.eliminated_at)}</td>
+    </tr>`;
+  }).join('');
+  updateSelCountBtn();
+  updateSelectedCountLabel();
+}
+
+function bar(val) {
+  if (val == null) return '<span style="color:#1e293b;">—</span>';
+  const pct = Math.min(+val, 100);
+  const col = pct >= 70 ? '#4ade80' : pct >= 50 ? '#fbbf24' : '#f87171';
+  return `<div class="score-wrap">
+    <span class="score-txt">${pct.toFixed(1)}%</span>
+    <div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${col};"></div></div>
+  </div>`;
+}
+function finalScore(val) {
+  if (val == null) return '<span style="color:#1e293b;">—</span>';
+  const pct = +val;
+  const col = pct >= 70 ? '#4ade80' : pct >= 50 ? '#fbbf24' : '#f87171';
+  return `<span style="font-weight:800;font-size:.92rem;color:${col};">${pct.toFixed(1)}%</span>`;
+}
+function pill(stage, elAt) {
+  const MAP = {
+    sort:       ['#64748b','rgba(100,116,139,.15)','Sorted'],
+    vetting:    ['#fbbf24','rgba(251,191,36,.15)','In Vetting'],
+    interview:  ['#a855f7','rgba(168,85,247,.15)','In Interview'],
+    final:      ['#48bbff','rgba(72,187,255,.15)','Final'],
+    eliminated: ['#f87171','rgba(239,68,68,.15)', elAt?`Out@${elAt}`:'Eliminated'],
+  };
+  const [c,bg,lbl] = MAP[stage] || ['#64748b','rgba(100,116,139,.15)',stage];
+  return `<span class="stage-pill" style="color:${c};background:${bg};">${lbl}</span>`;
+}
+
+// ── Selection ─────────────────────────────────────────────────────────────────
+function toggleCandidate(cb) {
+  cb.checked ? selectedIds.add(cb.dataset.appId) : selectedIds.delete(cb.dataset.appId);
+  updateSelCountBtn(); updateSelectedCountLabel();
+}
+function toggleSelectAll(master) {
+  document.querySelectorAll('#candidate-tbody input[type=checkbox]').forEach(cb => {
+    cb.checked = master.checked;
+    master.checked ? selectedIds.add(cb.dataset.appId) : selectedIds.delete(cb.dataset.appId);
+  });
+  updateSelCountBtn(); updateSelectedCountLabel();
+}
+function updateSelCountBtn() {
+  const el = document.getElementById('sel-count-btn');
+  if (el) el.textContent = selectedIds.size;
+}
+function updateSelectedCountLabel() {
+  const el = document.getElementById('selected-count');
+  if (!el) return;
+  el.style.display = selectedIds.size > 0 ? 'inline' : 'none';
+  el.textContent   = selectedIds.size + ' selected';
+}
+
+// ── Deadline modal ────────────────────────────────────────────────────────────
+function openDeadlineModal(action) {
+  if (!selectedIds.size) { showToast('⚠️ Select at least one candidate first.'); return; }
+  pendingAction = action;
+  const sort = action === 'approve_sort';
+  document.getElementById('modal-title').textContent = sort
+    ? '🧪 Configure Vetting Test'
+    : 'Set AI Interview Deadline';
+  document.getElementById('modal-desc').textContent  = sort
+    ? `${selectedIds.size} candidate(s) selected. Configure the assessment below then set a deadline.`
+    : `${selectedIds.size} candidate(s) will receive the AI interview. Set their deadline:`;
+  // Show/hide vetting config fields
+  document.getElementById('vetting-config-fields').style.display = sort ? 'block' : 'none';
+  // Default: 7 days
+  const d = new Date(Date.now() + 7*24*60*60*1000);
+  document.getElementById('deadline-input').value = d.toISOString().slice(0,16);
+  document.getElementById('deadline-modal').style.display = 'flex';
+}
+function closeModal() {
+  document.getElementById('deadline-modal').style.display = 'none';
+}
+async function confirmDeadline() {
+  const val = document.getElementById('deadline-input').value;
+  if (!val) { showToast('⚠️ Please pick a deadline.'); return; }
+  const deadline = new Date(val).toISOString();
+  const btn = document.getElementById('modal-confirm-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…';
+
+  const endpoint = pendingAction === 'approve_sort'
+    ? `${API}/pipeline/${PIPELINE_ID}/approve-sort/`
+    : `${API}/pipeline/${PIPELINE_ID}/approve-vetting/`;
+
+  let body;
+  if (pendingAction === 'approve_sort') {
+    const atype = document.querySelector('input[name="assessment_type"]:checked')?.value || '';
+    const topic = (document.getElementById('assessment-topic')?.value || '').trim();
+    const kw    = (document.getElementById('assessment-keywords')?.value || '').trim();
+    body = {
+      approved_application_ids: [...selectedIds],
+      vetting_deadline: deadline,
+      assessment_type:  atype,
+      assessment_topic: topic,
+      assessment_keywords: kw,
+    };
+  } else {
+    body = { approved_application_ids:[...selectedIds], interview_deadline: deadline };
+  }
+
+  try {
+    const r = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const d = await r.json();
+    if (d.status !== 'ok') throw new Error(d.message);
+    closeModal();
+    selectedIds.clear();
+    showToast(pendingAction === 'approve_sort' ? '✅ Vetting tests sent!' : '✅ AI Interviews sent!');
+    await loadPipeline();
+  } catch(e) {
+    showToast('❌ ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Confirm & Send';
+  }
+}
+
+// ── Cancel ────────────────────────────────────────────────────────────────────
+async function cancelPipeline() {
+  if (!confirm('Cancel this pipeline? This cannot be undone.')) return;
+  const r = await fetch(`${API}/pipeline/${PIPELINE_ID}/cancel/`, {method:'POST'});
+  const d = await r.json();
+  if (d.status === 'ok') { showToast('Pipeline cancelled.'); loadPipeline(); }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmt(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-US',
+    {month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function showError(msg) {
+  document.getElementById('status-title').textContent = '⚠️ Error';
+  document.getElementById('status-msg').textContent   = msg;
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('pl-toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadPipeline();
+setInterval(loadPipeline, 30000);
+</script>
+{% endblock %}

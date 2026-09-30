@@ -15,11 +15,7 @@ Department coverage:
 
 import json
 import re
-from google import genai
-
-# Reuse the same client/key as question_generator.py
-
-_MODEL  = 'gemini-2.5-flash-lite'
+from core.utils.llm_client import llm_generate as _llm_generate
 
 # ── Department-specific question flavour ──────────────────────────────────────
 _DEPT_CONTEXT = {
@@ -111,12 +107,11 @@ Respond with ONLY a valid JSON array (no markdown, no explanation):
 ]"""
 
     try:
-        resp = _client.models.generate_content(model=_MODEL, contents=prompt)
-        questions = _safe_parse_json(resp.text)
+        questions = _safe_parse_json(_llm_generate(prompt))
         if isinstance(questions, list) and len(questions) >= 4:
             return questions[:6]
     except Exception as e:
-        print(f"[InterviewGenerator] generate_questions failed: {e}")
+        print(f"[InterviewGenerator] generate_questions failed (Gemini + Ollama): {e}")
 
     # Fallback: generic questions if Gemini fails
     return _fallback_questions(job, req_skills, gaps_text, dept_cat)
@@ -152,15 +147,14 @@ Respond with ONLY valid JSON (no markdown):
 }}"""
 
     try:
-        resp = _client.models.generate_content(model=_MODEL, contents=prompt)
-        result = _safe_parse_json(resp.text)
+        result = _safe_parse_json(_llm_generate(prompt))
         if isinstance(result, dict) and 'score' in result:
             result['score'] = max(0, min(10, int(result['score'])))
             if 'reason' not in result:
                 result['reason'] = result.get('feedback', '')
             return result
     except Exception as e:
-        print(f"[InterviewGenerator] score_answer failed: {e}")
+        print(f"[InterviewGenerator] score_answer failed (Gemini + Ollama): {e}")
 
     return {"score": 5, "feedback": "Answer evaluated. Score assigned based on content.", "reason": "Automated scoring applied."}
 
@@ -186,8 +180,12 @@ def generate_final_report(interview) -> dict:
     questions = interview.questions or []
     answers   = interview.answers   or []
 
-    # Build answer lookup by q_index
-    ans_map = {a['q_index']: a for a in answers}
+    # Build answer lookup by q_index (guard against malformed entries)
+    ans_map = {
+        a['q_index']: a
+        for a in answers
+        if isinstance(a, dict) and 'q_index' in a
+    }
 
     qa_summary = []
     for i, q in enumerate(questions):
@@ -252,15 +250,14 @@ Rules:
 """
 
     try:
-        resp   = _client.models.generate_content(model=_MODEL, contents=prompt)
-        result = _safe_parse_json(resp.text)
+        result = _safe_parse_json(_llm_generate(prompt))
         if isinstance(result, dict) and 'overall_score' in result:
             result['overall_score'] = max(0, min(100, int(result['overall_score'])))
             if result.get('hire_recommendation') not in ('Recommend', 'Maybe', 'Not Recommend'):
                 result['hire_recommendation'] = 'Maybe'
             return result
     except Exception as e:
-        print(f"[InterviewGenerator] generate_final_report failed: {e}")
+        print(f"[InterviewGenerator] generate_final_report failed (Gemini + Ollama): {e}")
 
     # Fallback: compute from existing scores
     scores = [a.get('score', 0) for a in answers if 'score' in a]
@@ -280,10 +277,13 @@ Rules:
 def _fallback_questions(job, req_skills, gaps_text, dept_cat) -> list:
     """Fallback if Gemini is unavailable."""
     skill1 = req_skills[0] if req_skills else 'your primary skill'
+    # Q1 type depends on department — non-tech roles use domain_knowledge, not technical
+    _tech_depts = {'tech', 'engineering', 'data_science', 'ai_ml', 'cybersecurity', 'devops'}
+    q1_type = 'technical' if (dept_cat or '').lower() in _tech_depts else 'domain_knowledge'
     return [
         {
             "question": f"Can you explain your experience with {skill1} and describe a project where you used it?",
-            "type": "technical",
+            "type": q1_type,
             "target": "Core skill assessment",
             "good_answer_includes": f"Specific examples using {skill1}, challenges faced, and outcomes."
         },

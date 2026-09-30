@@ -21,8 +21,11 @@ urlpatterns = [
     path('student/<uuid:student_id>/experience/', views.AddExperienceView.as_view(), name='add_experience'),
     path('student/<uuid:student_id>/preferences/', views.UpdatePreferencesView.as_view(), name='update_preferences'),
     path('student/<uuid:student_id>/applications/', views.StudentApplicationsView.as_view(), name='student_applications'),
+    path('student/<uuid:student_id>/application-status/<uuid:job_id>/', views.ApplicationStatusDetailView.as_view(), name='application_status_detail'),
     path('student/<uuid:student_id>/ai-interviews/', views.StudentAIInterviewsView.as_view(), name='student_ai_interviews'),
     path('student/<uuid:student_id>/career-advisor/', views.CareerAdvisorChatView.as_view(), name='career_advisor_chat'),
+    path('student/<uuid:student_id>/advisor-sessions/', views.AdvisorSessionListView.as_view(), name='advisor_sessions'),
+    path('student/<uuid:student_id>/advisor-sessions/<uuid:session_id>/', views.AdvisorSessionDetailView.as_view(), name='advisor_session_detail'),
     path('company/<uuid:company_id>/skill-heatmap/', views.SkillDemandHeatmapView.as_view(), name='skill_heatmap'),
     path('interview/<str:token>/report-cheating/', views.ReportInterviewCheatingView.as_view(), name='report_cheating'),
     path('student/<uuid:student_id>/upload-resume/', views.UploadResumeView.as_view(), name='api_upload_resume'),
@@ -30,6 +33,7 @@ urlpatterns = [
     path('student/<uuid:student_id>/recommendations/', views.SmartJobRecommendationsView.as_view(), name='smart_recommendations'),
     
     path('analyze-match/', views.AnalyzeMatchView.as_view(), name='analyze_match'),
+    path('debug/student-scores/', views.DebugStudentScoresView.as_view(), name='debug_student_scores'),
     path('smart-apply/', views.SmartApplyView.as_view(), name='smart_apply'),
     path('jobs/', views.JobsListView.as_view(), name='jobs_list'),
     path('apply/', views.ApplyJobView.as_view(), name='apply_job'),
@@ -79,4 +83,15 @@ urlpatterns = [
     # Available slots for applicant
     path('job/<uuid:job_id>/available-slots/', views.AvailableSlotsView.as_view(), name='available_slots'),
     path('job/<uuid:job_id>/slot-availability/', views.InterviewSlotAvailabilityView.as_view(), name='slot_availability'),
+    path('application/<uuid:application_id>/ai-effectiveness/', views.AIEffectivenessView.as_view(), name='ai_effectiveness'),
+    path('leaderboard/', views.LeaderboardView.as_view(), name='leaderboard'),
+    path('skill-heatmap/', views.PlatformSkillHeatmapView.as_view(), name='platform_skill_heatmap'),
+
+    # Auto Pipeline API
+    path('pipeline/create/', views.CreatePipelineView.as_view(), name='pipeline_create'),
+    path('pipeline/<uuid:pipeline_id>/', views.PipelineStatusView.as_view(), name='pipeline_status'),
+    path('pipeline/<uuid:pipeline_id>/approve-sort/', views.ApproveSortView.as_view(), name='pipeline_approve_sort'),
+    path('pipeline/<uuid:pipeline_id>/approve-vetting/', views.ApproveVettingView.as_view(), name='pipeline_approve_vetting'),
+    path('pipeline/<uuid:pipeline_id>/cancel/', views.CancelPipelineView.as_view(), name='pipeline_cancel'),
+    path('job/<uuid:job_id>/pipelines/', views.JobPipelinesView.as_view(), name='job_pipelines'),
 ]

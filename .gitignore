@@ -3,18 +3,46 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.pyw
+*.pyz
 
-# Virtual Env
+# Virtual Environment
 env/
 venv/
+.venv/
+ENV/
 
 # Django
 *.log
 db.sqlite3
 media/
+staticfiles/
+local_settings.py
+
+# Environment variables — এই ফাইলগুলো NEVER push করবে
+.env
+.env.local
+.env.production
 
 # VS Code
 .vscode/
 
-# Environment variables
-.env
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test & cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebooks checkpoints
+.ipynb_checkpoints/
+
+# Large/unnecessary files
+*.zip
+*.pdf
+*.docx
+poster/
+poster_charts/
+test_results.json

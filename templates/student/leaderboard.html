@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard | AI Talent Match{% endblock %}
+
+{% block extra_head %}
+<style>
+/* Full-width wrap — no max-width cap */
+.lb-wrap {
+  width: 100%;
+  padding: 2rem 2.5rem 7rem;
+  box-sizing: border-box;
+}
+
+/* ── Hero ──────────────────────────────────────────────────────────── */
+.lb-hero {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 1rem;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 20px; padding: 1.6rem 2rem; margin-bottom: 1.8rem;
+}
+.lb-hero-title { font-size: 2.2rem; font-weight: 900; margin: 0 0 .3rem; line-height: 1.1; }
+.lb-hero-title span {
+  background: linear-gradient(135deg,#f59e0b,#ef4444,#a855f7);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.lb-hero-sub { color:#94a3b8; font-size:.85rem; margin:0; }
+
+.lb-stat-trio { display:flex; gap:1rem; flex-wrap:wrap; }
+.lb-stat {
+  background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
+  border-radius:14px; padding:.9rem 1.4rem; text-align:center; min-width:96px;
+}
+.lb-stat .val { font-size:1.6rem; font-weight:800; line-height:1; }
+.lb-stat .lbl { font-size:.68rem; color:#64748b; text-transform:uppercase; letter-spacing:.5px; margin-top:.25rem; }
+.s-gold   .val { color:#f59e0b; }
+.s-blue   .val { color:#48bbff; }
+.s-purple .val { color:#a855f7; }
+
+/* ── Pills toggle ──────────────────────────────────────────────────── */
+.ach-toggle {
+  cursor:pointer; user-select:none; display:inline-flex; align-items:center; gap:.5rem;
+  color:#64748b; font-size:.8rem; margin-bottom:.5rem; transition:color .15s;
+}
+.ach-toggle:hover { color:#94a3b8; }
+.lb-pills { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1.5rem; }
+.lb-pill {
+  background:rgba(72,187,255,.06); border:1px solid rgba(72,187,255,.15);
+  border-radius:999px; padding:.3rem .85rem; font-size:.75rem; color:#93c5fd;
+  transition:all .2s;
+}
+.lb-pill:hover { background:rgba(72,187,255,.16); border-color:rgba(72,187,255,.4); transform:scale(1.04); }
+.lb-pill.amber { background:rgba(245,158,11,.06); border-color:rgba(245,158,11,.2); color:#fcd34d; }
+.lb-pill.green  { background:rgba(52,211,153,.06); border-color:rgba(52,211,153,.2); color:#6ee7b7; }
+
+/* ── Podium ────────────────────────────────────────────────────────── */
+.lb-podium {
+  display:flex; align-items:flex-end; justify-content:center;
+  gap:1.2rem; margin-bottom:2.2rem; padding-top:2.5rem;
+}
+.podium-card {
+  flex:1; border-radius:22px; padding:1.6rem 1.2rem 1.4rem;
+  text-align:center; position:relative; overflow:hidden;
+  border:1px solid rgba(255,255,255,.08);
+  animation: podiumRise .65s cubic-bezier(.34,1.56,.64,1) both;
+}
+.podium-card.p1 {
+  background:linear-gradient(160deg,rgba(245,158,11,.18),rgba(239,68,68,.09));
+  border-color:rgba(245,158,11,.35); flex:1.2;
+  animation-delay:.0s;
+}
+.podium-card.p2 {
+  background:linear-gradient(160deg,rgba(148,163,184,.13),rgba(100,116,139,.07));
+  border-color:rgba(148,163,184,.25); margin-bottom:28px;
+  animation-delay:.12s;
+}
+.podium-card.p3 {
+  background:linear-gradient(160deg,rgba(205,127,50,.13),rgba(146,64,14,.07));
+  border-color:rgba(205,127,50,.25); margin-bottom:44px;
+  animation-delay:.22s;
+}
+@keyframes podiumRise {
+  from { opacity:0; transform:translateY(50px) scale(.88); }
+  to   { opacity:1; transform:translateY(0) scale(1); }
+}
+.podium-medal { font-size:2rem; margin-bottom:.5rem; line-height:1; }
+.podium-avatar {
+  width:58px; height:58px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.35rem; font-weight:800; color:#fff; margin:0 auto .8rem;
+}
+.p1 .podium-avatar { background:linear-gradient(135deg,#f59e0b,#ef4444); box-shadow:0 0 26px rgba(245,158,11,.55); width:68px; height:68px; font-size:1.55rem; }
+.p2 .podium-avatar { background:linear-gradient(135deg,#94a3b8,#64748b); box-shadow:0 0 18px rgba(148,163,184,.32); }
+.p3 .podium-avatar { background:linear-gradient(135deg,#cd7f32,#92400e); box-shadow:0 0 18px rgba(205,127,50,.32); }
+.podium-name { font-weight:700; font-size:.92rem; color:#e2e8f0; margin-bottom:.15rem; }
+.p1 .podium-name { font-size:1.05rem; }
+.podium-dept { font-size:.7rem; color:#64748b; margin-bottom:.55rem; }
+.podium-pts  { font-size:1.5rem; font-weight:900; line-height:1; }
+.p1 .podium-pts { font-size:1.9rem; color:#f59e0b; }
+.p2 .podium-pts { color:#94a3b8; }
+.p3 .podium-pts { color:#cd7f32; }
+.podium-pts-lbl { font-size:.62rem; color:#64748b; margin-top:.15rem; margin-bottom:.5rem; }
+.podium-skills { display:flex; flex-wrap:wrap; gap:.3rem; justify-content:center; margin-top:.4rem; }
+.podium-skill { font-size:.63rem; padding:.13rem .42rem; border-radius:999px; background:rgba(255,255,255,.08); color:#94a3b8; }
+.crown-icon { position:absolute; top:-20px; left:50%; transform:translateX(-50%); font-size:2.3rem; filter:drop-shadow(0 0 12px rgba(245,158,11,.8)); pointer-events:none; }
+
+/* ── Filter + search ───────────────────────────────────────────────── */
+.lb-filter { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1.2rem; align-items:center; }
+.filter-btn {
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
+  color:#94a3b8; border-radius:999px; padding:.35rem .9rem; font-size:.78rem;
+  cursor:pointer; transition:all .18s;
+}
+.filter-btn:hover, .filter-btn.active {
+  background:rgba(72,187,255,.15); border-color:rgba(72,187,255,.4); color:#48bbff;
+}
+.lb-search {
+  margin-left:auto; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
+  border-radius:8px; padding:.38rem 1rem .38rem .8rem; color:#e2e8f0; font-size:.8rem;
+  outline:none; transition:border-color .2s; min-width:180px;
+}
+.lb-search:focus { border-color:rgba(72,187,255,.4); }
+
+/* ── Table ─────────────────────────────────────────────────────────── */
+.lb-table-card { background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); border-radius:20px; overflow:hidden; }
+.lb-thead {
+  display:grid; grid-template-columns:64px 1fr 120px 80px;
+  gap:.5rem; padding:.75rem 1.4rem;
+  background:rgba(0,0,0,.22);
+}
+.lb-thead span { font-size:.67rem; color:#475569; text-transform:uppercase; letter-spacing:.5px; font-weight:600; }
+.lb-thead .th-pts { text-align:right; }
+
+.lb-row {
+  display:grid; grid-template-columns:64px 1fr 120px 80px;
+  gap:.5rem; align-items:center;
+  padding:.85rem 1.4rem; border-top:1px solid rgba(255,255,255,.04);
+  transition:background .15s;
+  animation:rowIn .4s ease both;
+}
+.lb-row:hover { background:rgba(255,255,255,.03); }
+.lb-row.is-you {
+  background:rgba(245,158,11,.06) !important;
+  border-left:3px solid rgba(245,158,11,.5);
+}
+@keyframes rowIn {
+  from { opacity:0; transform:translateX(-10px); }
+  to   { opacity:1; transform:translateX(0); }
+}
+
+.rank-badge { width:38px; height:38px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-weight:700; font-size:.82rem; flex-shrink:0; }
+.rk-n { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); color:#64748b; }
+
+.row-name { font-weight:600; color:#e2e8f0; font-size:.88rem; display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; }
+.you-tag  { background:rgba(245,158,11,.2); border:1px solid rgba(245,158,11,.4); color:#f59e0b; font-size:.6rem; font-weight:700; padding:.1rem .35rem; border-radius:999px; }
+.row-dept { font-size:.7rem; color:#64748b; margin-top:.15rem; }
+.row-skills { display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.35rem; }
+.skill-chip { font-size:.62rem; padding:.12rem .42rem; border-radius:999px; background:rgba(72,187,255,.08); border:1px solid rgba(72,187,255,.15); color:#7dd3fc; }
+
+.row-bar-bg { background:rgba(255,255,255,.06); border-radius:999px; height:5px; overflow:hidden; }
+.row-bar-fill { height:5px; border-radius:999px; width:0; transition:width 1.1s ease; }
+.bar-gold   { background:linear-gradient(90deg,#f59e0b,#ef4444); }
+.bar-silver { background:linear-gradient(90deg,#94a3b8,#64748b); }
+.bar-rest   { background:linear-gradient(90deg,#48bbff,#a855f7); }
+.bar-pct-lbl { font-size:.6rem; color:#475569; margin-top:.2rem; text-align:right; }
+
+.row-pts { text-align:right; }
+.pts-num { font-size:1.05rem; font-weight:700; }
+.pts-lbl { font-size:.65rem; color:#475569; }
+.c-gold   { color:#f59e0b; }
+.c-silver { color:#94a3b8; }
+.c-bronze { color:#cd7f32; }
+.c-blue   { color:#48bbff; }
+
+.lb-empty { padding:4rem; text-align:center; color:#475569; }
+
+/* ── Sticky YOU strip ──────────────────────────────────────────────── */
+.you-strip {
+  position:fixed; bottom:0; left:0; right:0; z-index:300;
+  background:linear-gradient(90deg,rgba(8,18,36,.97),rgba(12,24,48,.97));
+  border-top:1px solid rgba(245,158,11,.2);
+  padding:.8rem 2.5rem; display:flex; align-items:center; gap:1rem;
+  backdrop-filter:blur(16px);
+}
+.ys-rank  { font-size:1.4rem; font-weight:900; color:#f59e0b; flex-shrink:0; }
+.ys-text  { font-size:.82rem; color:#94a3b8; flex:1; min-width:0; }
+.ys-text strong { color:#e2e8f0; }
+.ys-cta   {
+  background:linear-gradient(135deg,#f59e0b,#ef4444); color:#fff;
+  font-size:.78rem; font-weight:700; padding:.5rem 1.2rem; border-radius:8px;
+  text-decoration:none; white-space:nowrap; flex-shrink:0;
+}
+
+@media(max-width:768px){
+  .lb-wrap { padding:1.2rem 1rem 7rem; }
+  .lb-podium { flex-direction:column; align-items:center; }
+  .podium-card { width:92%; max-width:none; margin-bottom:0 !important; animation-delay:0s !important; }
+  .lb-thead, .lb-row { grid-template-columns:44px 1fr 60px; }
+  .lb-thead .th-bar, .row-bar-wrap { display:none; }
+  .row-skills { display:none; }
+  .you-strip { padding:.6rem 1rem; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lb-wrap">
+
+  <!-- Hero -->
+  <div class="lb-hero">
+    <div>
+      <a href="/student/dashboard/" style="color:#48bbff;font-size:.8rem;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem;margin-bottom:.6rem;">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+      </a>
+      <h1 class="lb-hero-title"><span>Leaderboard</span> 🏆</h1>
+      <p class="lb-hero-sub">Ranked by profile activity, skills, assessments &amp; hiring outcomes</p>
+    </div>
+    <div class="lb-stat-trio">
+      <div class="lb-stat s-blue">
+        <div class="val">{{ total_on_board }}</div>
+        <div class="lbl">On Board</div>
+      </div>
+      {% if student_rank %}
+      <div class="lb-stat s-gold">
+        <div class="val">#{{ student_rank }}</div>
+        <div class="lbl">Your Rank</div>
+      </div>
+      {% endif %}
+      {% if student_entry %}
+      <div class="lb-stat s-purple">
+        <div class="val counter" data-target="{{ student_entry.total_points }}">0</div>
+        <div class="lbl">Your XP</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Collapsible XP guide -->
+  <div class="ach-toggle" onclick="toggleAch(this)">
+    <i class="fas fa-chevron-right" style="font-size:.7rem;transition:transform .2s;"></i>
+    How to earn XP points
+  </div>
+  <div id="ach-pills" class="lb-pills" style="display:none;">
+    <span class="lb-pill">🧑‍💻 Profile complete <strong>+50</strong></span>
+    <span class="lb-pill">🔧 Add skill <strong>+10</strong></span>
+    <span class="lb-pill">📂 Add project <strong>+10</strong></span>
+    <span class="lb-pill green">✅ Pass assessment <strong>+25</strong></span>
+    <span class="lb-pill amber">⭐ Shortlisted <strong>+15</strong></span>
+    <span class="lb-pill amber">🎉 Hired <strong>+50</strong></span>
+  </div>
+
+  {% if entry_list %}
+
+  <!-- Podium top 3 -->
+  {% if podium|length >= 3 %}
+  <div class="lb-podium">
+
+    <!-- 2nd -->
+    {% with e=podium.1 %}
+    <div class="podium-card p2">
+      <div class="podium-medal">🥈</div>
+      <div class="podium-avatar">{{ e.student_name|slice:":1"|upper }}</div>
+      <div class="podium-name">{{ e.student_name }}</div>
+      <div class="podium-dept">{{ e.student_dept|default:"—" }}</div>
+      <div class="podium-pts counter" data-target="{{ e.total_points }}">0</div>
+      <div class="podium-pts-lbl">XP points</div>
+      <div class="podium-skills">{% for sk in e.skills %}<span class="podium-skill">{{ sk }}</span>{% endfor %}</div>
+    </div>
+    {% endwith %}
+
+    <!-- 1st -->
+    {% with e=podium.0 %}
+    <div class="podium-card p1">
+      <span class="crown-icon">👑</span>
+      <div class="podium-medal" style="font-size:2.4rem;">🥇</div>
+      <div class="podium-avatar">{{ e.student_name|slice:":1"|upper }}</div>
+      <div class="podium-name">{{ e.student_name }}</div>
+      <div class="podium-dept">{{ e.student_dept|default:"—" }}</div>
+      <div class="podium-pts counter" data-target="{{ e.total_points }}">0</div>
+      <div class="podium-pts-lbl" style="color:#92400e;">XP points</div>
+      <div class="podium-skills">{% for sk in e.skills %}<span class="podium-skill">{{ sk }}</span>{% endfor %}</div>
+    </div>
+    {% endwith %}
+
+    <!-- 3rd -->
+    {% with e=podium.2 %}
+    <div class="podium-card p3">
+      <div class="podium-medal">🥉</div>
+      <div class="podium-avatar">{{ e.student_name|slice:":1"|upper }}</div>
+      <div class="podium-name">{{ e.student_name }}</div>
+      <div class="podium-dept">{{ e.student_dept|default:"—" }}</div>
+      <div class="podium-pts counter" data-target="{{ e.total_points }}">0</div>
+      <div class="podium-pts-lbl">XP points</div>
+      <div class="podium-skills">{% for sk in e.skills %}<span class="podium-skill">{{ sk }}</span>{% endfor %}</div>
+    </div>
+    {% endwith %}
+
+  </div>
+  {% endif %}
+
+  <!-- Filter + search -->
+  <div class="lb-filter">
+    <button class="filter-btn active" onclick="filterDept('all',this)">All Departments</button>
+    {% for dept in departments %}
+    <button class="filter-btn" onclick="filterDept('{{ dept }}',this)">{{ dept }}</button>
+    {% endfor %}
+    <input class="lb-search" type="text" placeholder="🔍 Search student…" oninput="searchRows(this.value)">
+  </div>
+
+  <!-- Ranked table (rank 4 onwards) -->
+  <div class="lb-table-card">
+    <div class="lb-thead">
+      <span>Rank</span>
+      <span>Student</span>
+      <span class="th-bar">Progress</span>
+      <span class="th-pts">Points</span>
+    </div>
+
+    {% for e in table_rows %}
+    <div class="lb-row {% if e.is_you %}is-you{% endif %}"
+         data-dept="{{ e.student_dept }}"
+         data-name="{{ e.student_name|lower }}"
+         style="animation-delay:{{ forloop.counter0 }}0ms;">
+      <!-- Rank -->
+      <div><div class="rank-badge rk-n">#{{ e.rank }}</div></div>
+      <!-- Info -->
+      <div>
+        <div class="row-name">
+          {{ e.student_name }}
+          {% if e.is_you %}<span class="you-tag">YOU</span>{% endif %}
+        </div>
+        <div class="row-dept">{{ e.student_dept|default:"—" }} · {{ e.university|default:"—" }}</div>
+        <div class="row-skills">{% for sk in e.skills %}<span class="skill-chip">{{ sk }}</span>{% endfor %}</div>
+      </div>
+      <!-- Bar -->
+      <div class="row-bar-wrap">
+        <div class="row-bar-bg">
+          <div class="row-bar-fill bar-rest" style="width:0;" data-pct="{{ e.pct }}"></div>
+        </div>
+        <div class="bar-pct-lbl">{{ e.pct }}%</div>
+      </div>
+      <!-- Points -->
+      <div class="row-pts">
+        <div class="pts-num c-blue counter" data-target="{{ e.total_points }}">0</div>
+        <div class="pts-lbl">pts</div>
+      </div>
+    </div>
+    {% empty %}
+    <div style="padding:2rem;text-align:center;color:#475569;font-size:.85rem;">Only top 3 students so far — keep going!</div>
+    {% endfor %}
+
+    <div id="no-results" style="display:none;" class="lb-empty">
+      <div style="font-size:2rem;opacity:.25;margin-bottom:.5rem;">🔍</div>
+      <p>No students match that filter.</p>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="lb-table-card">
+    <div class="lb-empty">
+      <div style="font-size:3rem;opacity:.2;margin-bottom:1rem;">🏆</div>
+      <p style="margin-bottom:1rem;">No one on the leaderboard yet — be the first!</p>
+      <a href="/student/profile/" style="background:linear-gradient(135deg,#48bbff,#a855f7);color:#fff;text-decoration:none;padding:.65rem 1.4rem;border-radius:8px;font-weight:600;">Complete Your Profile</a>
+    </div>
+  </div>
+  {% endif %}
+
+</div><!-- /.lb-wrap -->
+
+<!-- Sticky YOU strip -->
+{% if student_entry %}
+<div class="you-strip">
+  <div class="ys-rank">{% if student_rank %}#{{ student_rank }}{% else %}—{% endif %}</div>
+  <div class="ys-text">
+    <strong>{{ student_entry.total_points }} XP</strong>
+    {% if pts_to_next and pts_to_next > 0 %}
+      · <span style="color:#f59e0b;">{{ pts_to_next }} pts</span> to climb to rank #{{ student_rank|add:"-1" }}
+    {% elif student_rank == 1 %}
+      · <span style="color:#f59e0b;">👑 You're #1 — defend your crown!</span>
+    {% endif %}
+    · {{ student_entry.awarded_actions|length }} achievement{{ student_entry.awarded_actions|length|pluralize }}
+  </div>
+  <a href="/student/profile/" class="ys-cta">Earn More XP →</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* Counter animation */
+function animateCounter(el) {
+  const target = parseInt(el.dataset.target, 10) || 0;
+  if (!target) { el.textContent = '0'; return; }
+  const dur = 900;
+  const step = Math.max(1, Math.ceil(target / (dur / 16)));
+  let cur = 0;
+  const tick = () => {
+    cur = Math.min(cur + step, target);
+    el.textContent = cur.toLocaleString();
+    if (cur < target) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+/* Progress bars */
+function animateBars() {
+  document.querySelectorAll('.row-bar-fill').forEach(bar => {
+    setTimeout(() => { bar.style.width = (bar.dataset.pct || 0) + '%'; }, 300);
+  });
+}
+
+window.addEventListener('load', () => {
+  document.querySelectorAll('.counter').forEach(animateCounter);
+  animateBars();
+});
+
+/* Filters */
+let _dept = 'all', _q = '';
+function filterDept(dept, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _dept = dept; applyFilters();
+}
+function searchRows(q) { _q = q.toLowerCase(); applyFilters(); }
+function applyFilters() {
+  let n = 0;
+  document.querySelectorAll('.lb-row').forEach(row => {
+    const ok = (_dept === 'all' || row.dataset.dept === _dept) && row.dataset.name.includes(_q);
+    row.style.display = ok ? '' : 'none';
+    if (ok) n++;
+  });
+  document.getElementById('no-results').style.display = n === 0 ? '' : 'none';
+}
+
+/* Achievement pills */
+function toggleAch(el) {
+  const pills = document.getElementById('ach-pills');
+  const icon  = el.querySelector('i');
+  const open  = pills.style.display !== 'none';
+  pills.style.display = open ? 'none' : 'flex';
+  icon.style.transform = open ? '' : 'rotate(90deg)';
+}
+</script>
+{% endblock %}

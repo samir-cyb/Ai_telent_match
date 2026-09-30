@@ -40,6 +40,26 @@
         ⚠️ Warning: Suspicious activity detected. Further violations will result in automatic submission.
     </div>
 
+    <!-- FRAUD LOCKOUT OVERLAY — shown when tab limit hit -->
+    <div id="fraud-overlay" style="display:none; position:fixed; inset:0; background:#0f0f0f; z-index:99999; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+        <div style="animation: fraudPulse 1s infinite;">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" style="margin:0 auto 16px;">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+        </div>
+        <h1 style="color:#ef4444; font-size:2.5rem; font-weight:900; letter-spacing:0.1em; margin-bottom:8px;">🚨 FRAUD DETECTED</h1>
+        <p style="color:#fca5a5; font-size:1.1rem; margin-bottom:4px;">You switched tabs 5 or more times during the assessment.</p>
+        <p style="color:#f87171; font-size:1rem; margin-bottom:32px;">Your assessment is being <strong>automatically submitted</strong> and flagged for recruiter review.</p>
+        <div style="background:#1f1f1f; border:2px solid #ef4444; border-radius:12px; padding:16px 40px; color:#ef4444; font-size:1.4rem; font-weight:700; margin-bottom:24px;">
+            Submitting in <span id="fraud-secs">3</span>s…
+        </div>
+        <p style="color:#6b7280; font-size:0.85rem;">Do not close this window. You will be redirected automatically.</p>
+    </div>
+    <style>
+        @keyframes fraudPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    </style>
+
     <!-- Header -->
     <div class="bg-gray-900 border-b border-gray-700 p-4 flex justify-between items-center h-[60px]">
         <div>
@@ -258,15 +278,78 @@
 
     // ==================== ANTI-CHEAT: TAB SWITCH DETECTION ====================
     
+    const TAB_SWITCH_LIMIT = 5; // Auto-terminate threshold
+
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             tabSwitches++;
-            cheatScore += 5; // Tab switch is serious
+            cheatScore += 5;
             updateCheatDisplay();
-            showCheatWarning('⚠️ Tab switch detected! Stay on this page.');
             console.log('Tab switch detected, count:', tabSwitches);
+
+            if (tabSwitches >= TAB_SWITCH_LIMIT) {
+                // Immediately lock the UI and auto-submit as fraud
+                triggerFraudLockout();
+            } else {
+                const remaining = TAB_SWITCH_LIMIT - tabSwitches;
+                showCheatWarning(`⚠️ Tab switch #${tabSwitches} detected! ${remaining} more will auto-terminate your assessment.`);
+            }
         }
     });
+
+    function triggerFraudLockout() {
+        // Show fullscreen overlay immediately
+        const overlay = document.getElementById('fraud-overlay');
+        overlay.style.display = 'flex';
+
+        // Disable submit button so user can't interfere
+        const btn = document.querySelector('button[onclick="submitTest()"]');
+        if (btn) { btn.disabled = true; }
+
+        // Countdown then auto-submit
+        let secs = 3;
+        document.getElementById('fraud-secs').textContent = secs;
+        const tick = setInterval(() => {
+            secs--;
+            const el = document.getElementById('fraud-secs');
+            if (el) el.textContent = secs;
+            if (secs <= 0) {
+                clearInterval(tick);
+                fraudAutoSubmit();
+            }
+        }, 1000);
+    }
+
+    async function fraudAutoSubmit() {
+        const code = typeof editor !== 'undefined' ? editor.getValue() : '';
+        try {
+            const response = await fetch(`/vetting/api/test/${TOKEN}/submit/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    code: code,
+                    tab_switches: tabSwitches,
+                    copy_pastes: copyPastes,
+                    copy_count: copyCount,
+                    paste_count: pasteCount,
+                    fullscreen_exits: fullscreenExits,
+                    cheat_score: cheatScore,
+                    auto_submitted: true,
+                    fraud_terminated: true
+                })
+            });
+            // Backend will return 403 cheating_detected — redirect to error page
+            const data = await response.json();
+            if (data.result_url) {
+                window.location.href = data.result_url;
+            } else {
+                window.location.href = '/student/dashboard/?fraud=1';
+            }
+        } catch (err) {
+            console.error('Fraud auto-submit error:', err);
+            window.location.href = '/student/dashboard/?fraud=1';
+        }
+    }
 
     // ==================== ANTI-CHEAT: FULLSCREEN EXIT DETECTION ====================
     

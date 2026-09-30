@@ -156,25 +156,209 @@ async function checkApplicationStatus() {
 }
 
 function showAlreadyAppliedUI() {
-    // Hide analyze button and results
-    document.getElementById('analyze-btn').style.display = 'none';
-    document.getElementById('analysis-results').style.display = 'none';
-    
-    // Show already applied message
-    const messageDiv = document.getElementById('already-applied-message');
-    messageDiv.style.display = 'block';
-    
-    // Update score display
-    const scoreDisplay = document.getElementById('match-score-display');
-    scoreDisplay.innerHTML = `
-        <div class="already-applied-score">
-            <i class="fas fa-check-circle"></i>
-            <span>Application Submitted</span>
+    // Replace the entire analysis card content with one clean applied state
+    const card = document.querySelector('.analysis-card.compact');
+    if (!card) return;
+    card.innerHTML = `
+        <div style="padding:1.5rem 1rem;text-align:center;">
+            <div style="width:72px;height:72px;border-radius:50%;
+                background:linear-gradient(135deg,rgba(0,184,107,.25),rgba(0,140,74,.15));
+                border:2px solid #00b86b;display:flex;align-items:center;
+                justify-content:center;margin:0 auto 1rem;font-size:2rem;color:#00b86b;">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h3 style="color:#00b86b;font-size:1.2rem;margin-bottom:.4rem;">
+                Application Submitted!
+            </h3>
+            <p style="color:#94a3b8;font-size:.88rem;margin-bottom:1.5rem;line-height:1.5;">
+                You've already applied for this position.<br>
+                Click below to track your current stage.
+            </p>
+            <div style="display:flex;flex-direction:column;gap:.6rem;">
+                <button onclick="openStatusDrawer()"
+                   style="display:flex;align-items:center;justify-content:center;gap:.5rem;
+                          padding:.8rem 1.5rem;border-radius:.75rem;font-weight:700;
+                          background:linear-gradient(135deg,#00b86b,#008c4a);
+                          color:#fff;border:none;cursor:pointer;font-size:.95rem;width:100%;
+                          transition:transform .2s,box-shadow .2s;"
+                   onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(0,184,107,.4)'"
+                   onmouseleave="this.style.transform='none';this.style.boxShadow='none'">
+                    <i class="fas fa-chart-line"></i> View Application Status
+                </button>
+                <a href="/student/jobs/"
+                   style="display:flex;align-items:center;justify-content:center;gap:.5rem;
+                          padding:.75rem 1.5rem;border-radius:.75rem;font-weight:600;
+                          background:rgba(72,187,255,.12);border:1px solid rgba(72,187,255,.3);
+                          color:#48bbff;text-decoration:none;font-size:.88rem;
+                          transition:background .2s;"
+                   onmouseenter="this.style.background='rgba(72,187,255,.2)'"
+                   onmouseleave="this.style.background='rgba(72,187,255,.12)'">
+                    <i class="fas fa-briefcase"></i> Browse More Jobs
+                </a>
+            </div>
         </div>
     `;
-    
-    // Style the card as applied
-    document.querySelector('.analysis-card').classList.add('applied-state');
+}
+
+/* ── Status Drawer ── */
+async function openStatusDrawer() {
+    document.getElementById('status-drawer-overlay').classList.add('open');
+    document.getElementById('status-drawer').classList.add('open');
+
+    const body = document.getElementById('status-drawer-body');
+    body.innerHTML = `<div style="text-align:center;padding:3rem 1rem;color:#64748b;">
+        <i class="fas fa-spinner fa-spin" style="font-size:1.8rem;margin-bottom:1rem;display:block;"></i>
+        Loading status...
+    </div>`;
+
+    try {
+        const r = await fetch(`${window.API_BASE}/student/${studentId}/application-status/${jobId}/`);
+        const d = await r.json();
+        if (d.status !== 'ok') { body.innerHTML = '<p style="color:#ef4444;padding:2rem;">Could not load status.</p>'; return; }
+        renderStatusDrawer(d);
+    } catch(e) {
+        body.innerHTML = '<p style="color:#ef4444;padding:2rem;">Network error. Please try again.</p>';
+    }
+}
+
+function closeStatusDrawer() {
+    document.getElementById('status-drawer-overlay').classList.remove('open');
+    document.getElementById('status-drawer').classList.remove('open');
+}
+
+const STATUS_PIPELINE = ['applied', 'shortlisted', 'interview', 'hired'];
+const STATUS_LABELS   = { applied:'Applied', shortlisted:'Shortlisted', interview:'Interview', hired:'Hired!', rejected:'Rejected' };
+const STATUS_ICONS    = { applied:'fa-paper-plane', shortlisted:'fa-star', interview:'fa-calendar-check', hired:'fa-trophy', rejected:'fa-times-circle' };
+const STATUS_COLORS   = { applied:'#48bbff', shortlisted:'#fbbf24', interview:'#a78bfa', hired:'#00b86b', rejected:'#ef4444' };
+
+function renderStatusDrawer(d) {
+    const app = d.application;
+    const ai  = d.ai_interview;
+    const si  = d.scheduled_interview;
+    const ag  = d.agent_decision;
+
+    const st = app.status;
+    const isRejected = st === 'rejected';
+    const pipeline = STATUS_PIPELINE;
+    const currentIdx = isRejected ? -1 : pipeline.indexOf(st);
+
+    // Build pipeline steps
+    const steps = pipeline.map((s, i) => {
+        let state = 'pending';
+        if (isRejected) state = 'pending';
+        else if (i < currentIdx) state = 'done';
+        else if (i === currentIdx) state = 'active';
+        const color = state === 'done' ? '#00b86b' : state === 'active' ? STATUS_COLORS[s] : '#334155';
+        const bg    = state === 'done' ? 'rgba(0,184,107,.15)' : state === 'active' ? `${STATUS_COLORS[s]}22` : 'rgba(255,255,255,.03)';
+        const border= state === 'active' ? `1px solid ${STATUS_COLORS[s]}55` : state === 'done' ? '1px solid rgba(0,184,107,.3)' : '1px solid rgba(255,255,255,.06)';
+        return `
+            <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .8rem;border-radius:.6rem;background:${bg};border:${border};">
+                <div style="width:34px;height:34px;border-radius:50%;flex-shrink:0;
+                    background:${state==='done'?'rgba(0,184,107,.2)':state==='active'?`${STATUS_COLORS[s]}22`:'rgba(255,255,255,.04)'};
+                    border:2px solid ${state==='pending'?'#1e293b':color};
+                    display:flex;align-items:center;justify-content:center;font-size:.8rem;color:${color};">
+                    <i class="fas ${state==='done'?'fa-check':STATUS_ICONS[s]}"></i>
+                </div>
+                <div>
+                    <div style="font-size:.82rem;font-weight:${state==='active'?700:500};color:${state==='pending'?'#475569':state==='done'?'#94a3b8':'#e2e8f0'};">${STATUS_LABELS[s]}</div>
+                    ${state==='active'?`<div style="font-size:.68rem;color:${color};margin-top:.1rem;">● Current stage</div>`:''}
+                </div>
+                ${state==='done'?`<div style="margin-left:auto;font-size:.65rem;color:#34d399;"><i class="fas fa-check"></i> Done</div>`:''}
+            </div>`;
+    }).join('');
+
+    // Rejected banner
+    const rejectedBanner = isRejected ? `
+        <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:.75rem;padding:.75rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem;">
+            <i class="fas fa-times-circle" style="color:#ef4444;font-size:1.1rem;"></i>
+            <div>
+                <div style="font-size:.82rem;font-weight:600;color:#fca5a5;">Application Not Successful</div>
+                <div style="font-size:.72rem;color:#94a3b8;margin-top:.1rem;">This application was not taken forward. Keep applying!</div>
+            </div>
+        </div>` : '';
+
+    // AI Interview section
+    let aiSection = '';
+    if (ai) {
+        const aiColor = ai.status === 'completed' ? '#00b86b' : ai.status === 'in_progress' ? '#fbbf24' : '#a78bfa';
+        aiSection = `
+        <div style="margin-top:1rem;padding:.75rem;background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:.75rem;">
+            <div style="font-size:.78rem;font-weight:700;color:#a78bfa;margin-bottom:.5rem;">
+                <i class="fas fa-brain"></i> AI Interview
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem;">
+                <span style="font-size:.75rem;color:${aiColor};font-weight:600;">
+                    <i class="fas fa-circle" style="font-size:.45rem;vertical-align:middle;"></i>
+                    ${ai.status.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}
+                </span>
+                ${ai.score !== null ? `<span style="font-size:.75rem;color:#94a3b8;">Score: <strong style="color:#e2e8f0;">${ai.score}/100</strong></span>` : ''}
+            </div>
+            ${ai.combined_score !== null ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:.3rem;">Combined score: <strong style="color:#a78bfa;">${ai.combined_score}/100</strong></div>` : ''}
+            ${ai.interview_url ? `<a href="${ai.interview_url}" style="display:inline-flex;align-items:center;gap:.4rem;margin-top:.5rem;font-size:.75rem;color:#fff;background:linear-gradient(135deg,#a78bfa,#7c3aed);padding:.4rem .8rem;border-radius:.5rem;text-decoration:none;font-weight:600;"><i class="fas fa-play"></i> Start Interview</a>` : ''}
+            ${ai.expires_at ? `<div style="font-size:.65rem;color:#64748b;margin-top:.3rem;"><i class="fas fa-clock"></i> Deadline: ${ai.expires_at}</div>` : ''}
+        </div>`;
+    }
+
+    // Scheduled interview section
+    let siSection = '';
+    if (si && si.date) {
+        siSection = `
+        <div style="margin-top:.75rem;padding:.75rem;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:.75rem;">
+            <div style="font-size:.78rem;font-weight:700;color:#34d399;margin-bottom:.4rem;"><i class="fas fa-calendar-check"></i> Interview Scheduled</div>
+            <div style="font-size:.78rem;color:#e2e8f0;">${si.date}${si.time ? ' at ' + si.time : ''}</div>
+            ${si.location ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:.2rem;"><i class="fas fa-map-marker-alt"></i> ${si.location}</div>` : ''}
+            ${si.contact  ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:.15rem;"><i class="fas fa-user"></i> ${si.contact}</div>` : ''}
+        </div>`;
+    }
+
+    // Match + applied date footer
+    const matchColor = app.match_score >= 80 ? '#00b86b' : app.match_score >= 60 ? '#48bbff' : app.match_score >= 40 ? '#fbbf24' : '#ef4444';
+
+    document.getElementById('status-drawer-body').innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:0;">
+
+            <!-- Applied meta -->
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem 0;margin-bottom:.75rem;border-bottom:1px solid rgba(255,255,255,.06);">
+                <div>
+                    <div style="font-size:.82rem;font-weight:600;color:#e2e8f0;">${app.job_title}</div>
+                    <div style="font-size:.7rem;color:#64748b;margin-top:.1rem;">${app.company_name} · Applied ${app.applied_ago}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:1.25rem;font-weight:800;color:${matchColor};">${app.match_score}%</div>
+                    <div style="font-size:.62rem;color:#475569;">Match</div>
+                </div>
+            </div>
+
+            ${rejectedBanner}
+
+            <!-- Pipeline -->
+            <div style="font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;font-weight:600;">Application Journey</div>
+            <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.5rem;">
+                ${steps}
+            </div>
+
+            ${aiSection}
+            ${siSection}
+
+            <!-- Agent insight -->
+            ${ag ? `
+            <div style="margin-top:.75rem;padding:.6rem .75rem;background:rgba(72,187,255,.06);border:1px solid rgba(72,187,255,.15);border-radius:.6rem;display:flex;align-items:center;gap:.6rem;">
+                <i class="fas fa-robot" style="color:#48bbff;font-size:.9rem;"></i>
+                <div style="font-size:.72rem;color:#94a3b8;">AI Agent: <strong style="color:#48bbff;">${ag.decision.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}</strong> · Score ${ag.score}% · ${ag.confidence} confidence</div>
+            </div>` : ''}
+
+            <!-- Footer -->
+            <div style="margin-top:1.25rem;padding-top:.75rem;border-top:1px solid rgba(255,255,255,.06);">
+                <a href="/student/dashboard/" style="display:flex;align-items:center;justify-content:center;gap:.5rem;
+                    padding:.65rem;border-radius:.6rem;font-size:.8rem;font-weight:600;color:#94a3b8;
+                    text-decoration:none;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);"
+                    onmouseenter="this.style.color='#e2e8f0'"
+                    onmouseleave="this.style.color='#94a3b8'">
+                    <i class="fas fa-th-large"></i> All Applications on Dashboard
+                </a>
+            </div>
+        </div>
+    `;
 }
 
 // Load job details
@@ -475,6 +659,54 @@ async function initPage() {
 // Load on page load
 initPage();
 </script>
+
+<!-- ── Application Status Drawer ─────────────────────────────────── -->
+<div id="status-drawer-overlay"
+     style="position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);
+            z-index:1100;display:none;transition:opacity .3s;"
+     onclick="closeStatusDrawer()"></div>
+
+<div id="status-drawer"
+     style="position:fixed;top:0;right:-400px;width:370px;max-width:95vw;height:100vh;
+            background:linear-gradient(160deg,rgba(8,18,36,.98),rgba(12,24,48,.98));
+            border-left:1px solid rgba(72,187,255,.12);
+            z-index:1101;overflow-y:auto;transition:right .32s cubic-bezier(.4,0,.2,1);
+            display:flex;flex-direction:column;">
+
+    <!-- Drawer header -->
+    <div style="padding:1.25rem 1.25rem 1rem;border-bottom:1px solid rgba(255,255,255,.07);
+                display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+                position:sticky;top:0;background:rgba(8,18,36,.97);z-index:10;">
+        <div>
+            <div style="font-size:.88rem;font-weight:700;color:#e2e8f0;">
+                <i class="fas fa-chart-line" style="color:#48bbff;margin-right:.4rem;"></i>
+                Application Status
+            </div>
+            <div style="font-size:.68rem;color:#475569;margin-top:.1rem;">Live tracking for this job</div>
+        </div>
+        <button onclick="closeStatusDrawer()"
+            style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+                   color:#94a3b8;border-radius:.5rem;padding:.35rem .55rem;cursor:pointer;
+                   font-size:.85rem;transition:background .2s;"
+            onmouseenter="this.style.background='rgba(255,255,255,.12)'"
+            onmouseleave="this.style.background='rgba(255,255,255,.06)'">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- Drawer body — filled by renderStatusDrawer() -->
+    <div id="status-drawer-body" style="padding:1.1rem 1.25rem;flex:1;">
+        <div style="text-align:center;padding:3rem 1rem;color:#64748b;">
+            <i class="fas fa-spinner fa-spin" style="font-size:1.8rem;margin-bottom:1rem;display:block;"></i>
+            Loading...
+        </div>
+    </div>
+</div>
+
+<style>
+#status-drawer-overlay.open { display:block; }
+#status-drawer.open         { right:0; }
+</style>
 
 <style>
 /* Container with proper constraints */

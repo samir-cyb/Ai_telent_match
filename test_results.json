@@ -46,70 +46,70 @@
       "student": "Karim Chowdhury",
       "dept": "Data Science",
       "scores": {
-        "Senior Django Backend Develope": 48.9,
-        "Machine Learning Engineer": 70.3,
-        "Data Analyst": 67.6,
-        "Junior Frontend Developer": 38.3,
-        "Full Stack Developer": 52.0,
-        "Embedded Systems Engineer": 43.4,
-        "Marketing Manager": 67.0,
-        "Business Analyst (AI Products)": 70.0
+        "Senior Django Backend Develope": 35.6,
+        "Machine Learning Engineer": 72.6,
+        "Data Analyst": 70.5,
+        "Junior Frontend Developer": 0.0,
+        "Full Stack Developer": 38.8,
+        "Embedded Systems Engineer": 0.0,
+        "Marketing Manager": 42.5,
+        "Business Analyst (AI Products)": 55.9
       }
     },
     {
       "student": "Rahim Ahmed",
       "dept": "CSE",
       "scores": {
-        "Senior Django Backend Develope": 62.8,
-        "Machine Learning Engineer": 57.5,
-        "Data Analyst": 46.8,
-        "Junior Frontend Developer": 55.3,
-        "Full Stack Developer": 68.1,
-        "Embedded Systems Engineer": 41.3,
-        "Marketing Manager": 62.1,
-        "Business Analyst (AI Products)": 65.4
+        "Senior Django Backend Develope": 50.5,
+        "Machine Learning Engineer": 61.3,
+        "Data Analyst": 53.2,
+        "Junior Frontend Developer": 42.2,
+        "Full Stack Developer": 56.0,
+        "Embedded Systems Engineer": 0.0,
+        "Marketing Manager": 0.0,
+        "Business Analyst (AI Products)": 48.9
       }
     },
     {
       "student": "Tasnim Haque",
       "dept": "BBA",
       "scores": {
-        "Senior Django Backend Develope": 30.4,
-        "Machine Learning Engineer": 30.4,
-        "Data Analyst": 38.4,
-        "Junior Frontend Developer": 30.4,
-        "Full Stack Developer": 30.4,
-        "Embedded Systems Engineer": 36.0,
-        "Marketing Manager": 72.0,
-        "Business Analyst (AI Products)": 65.4
+        "Senior Django Backend Develope": 0.0,
+        "Machine Learning Engineer": 0.0,
+        "Data Analyst": 27.2,
+        "Junior Frontend Developer": 0.0,
+        "Full Stack Developer": 0.0,
+        "Embedded Systems Engineer": 0.0,
+        "Marketing Manager": 33.3,
+        "Business Analyst (AI Products)": 37.4
       }
     },
     {
       "student": "Mehedi Hassan",
       "dept": "EEE",
       "scores": {
-        "Senior Django Backend Develope": 34.0,
-        "Machine Learning Engineer": 34.0,
-        "Data Analyst": 34.0,
-        "Junior Frontend Developer": 28.6,
-        "Full Stack Developer": 33.2,
-        "Embedded Systems Engineer": 62.9,
-        "Marketing Manager": 48.5,
-        "Business Analyst (AI Products)": 48.5
+        "Senior Django Backend Develope": 4.7,
+        "Machine Learning Engineer": 24.2,
+        "Data Analyst": 24.2,
+        "Junior Frontend Developer": 0.0,
+        "Full Stack Developer": 3.9,
+        "Embedded Systems Engineer": 58.3,
+        "Marketing Manager": 0.0,
+        "Business Analyst (AI Products)": 0.0
       }
     },
     {
       "student": "Nadia Islam",
       "dept": "CSE",
       "scores": {
-        "Senior Django Backend Develope": 14.0,
-        "Machine Learning Engineer": 19.4,
-        "Data Analyst": 19.4,
-        "Junior Frontend Developer": 39.0,
-        "Full Stack Developer": 22.4,
-        "Embedded Systems Engineer": 7.2,
-        "Marketing Manager": 14.9,
-        "Business Analyst (AI Products)": 18.3
+        "Senior Django Backend Develope": 0,
+        "Machine Learning Engineer": 0,
+        "Data Analyst": 0,
+        "Junior Frontend Developer": 16.2,
+        "Full Stack Developer": 0,
+        "Embedded Systems Engineer": 0.0,
+        "Marketing Manager": 0.0,
+        "Business Analyst (AI Products)": 0
       }
     }
   ],
@@ -118,7 +118,7 @@
       "student": "Karim Chowdhury",
       "job": "Senior Django Backend Developer",
       "company": "TechCorp Bangladesh",
-      "score": 52.4,
+      "score": 47.5,
       "decision": "review",
       "confidence": "LOW",
       "strengths": [
@@ -128,13 +128,13 @@
       "gaps": [
         "Missing skills: rest api, git, django"
       ],
-      "ms": 58
+      "ms": 71
     },
     {
       "student": "Rahim Ahmed",
       "job": "Senior Django Backend Developer",
       "company": "TechCorp Bangladesh",
-      "score": 58.2,
+      "score": 54.2,
       "decision": "review",
       "confidence": "LOW",
       "strengths": [
@@ -144,13 +144,13 @@
       "gaps": [
         "Weak Technical skill match: 45% \u2014 6/6 matched | sql\u2192self(Intermediate)=45%, rest api\u2192self(Intermediate)=45%, git\u2192self(Intermediate)=45%, python\u2192self(Intermediate)=45%, django\u2192self(Intermediate)=45%, docker\u2192self(Intermediate)=45%"
       ],
-      "ms": 62
+      "ms": 66
     },
     {
       "student": "Tasnim Haque",
       "job": "Senior Django Backend Developer",
       "company": "TechCorp Bangladesh",
-      "score": 27.8,
+      "score": 24.7,
       "decision": "reject",
       "confidence": "HIGH",
       "strengths": [
@@ -159,13 +159,13 @@
       "gaps": [
         "Missing skills: postgresql, rest api, git, python, django, docker"
       ],
-      "ms": 88
+      "ms": 64
     },
     {
       "student": "Mehedi Hassan",
       "job": "Senior Django Backend Developer",
       "company": "TechCorp Bangladesh",
-      "score": 31.7,
+      "score": 27.5,
       "decision": "reject",
       "confidence": "HIGH",
       "strengths": [
@@ -174,13 +174,13 @@
       "gaps": [
         "Missing skills: postgresql, rest api, git, django, docker"
       ],
-      "ms": 80
+      "ms": 62
     },
     {
       "student": "Nadia Islam",
       "job": "Senior Django Backend Developer",
       "company": "TechCorp Bangladesh",
-      "score": 22.4,
+      "score": 20.4,
       "decision": "reject",
       "confidence": "HIGH",
       "strengths": [
@@ -189,13 +189,13 @@
       "gaps": [
         "Missing skills: rest api, git, django, docker"
       ],
-      "ms": 92
+      "ms": 59
     },
     {
       "student": "Karim Chowdhury",
       "job": "Machine Learning Engineer",
       "company": "DataMinds Analytics",
-      "score": 62.6,
+      "score": 74.2,
       "decision": "shortlist",
       "confidence": "MEDIUM",
       "strengths": [
@@ -205,15 +205,15 @@
       "gaps": [
         "Weak Technical skill match: 45% \u2014 6/6 matched | sql\u2192self(Intermediate)=45%, machine learning\u2192self(Intermediate)=45%, python\u2192self(Intermediate)=45%, tensorflow\u2192self(Intermediate)=45%, aws\u2192self(Intermediate)=45%, docker\u2192self(Intermediate)=45%"
       ],
-      "ms": 94
+      "ms": 56
     },
     {
       "student": "Rahim Ahmed",
       "job": "Machine Learning Engineer",
       "company": "DataMinds Analytics",
-      "score": 50.1,
-      "decision": "review",
-      "confidence": "LOW",
+      "score": 61.4,
+      "decision": "shortlist",
+      "confidence": "MEDIUM",
       "strengths": [
         "Academic performance: 84% \u2014 CGPA 3.82/4.0 (min 3.5) \u2192 84%",
         "GitHub / activity: 82% \u2014 GitHub: 78 pts | Activity: 88/100"
@@ -221,13 +221,13 @@
       "gaps": [
         "Missing skills: tensorflow, aws"
       ],
-      "ms": 60
+      "ms": 78
     },
     {
       "student": "Tasnim Haque",
       "job": "Machine Learning Engineer",
       "company": "DataMinds Analytics",
-      "score": 23.8,
+      "score": 38.5,
       "decision": "reject",
       "confidence": "HIGH",
       "strengths": [
@@ -236,13 +236,13 @@
       "gaps": [
         "Missing skills: sql, machine learning, python, tensorflow, aws, docker"
       ],
-      "ms": 95
+      "ms": 48
     },
     {
       "student": "Mehedi Hassan",
       "job": "Machine Learning Engineer",
       "company": "DataMinds Analytics",
-      "score": 28.2,
+      "score": 40.0,
       "decision": "reject",
       "confidence": "HIGH",
       "strengths": [
@@ -251,13 +251,13 @@
       "gaps": [
         "Missing skills: sql, machine learning, tensorflow, aws, docker"
       ],
-      "ms": 91
+      "ms": 56
     },
     {
       "student": "Nadia Islam",
       "job": "Machine Learning Engineer",
       "company": "DataMinds Analytics",
-      "score": 21.0,
+      "score": 27.5,
       "decision": "reject",
       "confidence": "HIGH",
       "strengths": [
@@ -266,15 +266,15 @@
       "gaps": [
         "Missing skills: machine learning, tensorflow, aws, docker"
       ],
-      "ms": 85
+      "ms": 68
     },
     {
       "student": "Karim Chowdhury",
       "job": "Data Analyst",
       "company": "DataMinds Analytics",
-      "score": 59.7,
-      "decision": "review",
-      "confidence": "LOW",
+      "score": 72.7,
+      "decision": "shortlist",
+      "confidence": "MEDIUM",
       "strengths": [
         "Academic performance: 97% \u2014 CGPA 3.94/4.0 (min 3.0) \u2192 97%",
         "GitHub / activity: 93% \u2014 GitHub: 91 pts | Activity: 95/100"
@@ -282,15 +282,15 @@
       "gaps": [
         "Missing skills: excel"
       ],
-      "ms": 62
+      "ms": 67
     },
     {
       "student": "Rahim Ahmed",
       "job": "Data Analyst",
       "company": "DataMinds Analytics",
-      "score": 48.0,
-      "decision": "review",
-      "confidence": "LOW",
+      "score": 61.3,
+      "decision": "shortlist",
+      "confidence": "MEDIUM",
       "strengths": [
         "Academic performance: 92% \u2014 CGPA 3.82/4.0 (min 3.0) \u2192 92%",
         "GitHub / activity: 82% \u2014 GitHub: 78 pts | Activity: 88/100"
@@ -298,43 +298,43 @@
       "gaps": [
         "Missing skills: tableau, pandas, excel, data science"
       ],
-      "ms": 56
+      "ms": 85
     },
     {
       "student": "Tasnim Haque",
       "job": "Data Analyst",
       "company": "DataMinds Analytics",
-      "score": 35.6,
-      "decision": "reject",
-      "confidence": "HIGH",
+      "score": 50.1,
+      "decision": "review",
+      "confidence": "LOW",
       "strengths": [
         "Academic performance: 80% \u2014 CGPA 3.55/4.0 (min 3.0) \u2192 80%"
       ],
       "gaps": [
         "Missing skills: sql, python, tableau, pandas, data science"
       ],
-      "ms": 79
+      "ms": 53
     },
     {
       "student": "Mehedi Hassan",
       "job": "Data Analyst",
       "company": "DataMinds Analytics",
-      "score": 31.7,
-      "decision": "reject",
-      "confidence": "HIGH",
+      "score": 45.9,
+      "decision": "review",
+      "confidence": "LOW",
       "strengths": [
         "Academic performance: 82% \u2014 CGPA 3.61/4.0 (min 3.0) \u2192 82%"
       ],
       "gaps": [
         "Missing skills: sql, tableau, pandas, excel, data science"
       ],
-      "ms": 78
+      "ms": 58
     },
     {
       "student": "Nadia Islam",
       "job": "Data Analyst",
       "company": "DataMinds Analytics",
-      "score": 22.4,
+      "score": 29.9,
       "decision": "reject",
       "confidence": "HIGH",
       "strengths": [
@@ -343,44 +343,44 @@
       "gaps": [
         "Missing skills: tableau, pandas, excel, data science"
       ],
-      "ms": 79
+      "ms": 63
     }
   ],
   "T4_rl_weights": [
     {
       "weight": "skills",
       "before": 0.4,
-      "after_hire": 0.385143,
-      "after_reject": 0.372522,
-      "net_delta": -0.027478000000000002
+      "after_hire": 0.40606,
+      "after_reject": 0.38875,
+      "net_delta": -0.011250000000000038
     },
     {
       "weight": "cgpa",
       "before": 0.2,
-      "after_hire": 0.214024,
-      "after_reject": 0.221,
-      "net_delta": 0.02099999999999999
+      "after_hire": 0.225648,
+      "after_reject": 0.229893,
+      "net_delta": 0.029892999999999975
     },
     {
       "weight": "projects",
       "before": 0.2,
-      "after_hire": 0.161193,
-      "after_reject": 0.169598,
-      "net_delta": -0.030402000000000012
+      "after_hire": 0.164249,
+      "after_reject": 0.172432,
+      "net_delta": -0.02756800000000001
     },
     {
       "weight": "activity",
       "before": 0.1,
-      "after_hire": 0.1203,
-      "after_reject": 0.12116,
-      "net_delta": 0.021159999999999998
+      "after_hire": 0.078222,
+      "after_reject": 0.088179,
+      "net_delta": -0.011821000000000012
     },
     {
       "weight": "trust",
       "before": 0.1,
-      "after_hire": 0.119339,
-      "after_reject": 0.11572,
-      "net_delta": 0.015719999999999998
+      "after_hire": 0.125821,
+      "after_reject": 0.120746,
+      "net_delta": 0.020746
     }
   ],
   "T5_fraud": [
@@ -450,12 +450,12 @@
     },
     {
       "level": "Average Answer (Intermediate)",
-      "score": 7,
+      "score": 5,
       "expected": 6
     },
     {
       "level": "Weak Answer (Junior)",
-      "score": 2,
+      "score": 4,
       "expected": 3
     }
   ],
@@ -534,19 +534,19 @@
   "T9_timing": [
     {
       "step": "1. Profile Load (DB)",
-      "ms": 5
+      "ms": 4
     },
     {
       "step": "2. AI Match Score (1 job)",
-      "ms": 17
+      "ms": 43
     },
     {
       "step": "3. Score All 8 Jobs",
-      "ms": 94
+      "ms": 224
     },
     {
       "step": "4. Recruitment Agent (7 steps)",
-      "ms": 70
+      "ms": 67
     },
     {
       "step": "5. Generate Interview (6 Qs)",

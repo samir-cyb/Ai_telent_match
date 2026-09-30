@@ -2,96 +2,151 @@
 {% block title %}Pending Assessments | AI Talent Match{% endblock %}
 
 {% block content %}
-<div class="container" style="padding: 2rem 0; max-width: 1000px; margin: 0 auto;">
-    <div class="glass-card" style="padding: 2rem; margin-bottom: 2rem;">
-        <h1 style="color: #48bbff; margin-bottom: 0.5rem;"><i class="fas fa-clipboard-list"></i> Pending Assessments</h1>
-        <p style="color: #94a3b8;">Technical evaluations waiting for your completion</p>
-    </div>
+<style>
+.pa-page { max-width: 860px; margin: 0 auto; padding: 1.75rem 1rem 4rem; }
+.pa-header {
+  background: rgba(15,23,42,.85);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  padding: 1.5rem 2rem;
+  margin-bottom: 1.5rem;
+}
+.pa-card {
+  background: rgba(15,23,42,.85);
+  border: 1px solid rgba(72,187,255,.2);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  transition: border-color .2s;
+}
+.pa-card:hover { border-color: rgba(72,187,255,.45); }
+.pa-card-pipeline {
+  border-color: rgba(249,115,22,.3);
+}
+.pa-card-pipeline:hover { border-color: rgba(249,115,22,.55); }
+.pa-badge {
+  font-size: .68rem; font-weight: 700; padding: .18rem .55rem;
+  border-radius: 999px; text-transform: uppercase; letter-spacing: .05em;
+  display: inline-block; margin-bottom: .35rem;
+}
+.pa-badge-pipeline { background: rgba(249,115,22,.12); color: #fb923c; border: 1px solid rgba(249,115,22,.25); }
+.pa-badge-manual   { background: rgba(72,187,255,.1);   color: #38bdf8; border: 1px solid rgba(72,187,255,.2);  }
+.pa-title { font-size: 1rem; font-weight: 700; color: #f0f9ff; margin: 0 0 .25rem; }
+.pa-meta  { font-size: .82rem; color: #64748b; margin: 0; }
+.pa-deadline { color: #f87171; font-size: .78rem; margin-top: .25rem; }
+.pa-btn-orange {
+  display: inline-flex; align-items: center; gap: .45rem;
+  background: linear-gradient(135deg,#ea580c,#f97316);
+  color: #fff; text-decoration: none;
+  padding: .55rem 1.25rem; border-radius: 10px;
+  font-size: .88rem; font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(249,115,22,.35);
+  flex-shrink: 0;
+}
+.pa-btn-blue {
+  display: inline-flex; align-items: center; gap: .45rem;
+  background: linear-gradient(135deg,#1d4ed8,#3b82f6);
+  color: #fff; text-decoration: none;
+  padding: .55rem 1.25rem; border-radius: 10px;
+  font-size: .88rem; font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(59,130,246,.3);
+  flex-shrink: 0;
+}
+.pa-empty {
+  background: rgba(15,23,42,.85);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 16px;
+  padding: 3.5rem 2rem;
+  text-align: center;
+  color: #475569;
+}
+.pa-empty i { font-size: 2.5rem; margin-bottom: 1rem; display: block; }
+.pa-empty h3 { color: #94a3b8; margin: 0 0 .5rem; }
+.pa-empty p  { margin: 0; font-size: .9rem; }
+.pa-noq-warn {
+  margin-top: .5rem;
+  font-size: .78rem;
+  color: #f97316;
+  display: flex; align-items: center; gap: .3rem;
+}
+</style>
 
-    <div id="assessments-container">
-        <div class="loading-spinner" style="text-align: center; padding: 3rem; color: #48bbff;">
-            <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
-            <p>Loading assessments...</p>
-        </div>
+<div class="pa-page">
+
+  <div class="pa-header">
+    <h1 style="color:#48bbff;margin:0 0 .35rem;font-size:1.5rem;">
+      <i class="fas fa-clipboard-list"></i> Pending Assessments
+    </h1>
+    <p style="color:#64748b;margin:0;font-size:.9rem;">
+      Technical evaluations waiting for your completion
+      {% if total_pending > 0 %}
+      — <strong style="color:#f0f9ff;">{{ total_pending }}</strong> pending
+      {% endif %}
+    </p>
+  </div>
+
+  {% if assessments %}
+    {% for a in assessments %}
+    <div class="pa-card {% if a.is_pipeline %}pa-card-pipeline{% endif %}">
+      <div style="flex:1;min-width:0;">
+        <span class="pa-badge {% if a.is_pipeline %}pa-badge-pipeline{% else %}pa-badge-manual{% endif %}">
+          {% if a.is_pipeline %}<i class="fas fa-robot"></i> Auto Pipeline{% else %}<i class="fas fa-code"></i> Technical Assessment{% endif %}
+        </span>
+        <h3 class="pa-title">{{ a.challenge_title }}</h3>
+        <p class="pa-meta">
+          <strong style="color:#e2e8f0;">{{ a.job_title }}</strong>
+          {% if a.company_name %}<span style="color:#475569;"> @ {{ a.company_name }}</span>{% endif %}
+          &nbsp;·&nbsp; {{ a.difficulty|title }} difficulty
+          &nbsp;·&nbsp; {{ a.time_limit_minutes }} min
+          {% if a.status == 'in_progress' %}
+          &nbsp;·&nbsp; <span style="color:#fbbf24;font-weight:700;"><i class="fas fa-circle-notch fa-spin"></i> In Progress</span>
+          {% endif %}
+        </p>
+        {% if a.window_end %}
+        <p class="pa-deadline">
+          <i class="fas fa-clock"></i>
+          Deadline: <strong>{{ a.window_end|date:"d M Y, h:i A" }}</strong>
+        </p>
+        {% endif %}
+        {% if a.no_questions %}
+        <p class="pa-noq-warn">
+          <i class="fas fa-exclamation-triangle"></i>
+          Assessment questions are being generated — please check back in a few minutes.
+        </p>
+        {% endif %}
+      </div>
+
+      {% if not a.no_questions %}
+      <a href="{{ a.test_url }}"
+         class="{% if a.is_pipeline %}pa-btn-orange{% else %}pa-btn-blue{% endif %}">
+        <i class="fas {% if a.status == 'in_progress' %}fa-play-circle{% else %}fa-play{% endif %}"></i>
+        {% if a.status == 'in_progress' %}Resume Test{% else %}Start Assessment{% endif %}
+      </a>
+      {% else %}
+      <span style="color:#475569;font-size:.82rem;padding:.55rem 1rem;
+        border:1px dashed rgba(255,255,255,.1);border-radius:8px;white-space:nowrap;">
+        <i class="fas fa-hourglass-half"></i> Not Ready
+      </span>
+      {% endif %}
     </div>
+    {% endfor %}
+
+  {% else %}
+    <div class="pa-empty">
+      <i class="fas fa-check-circle" style="color:#22c55e;"></i>
+      <h3>No Pending Assessments</h3>
+      <p>You're all caught up! Check back here when a company sends you a technical assessment.</p>
+    </div>
+  {% endif %}
+
 </div>
-
-<script>
-const API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
-const studentId = localStorage.getItem('student_id');
-
-if (!studentId) {
-    window.location.href = '/student/login/';
-}
-
-async function loadPendingAssessments() {
-    const container = document.getElementById('assessments-container');
-    
-    try {
-        const response = await fetch(`${API_BASE}/notifications/${studentId}/student/`);
-        const data = await response.json();
-        
-        console.log("API Response:", data); // DEBUG: Check console to see actual structure
-        
-        if (!data.notifications) {
-            throw new Error('No notifications array in response');
-        }
-        
-        const vettingNotifications = data.notifications.filter(n => 
-            n.type === 'vetting_invitation' && !n.read
-        );
-        
-        if (vettingNotifications.length === 0) {
-            container.innerHTML = `
-                <div class="glass-card" style="padding: 3rem; text-align: center;">
-                    <i class="fas fa-check-circle" style="font-size: 3rem; color: #00b86b; margin-bottom: 1rem;"></i>
-                    <h3 style="color: #f0f9ff; margin-bottom: 0.5rem;">No Pending Assessments</h3>
-                    <p style="color: #94a3b8;">You're all caught up!</p>
-                </div>
-            `;
-            return;
-        }
-        
-        let html = '<div style="display: flex; flex-direction: column; gap: 1.5rem;">';
-        
-        vettingNotifications.forEach(notif => {
-            // Handle both object and string data fields
-            const notifData = typeof notif.data === 'string' ? JSON.parse(notif.data) : notif.data;
-            const testUrl = notifData?.test_url || `/vetting/test/${notifData?.token}/`;
-            const jobTitle = notif.title.replace('Technical Assessment: ', '');
-            
-            html += `
-                <div class="glass-card" style="padding: 1.5rem; border: 1px solid rgba(72, 187, 255, 0.3);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                        <div>
-                            <h3 style="color: #48bbff; margin-bottom: 0.5rem;">
-                                <i class="fas fa-code"></i> ${jobTitle}
-                            </h3>
-                            <p style="color: #cbd5e1; margin: 0;">${notif.message}</p>
-                        </div>
-                        <a href="${testUrl}" class="btn-primary" style="text-decoration: none; white-space: nowrap;">
-                            <i class="fas fa-play"></i> Start Assessment
-                        </a>
-                    </div>
-                </div>
-            `;
-        });
-        
-        html += '</div>';
-        container.innerHTML = html;
-        
-    } catch (error) {
-        console.error('Error loading assessments:', error);
-        container.innerHTML = `
-            <div class="glass-card" style="padding: 2rem; text-align: center; color: #ff5858;">
-                <i class="fas fa-exclamation-circle" style="font-size: 2rem; margin-bottom: 1rem;"></i>
-                <p>Error loading assessments. Please try again later.</p>
-                <p style="font-size: 0.8rem; margin-top: 0.5rem;">${error.message}</p>
-            </div>
-        `;
-    }
-}
-
-loadPendingAssessments();
-</script>
 {% endblock %}

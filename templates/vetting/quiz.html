@@ -47,6 +47,26 @@
         ⚠️ Warning: Suspicious activity detected. Further violations may result in automatic submission.
     </div>
 
+    <!-- FRAUD LOCKOUT OVERLAY -->
+    <div id="fraud-overlay" style="display:none; position:fixed; inset:0; background:#0f0f0f; z-index:99999; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+        <div style="animation: fraudPulse 1s infinite;">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" style="margin:0 auto 16px;">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+        </div>
+        <h1 style="color:#ef4444; font-size:2.5rem; font-weight:900; letter-spacing:0.1em; margin-bottom:8px;">🚨 FRAUD DETECTED</h1>
+        <p style="color:#fca5a5; font-size:1.1rem; margin-bottom:4px;">You switched tabs 5 or more times during the assessment.</p>
+        <p style="color:#f87171; font-size:1rem; margin-bottom:32px;">Your assessment is being <strong>automatically submitted</strong> and flagged for recruiter review.</p>
+        <div style="background:#1f1f1f; border:2px solid #ef4444; border-radius:12px; padding:16px 40px; color:#ef4444; font-size:1.4rem; font-weight:700; margin-bottom:24px;">
+            Submitting in <span id="fraud-secs">3</span>s…
+        </div>
+        <p style="color:#6b7280; font-size:0.85rem;">Do not close this window. You will be redirected automatically.</p>
+    </div>
+    <style>
+        @keyframes fraudPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    </style>
+
     <!-- Header -->
     <div class="bg-slate-900 border-b border-slate-700 px-6 py-3 flex justify-between items-center sticky top-0 z-50">
         <div>
@@ -61,10 +81,12 @@
             <button onclick="toggleFullscreen()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded text-sm">
                 ⛶ Fullscreen
             </button>
+            {% if questions_json and questions_json != '[]' %}
             <button onclick="submitQuiz()" id="submit-btn"
                 class="bg-green-600 hover:bg-green-500 px-5 py-1.5 rounded text-sm font-bold">
                 Submit →
             </button>
+            {% endif %}
         </div>
     </div>
 
@@ -91,8 +113,27 @@
             </div>
         </div>
 
+        {% if not questions_json or questions_json == '[]' %}
+        <!-- No questions — auto-generation still pending -->
+        <div style="background:#1e293b;border:2px dashed #f97316;border-radius:16px;padding:3rem 2rem;text-align:center;margin-bottom:2rem;">
+            <div style="font-size:2.5rem;margin-bottom:1rem;">⏳</div>
+            <h2 style="color:#fb923c;margin:0 0 .75rem;font-size:1.2rem;">Assessment Questions Are Being Generated</h2>
+            <p style="color:#94a3b8;margin:0 0 1.5rem;font-size:.9rem;">
+                The AI is generating your personalised questions for this role.<br>
+                This usually takes 1–2 minutes. Please come back shortly.
+            </p>
+            <a href="/vetting/pending/"
+               style="display:inline-flex;align-items:center;gap:.5rem;
+                 background:linear-gradient(135deg,#ea580c,#f97316);
+                 color:#fff;text-decoration:none;padding:.65rem 1.5rem;
+                 border-radius:10px;font-weight:700;font-size:.9rem;">
+                ← Back to Pending Assessments
+            </a>
+        </div>
+        {% else %}
         <!-- Questions injected by JS -->
         <div id="questions-container"></div>
+        {% endif %}
 
         <!-- Anti-cheat monitor (bottom of sidebar on large screens) -->
         <div class="q-card mt-6 text-xs" style="border-color: #44403c;">
@@ -106,6 +147,7 @@
             <p id="cheat-status" class="mt-2 text-green-400 font-semibold">✓ Activity Normal</p>
         </div>
 
+        {% if questions_json and questions_json != '[]' %}
         <div class="text-center mt-8 pb-12">
             <button onclick="submitQuiz()" id="submit-btn-bottom"
                 class="bg-green-600 hover:bg-green-500 px-8 py-3 rounded-lg text-base font-bold">
@@ -113,6 +155,7 @@
             </button>
             <p class="text-xs text-slate-500 mt-2">Submission is final. Ensure all questions are answered.</p>
         </div>
+        {% endif %}
     </div>
 
     <script>
@@ -267,12 +310,14 @@
 
             if (data.status === 'success') {
                 clearInterval(timerInterval);
-                // Build result summary
-                let msg = `✅ Assessment submitted!\n\nFinal Score: ${data.score}%\nResult: ${data.passed ? '✓ PASSED' : '✗ Not Passed'}\n`;
-                msg += `\nBreakdown:\n  MCQ Score: ${data.layer_breakdown?.mcq ?? 'N/A'}%\n  Written Score: ${data.layer_breakdown?.written ?? 'N/A'}%`;
-                if (cheatScore > 30) msg += `\n\n⚠️ Flagged for review due to suspicious activity.`;
-                alert(msg);
-                window.location.href = '/student/dashboard/';
+                // Redirect to result page — no alert needed, result page shows everything
+                if (data.result_url) {
+                    window.location.href = data.result_url;
+                } else {
+                    // Fallback: show summary then go to dashboard
+                    alert(`✅ Submitted! Score: ${data.score}% — ${data.passed ? 'PASSED' : 'Not Passed'}`);
+                    window.location.href = '/student/dashboard/';
+                }
             } else {
                 alert('Submission failed: ' + data.message);
                 [btn, btn2].forEach(b => { if (b) { b.textContent = 'Submit Assessment →'; b.disabled = false; } });
@@ -307,12 +352,69 @@
 
     document.addEventListener('contextmenu', e => { e.preventDefault(); showCheatWarning('Right-click disabled.'); });
 
+    const TAB_SWITCH_LIMIT = 5; // Auto-terminate threshold
+
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             tabSwitches++; cheatScore += 5;
-            updateCheatDisplay(); showCheatWarning('⚠️ Tab switch detected!');
+            updateCheatDisplay();
+
+            if (tabSwitches >= TAB_SWITCH_LIMIT) {
+                triggerFraudLockout();
+            } else {
+                const remaining = TAB_SWITCH_LIMIT - tabSwitches;
+                showCheatWarning(`⚠️ Tab switch #${tabSwitches} detected! ${remaining} more will auto-terminate your assessment.`);
+            }
         }
     });
+
+    function triggerFraudLockout() {
+        const overlay = document.getElementById('fraud-overlay');
+        overlay.style.display = 'flex';
+        const btn = document.getElementById('submit-btn');
+        if (btn) btn.disabled = true;
+
+        let secs = 3;
+        document.getElementById('fraud-secs').textContent = secs;
+        const tick = setInterval(() => {
+            secs--;
+            const el = document.getElementById('fraud-secs');
+            if (el) el.textContent = secs;
+            if (secs <= 0) { clearInterval(tick); fraudAutoSubmit(); }
+        }, 1000);
+    }
+
+    async function fraudAutoSubmit() {
+        // Collect current answers
+        const answers = {};
+        document.querySelectorAll('input[type=radio]:checked').forEach(r => {
+            const m = r.name.match(/^q(\d+)$/);
+            if (m) answers[m[1]] = r.value;
+        });
+        document.querySelectorAll('textarea[name^="q"]').forEach(ta => {
+            const m = ta.name.match(/^q(\d+)$/);
+            if (m && ta.value.trim()) answers[m[1]] = ta.value.trim();
+        });
+        try {
+            const resp = await fetch(`/vetting/api/test/${TOKEN}/submit-quiz/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    answers,
+                    tab_switches: tabSwitches,
+                    copy_pastes: copyPastes,
+                    fullscreen_exits: fullscreenExits,
+                    cheat_score: cheatScore,
+                    auto_submitted: true,
+                    fraud_terminated: true
+                })
+            });
+            const data = await resp.json();
+            window.location.href = data.redirect_url || '/student/dashboard/?fraud=1';
+        } catch (err) {
+            window.location.href = '/student/dashboard/?fraud=1';
+        }
+    }
 
     document.addEventListener('fullscreenchange', () => {
         if (!document.fullscreenElement) {

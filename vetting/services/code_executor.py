@@ -30,8 +30,34 @@ class CodeExecutor:
     # ------------------------------------------------------------------
     # Python executor (no Docker required)
     # ------------------------------------------------------------------
+    # Maximum number of Python subprocesses allowed to run concurrently.
+    # Prevents server OOM when many students submit at the same time.
+    _semaphore = None
+
+    @classmethod
+    def _get_semaphore(cls):
+        import threading
+        if cls._semaphore is None:
+            cls._semaphore = threading.Semaphore(10)  # max 10 concurrent executions
+        return cls._semaphore
+
     def _execute_python(self, code, stdin="", timeout=5):
-        """Run Python code in a subprocess with a strict timeout."""
+        """Run Python code in a subprocess with strict timeout + concurrency limit."""
+        import platform
+
+        # Concurrency guard — if 10 submissions are already running, queue this one.
+        sem = self._get_semaphore()
+        acquired = sem.acquire(timeout=30)  # wait up to 30s for a slot
+        if not acquired:
+            return {
+                'success': False,
+                'stdout': '',
+                'stderr': 'Server is busy. Please try again in a moment.',
+                'compile_output': '',
+                'status': 'Server Busy',
+                'status_id': 13,
+            }
+
         # Write code to a temp file so tracebacks show real line numbers
         tmp = tempfile.NamedTemporaryFile(
             mode='w', suffix='.py', delete=False, encoding='utf-8'
@@ -40,12 +66,26 @@ class CodeExecutor:
             tmp.write(code)
             tmp.close()
 
+            # Resource limits (Linux only) — prevent memory bombs & fork bombs
+            preexec = None
+            if platform.system() == 'Linux':
+                import resource
+                def _set_limits():
+                    # 256 MB memory limit
+                    resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
+                    # Max 50 processes (stops fork bombs)
+                    resource.setrlimit(resource.RLIMIT_NPROC, (50, 50))
+                    # Max 10 MB output
+                    resource.setrlimit(resource.RLIMIT_FSIZE, (10 * 1024 * 1024, 10 * 1024 * 1024))
+                preexec = _set_limits
+
             proc = subprocess.run(
                 [sys.executable, tmp.name],
                 input=stdin,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
+                preexec_fn=preexec,
             )
             success = proc.returncode == 0
             return {
@@ -82,6 +122,7 @@ class CodeExecutor:
                 'status_id': 13,
             }
         finally:
+            sem.release()
             try:
                 os.unlink(tmp.name)
             except OSError:

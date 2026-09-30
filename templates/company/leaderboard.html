@@ -1,0 +1,554 @@
+{% extends "base.html" %}
+{% block title %}Talent Leaderboard | {{ company.name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.lb-wrap { width:100%; padding:2rem 2.5rem 4rem; box-sizing:border-box; }
+
+/* Hero */
+.lb-hero {
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+  border-radius:20px; padding:1.6rem 2rem; margin-bottom:1.8rem;
+}
+.lb-hero-title { font-size:2rem; font-weight:900; margin:0 0 .3rem; }
+.lb-hero-title span { background:linear-gradient(135deg,#48bbff,#a855f7,#f59e0b); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.lb-stat-trio { display:flex; gap:1rem; flex-wrap:wrap; }
+.lb-stat { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:.85rem 1.3rem; text-align:center; min-width:92px; }
+.lb-stat .val { font-size:1.5rem; font-weight:800; line-height:1; }
+.lb-stat .lbl { font-size:.67rem; color:#64748b; text-transform:uppercase; letter-spacing:.5px; margin-top:.25rem; }
+.s-blue .val { color:#48bbff; } .s-green .val { color:#34d399; } .s-purple .val { color:#a855f7; }
+
+/* Filter */
+.lb-filter { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1.2rem; align-items:center; }
+.filter-btn { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); color:#94a3b8; border-radius:999px; padding:.35rem .9rem; font-size:.78rem; cursor:pointer; transition:all .18s; }
+.filter-btn:hover, .filter-btn.active { background:rgba(72,187,255,.14); border-color:rgba(72,187,255,.4); color:#48bbff; }
+.lb-search { margin-left:auto; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:.38rem .85rem; color:#e2e8f0; font-size:.8rem; outline:none; transition:border-color .2s; min-width:180px; }
+.lb-search:focus { border-color:rgba(72,187,255,.4); }
+
+/* Table — fixed column widths so nothing overflows */
+.lb-table-card { background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.07); border-radius:20px; overflow:hidden; }
+
+/* Thead and rows share the same columns via a CSS variable */
+:root { --lb-cols: 56px minmax(0,1fr) 120px 88px 240px; }
+
+.lb-thead {
+  display:grid; grid-template-columns:var(--lb-cols);
+  gap:.75rem; padding:.7rem 1.4rem; background:rgba(0,0,0,.22);
+}
+.lb-thead span { font-size:.67rem; color:#475569; text-transform:uppercase; letter-spacing:.5px; font-weight:600; }
+
+.lb-row {
+  display:grid; grid-template-columns:var(--lb-cols);
+  gap:.75rem; align-items:center; min-width:0;
+  padding:.85rem 1.4rem; border-top:1px solid rgba(255,255,255,.04);
+  transition:background .15s; animation:rowIn .4s ease both;
+}
+/* Each grid cell must not overflow its column */
+.lb-row > * { min-width:0; overflow:hidden; }
+.lb-row:hover { background:rgba(255,255,255,.03); cursor:pointer; }
+@keyframes rowIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
+
+.rank-badge { width:36px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-weight:700; font-size:.82rem; flex-shrink:0; }
+.rk-1 { background:linear-gradient(135deg,#f59e0b,#ef4444); color:#fff; font-size:1rem; }
+.rk-2 { background:linear-gradient(135deg,#94a3b8,#64748b); color:#fff; font-size:1rem; }
+.rk-3 { background:linear-gradient(135deg,#cd7f32,#92400e); color:#fff; font-size:1rem; }
+.rk-n { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); color:#64748b; }
+
+.row-avatar { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.9rem; color:#fff; flex-shrink:0; background:linear-gradient(135deg,#48bbff,#a855f7); }
+.row-name { font-weight:600; color:#e2e8f0; font-size:.88rem; }
+.row-sub  { font-size:.7rem; color:#64748b; margin-top:.1rem; }
+.row-skills { display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.35rem; }
+.skill-chip { font-size:.61rem; padding:.11rem .4rem; border-radius:999px; background:rgba(72,187,255,.08); border:1px solid rgba(72,187,255,.15); color:#7dd3fc; }
+
+/* Match score */
+.match-badge { display:inline-flex; align-items:center; gap:.3rem; border-radius:8px; padding:.3rem .6rem; font-size:.78rem; font-weight:700; }
+.match-high   { background:rgba(52,211,153,.12); border:1px solid rgba(52,211,153,.3); color:#34d399; }
+.match-mid    { background:rgba(251,191,36,.10); border:1px solid rgba(251,191,36,.25); color:#fbbf24; }
+.match-low    { background:rgba(148,163,184,.08); border:1px solid rgba(148,163,184,.15); color:#64748b; }
+
+/* Points */
+.pts-num { font-size:.95rem; font-weight:700; color:#48bbff; white-space:nowrap; }
+.pts-lbl { font-size:.62rem; color:#475569; }
+
+/* Action buttons — flex row, allow wrap so they never overflow */
+.row-actions { display:flex; gap:.35rem; justify-content:flex-end; align-items:center; flex-wrap:wrap; }
+.btn-preview  { background:rgba(72,187,255,.1); border:1px solid rgba(72,187,255,.25); color:#48bbff; border-radius:7px; padding:.28rem .6rem; font-size:.7rem; cursor:pointer; transition:all .15s; white-space:nowrap; flex-shrink:0; }
+.btn-preview:hover { background:rgba(72,187,255,.22); }
+.btn-offer    { background:linear-gradient(135deg,#a855f7,#6366f1); color:#fff; border:none; border-radius:7px; padding:.28rem .65rem; font-size:.7rem; cursor:pointer; transition:all .15s; white-space:nowrap; flex-shrink:0; }
+.btn-offer:hover { opacity:.88; transform:scale(1.03); }
+.btn-offer:disabled, .btn-shortlist:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+.btn-shortlist { background:rgba(52,211,153,.12); border:1px solid rgba(52,211,153,.3); color:#34d399; border-radius:7px; padding:.28rem .6rem; font-size:.7rem; cursor:pointer; transition:all .15s; white-space:nowrap; flex-shrink:0; }
+.btn-shortlist:hover { background:rgba(52,211,153,.22); }
+.sent-tag  { font-size:.66rem; color:#64748b; white-space:nowrap; }
+
+/* ── Profile Drawer ─────────────────────────────────────────────────── */
+/* z-index must exceed navbar (1000) so the drawer sits on top */
+.drawer-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); backdrop-filter:blur(4px); z-index:1100; display:none; }
+.drawer-overlay.open { display:block; }
+.profile-drawer {
+  position:fixed; top:0; right:-420px; width:400px; height:100vh;
+  background:linear-gradient(160deg,rgba(10,20,40,.97),rgba(15,28,55,.97));
+  border-left:1px solid rgba(255,255,255,.08);
+  z-index:1101; overflow-y:auto; transition:right .3s cubic-bezier(.4,0,.2,1);
+  padding:1.5rem; padding-top:2rem;
+}
+.profile-drawer.open { right:0; }
+.drawer-close { position:absolute; top:1rem; right:1rem; background:rgba(255,255,255,.07); border:none; color:#94a3b8; border-radius:50%; width:32px; height:32px; cursor:pointer; font-size:1rem; display:flex; align-items:center; justify-content:center; }
+.drawer-close:hover { background:rgba(255,255,255,.14); color:#e2e8f0; }
+.d-avatar { width:64px; height:64px; border-radius:50%; background:linear-gradient(135deg,#48bbff,#a855f7); display:flex; align-items:center; justify-content:center; font-size:1.6rem; font-weight:800; color:#fff; margin-bottom:1rem; }
+.d-name { font-size:1.2rem; font-weight:800; color:#e2e8f0; margin-bottom:.2rem; }
+.d-sub  { font-size:.78rem; color:#64748b; margin-bottom:1rem; }
+.d-grid { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-bottom:1rem; }
+.d-stat { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.07); border-radius:10px; padding:.65rem .8rem; text-align:center; }
+.d-stat .v { font-size:1.1rem; font-weight:800; color:#48bbff; }
+.d-stat .l { font-size:.65rem; color:#64748b; text-transform:uppercase; margin-top:.15rem; }
+.d-section-title { font-size:.72rem; color:#64748b; text-transform:uppercase; letter-spacing:.5px; font-weight:600; margin:.8rem 0 .4rem; }
+.d-skill-list { display:flex; flex-wrap:wrap; gap:.35rem; }
+.d-skill { font-size:.72rem; padding:.2rem .5rem; border-radius:999px; background:rgba(72,187,255,.08); border:1px solid rgba(72,187,255,.15); color:#7dd3fc; }
+.d-skill.verified { background:rgba(52,211,153,.1); border-color:rgba(52,211,153,.25); color:#34d399; }
+.d-proj { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:8px; padding:.5rem .7rem; margin-bottom:.4rem; font-size:.8rem; color:#e2e8f0; display:flex; justify-content:space-between; align-items:center; }
+.d-proj a { color:#48bbff; font-size:.7rem; }
+.d-links { display:flex; gap:.5rem; margin-top:.6rem; flex-wrap:wrap; }
+.d-link { font-size:.72rem; color:#48bbff; text-decoration:none; background:rgba(72,187,255,.07); border:1px solid rgba(72,187,255,.18); border-radius:6px; padding:.25rem .55rem; }
+.drawer-actions { display:flex; gap:.5rem; margin-top:1.2rem; }
+.drawer-offer-btn { flex:1; background:linear-gradient(135deg,#a855f7,#6366f1); color:#fff; border:none; border-radius:10px; padding:.7rem; font-size:.85rem; font-weight:700; cursor:pointer; }
+.drawer-shortlist-btn { flex:1; background:rgba(52,211,153,.12); border:1px solid rgba(52,211,153,.3); color:#34d399; border-radius:10px; padding:.7rem; font-size:.85rem; font-weight:700; cursor:pointer; }
+#drawer-loading { text-align:center; padding:2rem; color:#64748b; }
+
+/* ── Offer Modal ─────────────────────────────────────────────────────── */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.65); backdrop-filter:blur(6px); z-index:1200; display:none; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.offer-modal { background:linear-gradient(160deg,rgba(10,20,40,.99),rgba(15,28,55,.99)); border:1px solid rgba(168,85,247,.25); border-radius:20px; padding:1.8rem; width:90%; max-width:500px; }
+.offer-modal h3 { font-size:1.15rem; font-weight:800; color:#e2e8f0; margin:0 0 .3rem; }
+.offer-modal p  { font-size:.82rem; color:#64748b; margin:0 0 1.2rem; }
+.form-group { margin-bottom:.85rem; }
+.form-group label { display:block; font-size:.76rem; color:#94a3b8; margin-bottom:.3rem; font-weight:600; }
+.form-group input, .form-group select, .form-group textarea {
+  width:100%; padding:.6rem .85rem; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1);
+  border-radius:8px; color:#e2e8f0; font-size:.83rem; outline:none; transition:border-color .2s; box-sizing:border-box;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color:rgba(168,85,247,.5); }
+.form-group select option { background:#0f1e37; }
+.form-group textarea { resize:vertical; min-height:90px; }
+.modal-actions { display:flex; gap:.6rem; margin-top:1.2rem; }
+.modal-cancel { flex:1; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:#94a3b8; border-radius:8px; padding:.65rem; font-size:.83rem; cursor:pointer; }
+.modal-send   { flex:2; background:linear-gradient(135deg,#a855f7,#6366f1); color:#fff; border:none; border-radius:8px; padding:.65rem; font-size:.83rem; font-weight:700; cursor:pointer; }
+.modal-send:disabled { opacity:.5; cursor:not-allowed; }
+
+/* Shortlist modal */
+.shortlist-modal { background:linear-gradient(160deg,rgba(10,20,40,.99),rgba(15,28,55,.99)); border:1px solid rgba(52,211,153,.2); border-radius:20px; padding:1.8rem; width:90%; max-width:440px; }
+
+/* Toast */
+.lb-toast { position:fixed; bottom:5rem; right:1.5rem; z-index:2000; background:rgba(10,20,40,.97); border:1px solid rgba(52,211,153,.35); border-radius:10px; padding:.7rem 1.2rem; color:#34d399; font-size:.83rem; font-weight:600; animation:toastIn .3s ease; display:none; }
+@keyframes toastIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+
+@media(max-width:900px){
+  :root { --lb-cols: 48px minmax(0,1fr) 80px 220px; }
+  .lb-thead .th-match, .match-col { display:none; }
+}
+@media(max-width:640px){
+  .lb-wrap { padding:1rem 1rem 3rem; }
+  :root { --lb-cols: 44px minmax(0,1fr) 170px; }
+  .lb-thead .th-match, .match-col, .lb-thead .th-pts, .row-pts { display:none; }
+  .profile-drawer { width:100%; right:-100%; }
+  .row-skills { display:none; }
+  .row-actions { flex-direction:column; align-items:flex-end; gap:.25rem; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lb-wrap">
+
+  <!-- Hero -->
+  <div class="lb-hero">
+    <div>
+      <a href="/company/dashboard/" style="color:#48bbff;font-size:.8rem;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem;margin-bottom:.6rem;">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+      </a>
+      <h1 class="lb-hero-title"><span>Talent Leaderboard</span> 🏆</h1>
+      <p style="color:#94a3b8;font-size:.85rem;margin:.2rem 0 0;">Top students ranked by XP · Click any row to preview profile · Send offers directly</p>
+    </div>
+    <div class="lb-stat-trio">
+      <div class="lb-stat s-blue">
+        <div class="val">{{ total_on_board }}</div>
+        <div class="lbl">Students</div>
+      </div>
+      <div class="lb-stat s-green">
+        <div class="val">{{ active_jobs|length }}</div>
+        <div class="lbl">Active Jobs</div>
+      </div>
+      <div class="lb-stat s-purple">
+        <div class="val" id="offer-sent-count">—</div>
+        <div class="lbl">Offers Sent</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter + search -->
+  <div class="lb-filter">
+    <button class="filter-btn active" onclick="filterDept('all',this)">All Departments</button>
+    {% for dept in departments %}
+    <button class="filter-btn" onclick="filterDept('{{ dept }}',this)">{{ dept }}</button>
+    {% endfor %}
+    <input class="lb-search" type="text" placeholder="🔍 Search student…" oninput="searchRows(this.value)">
+  </div>
+
+  <!-- Table -->
+  <div class="lb-table-card">
+    <div class="lb-thead">
+      <span>Rank</span>
+      <span>Student</span>
+      <span class="th-match">Match</span>
+      <span>Points</span>
+      <span style="text-align:right;">Actions</span>
+    </div>
+
+    {% for e in entry_list %}
+    <div class="lb-row"
+         data-dept="{{ e.student_dept }}"
+         data-name="{{ e.student_name|lower }}"
+         data-student-id="{{ e.student_id }}"
+         data-offer-sent="{{ e.offer_sent|lower }}"
+         onclick="openDrawer('{{ e.student_id }}', event)"
+         style="animation-delay:{{ forloop.counter0 }}0ms;">
+
+      <!-- Rank -->
+      <div>
+        {% if e.rank == 1 %}<div class="rank-badge rk-1">🥇</div>
+        {% elif e.rank == 2 %}<div class="rank-badge rk-2">🥈</div>
+        {% elif e.rank == 3 %}<div class="rank-badge rk-3">🥉</div>
+        {% else %}<div class="rank-badge rk-n">#{{ e.rank }}</div>{% endif %}
+      </div>
+
+      <!-- Student info -->
+      <div>
+        <div style="display:flex;align-items:center;gap:.6rem;">
+          <div class="row-avatar">{{ e.student_name|slice:":1"|upper }}</div>
+          <div>
+            <div class="row-name">{{ e.student_name }}</div>
+            <div class="row-sub">{{ e.student_dept|default:"—" }} · {{ e.university|default:"—" }}</div>
+          </div>
+        </div>
+        <div class="row-skills" style="margin-top:.4rem;margin-left:2.8rem;">
+          {% for sk in e.skills %}<span class="skill-chip">{{ sk }}</span>{% endfor %}
+        </div>
+      </div>
+
+      <!-- Match score -->
+      <div class="match-col">
+        {% if e.match_score >= 60 %}
+          <span class="match-badge match-high" title="Strong skill overlap with {{ e.best_job_title }}"><i class="fas fa-bolt" style="font-size:.65rem;"></i>{{ e.match_score }}%</span>
+        {% elif e.match_score >= 30 %}
+          <span class="match-badge match-mid" title="Partial skill overlap with {{ e.best_job_title }}"><i class="fas fa-chart-bar" style="font-size:.65rem;"></i>{{ e.match_score }}%</span>
+        {% elif e.match_score > 0 %}
+          <span class="match-badge match-low">{{ e.match_score }}%</span>
+        {% else %}
+          <span class="match-badge match-low" title="Their skills don't overlap with your current job requirements" style="font-size:.65rem;color:#475569;">No overlap</span>
+        {% endif %}
+        {% if e.best_job_title and e.match_score > 0 %}
+        <div style="font-size:.6rem;color:#475569;margin-top:.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">vs {{ e.best_job_title|truncatechars:16 }}</div>
+        {% elif e.match_score == 0 %}
+        <div style="font-size:.58rem;color:#334155;margin-top:.25rem;">skills differ</div>
+        {% endif %}
+      </div>
+
+      <!-- Points -->
+      <div>
+        <div class="pts-num counter" data-target="{{ e.total_points }}">0</div>
+        <div class="pts-lbl">XP pts</div>
+      </div>
+
+      <!-- Actions -->
+      <div class="row-actions" onclick="event.stopPropagation()">
+        <button class="btn-preview" onclick="openDrawer('{{ e.student_id }}', event)">
+          <i class="fas fa-eye"></i> Preview
+        </button>
+        {% if e.offer_sent %}
+        <span class="sent-tag">✅ Offered</span>
+        {% else %}
+        <button class="btn-offer" onclick="openOfferModal('{{ e.student_id }}','{{ e.student_name }}','{{ e.best_job_id }}','{{ e.best_job_title }}')">
+          <i class="fas fa-paper-plane"></i> Send Offer
+        </button>
+        {% endif %}
+        <button class="btn-shortlist {% if e.already_applied %}{% endif %}"
+                onclick="openShortlistModal('{{ e.student_id }}','{{ e.student_name }}')"
+                {% if e.already_applied %}title="Already in pipeline"{% endif %}>
+          <i class="fas fa-star"></i>{% if e.already_applied %} In Pipeline{% else %} Shortlist{% endif %}
+        </button>
+      </div>
+    </div>
+    {% empty %}
+    <div style="padding:4rem;text-align:center;color:#475569;">
+      <div style="font-size:3rem;opacity:.2;margin-bottom:1rem;">🏆</div>
+      <p>No students on the leaderboard yet.</p>
+    </div>
+    {% endfor %}
+
+    <div id="no-results" style="display:none;padding:3rem;text-align:center;color:#475569;">
+      <div style="font-size:2rem;opacity:.25;margin-bottom:.5rem;">🔍</div>
+      <p>No students match that filter.</p>
+    </div>
+  </div>
+
+</div><!-- /.lb-wrap -->
+
+<!-- ── Profile Drawer ──────────────────────────────────────────────── -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="profile-drawer" id="profile-drawer">
+  <button class="drawer-close" onclick="closeDrawer()"><i class="fas fa-times"></i></button>
+  <div id="drawer-content">
+    <div id="drawer-loading"><i class="fas fa-spinner fa-spin" style="color:#48bbff;font-size:1.5rem;"></i><p style="margin-top:.7rem;">Loading profile…</p></div>
+  </div>
+</div>
+
+<!-- ── Offer Modal ─────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="offer-modal">
+  <div class="offer-modal">
+    <h3><i class="fas fa-paper-plane" style="color:#a855f7;"></i> Send Job Offer</h3>
+    <p id="offer-modal-subtitle">Sending to <strong id="offer-target-name"></strong></p>
+    <input type="hidden" id="offer-student-id">
+
+    <div class="form-group">
+      <label>Select Job Position</label>
+      <select id="offer-job-id">
+        <option value="">— Select a job —</option>
+        {% for job in active_jobs %}
+        <option value="{{ job.id }}">{{ job.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Offered Salary / Package</label>
+      <input type="text" id="offer-salary" placeholder="e.g. BDT 40,000/month or $1,500/month">
+    </div>
+    <div class="form-group">
+      <label>Response Deadline</label>
+      <input type="date" id="offer-deadline">
+    </div>
+    <div class="form-group">
+      <label>Personal Message</label>
+      <textarea id="offer-message" placeholder="Write a short personal note to the student…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeOfferModal()">Cancel</button>
+      <button class="modal-send" id="offer-send-btn" onclick="submitOffer()"><i class="fas fa-paper-plane"></i> Send Offer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Shortlist Modal ─────────────────────────────────────────────── -->
+<div class="modal-overlay" id="shortlist-modal">
+  <div class="shortlist-modal">
+    <h3 style="color:#e2e8f0;margin:0 0 .3rem;"><i class="fas fa-star" style="color:#34d399;"></i> Shortlist Student</h3>
+    <p style="color:#64748b;font-size:.82rem;margin:0 0 1.2rem;">Shortlisting <strong id="shortlist-target-name" style="color:#e2e8f0;"></strong> for a job</p>
+    <input type="hidden" id="shortlist-student-id">
+    <div class="form-group">
+      <label>Select Job</label>
+      <select id="shortlist-job-id">
+        <option value="">— Select a job —</option>
+        {% for job in active_jobs %}
+        <option value="{{ job.id }}">{{ job.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeShortlistModal()">Cancel</button>
+      <button class="modal-send" onclick="submitShortlist()" style="background:linear-gradient(135deg,#34d399,#059669);">
+        <i class="fas fa-star"></i> Shortlist Now
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="lb-toast" id="lb-toast"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* Counter animation */
+function animateCounter(el) {
+  const t = parseInt(el.dataset.target, 10) || 0;
+  if (!t) return;
+  const step = Math.max(1, Math.ceil(t / 55));
+  let c = 0;
+  const tick = () => { c = Math.min(c + step, t); el.textContent = c.toLocaleString(); if (c < t) requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+}
+window.addEventListener('load', () => {
+  document.querySelectorAll('.counter').forEach(animateCounter);
+  // Count offers already sent
+  const sent = document.querySelectorAll('[data-offer-sent="true"]').length;
+  document.getElementById('offer-sent-count').textContent = sent;
+});
+
+/* Filter */
+let _dept = 'all', _q = '';
+function filterDept(dept, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active'); _dept = dept; applyFilters();
+}
+function searchRows(q) { _q = q.toLowerCase(); applyFilters(); }
+function applyFilters() {
+  let n = 0;
+  document.querySelectorAll('.lb-row').forEach(row => {
+    const ok = (_dept === 'all' || row.dataset.dept === _dept) && row.dataset.name.includes(_q);
+    row.style.display = ok ? '' : 'none'; if (ok) n++;
+  });
+  document.getElementById('no-results').style.display = n === 0 ? '' : 'none';
+}
+
+/* Toast */
+function showToast(msg, color) {
+  const t = document.getElementById('lb-toast');
+  t.textContent = msg;
+  t.style.color = color || '#34d399';
+  t.style.borderColor = color ? color.replace('rgb','rgba').replace(')',',.35)') : 'rgba(52,211,153,.35)';
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+/* ── Profile Drawer ── */
+let _drawerStudentId = null;
+function openDrawer(studentId, event) {
+  if (event) event.stopPropagation();
+  _drawerStudentId = studentId;
+  document.getElementById('drawer-overlay').classList.add('open');
+  document.getElementById('profile-drawer').classList.add('open');
+  document.getElementById('drawer-content').innerHTML = '<div id="drawer-loading" style="text-align:center;padding:2rem;color:#64748b;"><i class="fas fa-spinner fa-spin" style="color:#48bbff;font-size:1.5rem;"></i><p style="margin-top:.7rem;">Loading profile…</p></div>';
+  fetch(`/api/student/${studentId}/quick-preview/`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.status !== 'success') { document.getElementById('drawer-content').innerHTML = '<p style="color:#ef4444;padding:2rem;">Failed to load profile.</p>'; return; }
+      const s = data.student;
+      const skillsHtml = s.skills.map(sk => `<span class="d-skill ${sk.verified ? 'verified' : ''}">${sk.name}${sk.verified ? ' ✓' : ''}</span>`).join('');
+      const projsHtml = s.projects.map(p => `<div class="d-proj">${p.title}${p.github_url ? `<a href="${p.github_url}" target="_blank"><i class="fab fa-github"></i> GitHub</a>` : ''}</div>`).join('');
+      const linksHtml = [
+        s.github_username ? `<a href="https://github.com/${s.github_username}" target="_blank" class="d-link"><i class="fab fa-github"></i> GitHub</a>` : '',
+        s.linkedin_url    ? `<a href="${s.linkedin_url}" target="_blank" class="d-link"><i class="fab fa-linkedin"></i> LinkedIn</a>` : '',
+        s.portfolio_url   ? `<a href="${s.portfolio_url}" target="_blank" class="d-link"><i class="fas fa-globe"></i> Portfolio</a>` : '',
+      ].filter(Boolean).join('');
+      document.getElementById('drawer-content').innerHTML = `
+        <div class="d-avatar">${s.name.charAt(0).toUpperCase()}</div>
+        <div class="d-name">${s.name}</div>
+        <div class="d-sub">${s.department || '—'} · ${s.university_id || '—'}</div>
+        <div class="d-grid">
+          <div class="d-stat"><div class="v">${s.trust_score.toFixed(0)}%</div><div class="l">Trust Score</div></div>
+          <div class="d-stat"><div class="v">${s.cgpa || '—'}</div><div class="l">CGPA</div></div>
+          <div class="d-stat"><div class="v">${s.profile_complete.toFixed(0)}%</div><div class="l">Profile Done</div></div>
+          <div class="d-stat"><div class="v">${s.total_applications}</div><div class="l">Applications</div></div>
+        </div>
+        <div class="d-section-title">Top Skills</div>
+        <div class="d-skill-list">${skillsHtml || '<span style="color:#475569;font-size:.78rem;">No skills listed</span>'}</div>
+        <div class="d-section-title">Projects</div>
+        ${projsHtml || '<p style="color:#475569;font-size:.78rem;">No projects yet</p>'}
+        ${linksHtml ? `<div class="d-section-title">Links</div><div class="d-links">${linksHtml}</div>` : ''}
+        <div class="drawer-actions">
+          <button class="drawer-shortlist-btn" onclick="openShortlistModal('${s.id}','${s.name.replace(/'/g,'')}')">&nbsp;<i class="fas fa-star"></i> Shortlist&nbsp;</button>
+          <button class="drawer-offer-btn" onclick="openOfferModal('${s.id}','${s.name.replace(/'/g,'')}','','')"><i class="fas fa-paper-plane"></i> Send Offer</button>
+        </div>`;
+    })
+    .catch(() => { document.getElementById('drawer-content').innerHTML = '<p style="color:#ef4444;padding:2rem;">Network error.</p>'; });
+}
+function closeDrawer() {
+  document.getElementById('drawer-overlay').classList.remove('open');
+  document.getElementById('profile-drawer').classList.remove('open');
+}
+
+/* ── Offer Modal ── */
+function openOfferModal(studentId, studentName, jobId, jobTitle) {
+  document.getElementById('offer-student-id').value = studentId;
+  document.getElementById('offer-target-name').textContent = studentName;
+  if (jobId) document.getElementById('offer-job-id').value = jobId;
+  document.getElementById('offer-modal').classList.add('open');
+}
+function closeOfferModal() { document.getElementById('offer-modal').classList.remove('open'); _clearOfferError(); }
+function _showOfferError(msg) {
+  let el = document.getElementById('offer-error-msg');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'offer-error-msg';
+    el.style.cssText = 'margin-top:.75rem;padding:.65rem .9rem;border-radius:.6rem;font-size:.8rem;line-height:1.4;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#fca5a5;display:flex;align-items:flex-start;gap:.5rem;';
+    document.getElementById('offer-send-btn').insertAdjacentElement('afterend', el);
+  }
+  el.innerHTML = `<i class="fas fa-exclamation-circle" style="margin-top:.15rem;flex-shrink:0;"></i><span>${msg}</span>`;
+  el.style.display = 'flex';
+}
+function _clearOfferError() {
+  const el = document.getElementById('offer-error-msg');
+  if (el) el.style.display = 'none';
+}
+
+async function submitOffer() {
+  const btn = document.getElementById('offer-send-btn');
+  const studentId = document.getElementById('offer-student-id').value;
+  const jobId  = document.getElementById('offer-job-id').value;
+  const salary = document.getElementById('offer-salary').value.trim();
+  const deadline = document.getElementById('offer-deadline').value;
+  const message  = document.getElementById('offer-message').value.trim();
+  if (!jobId) { _showOfferError('Please select a job position before sending the offer.'); return; }
+  _clearOfferError();
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await fetch('/api/leaderboard/send-offer/', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ student_id: studentId, job_id: jobId, salary, deadline, message })
+    });
+    const d = await r.json();
+    if (d.status === 'success') {
+      closeOfferModal();
+      // Update row button to "Offered"
+      const row = document.querySelector(`[data-student-id="${studentId}"]`);
+      if (row) {
+        const offerBtn = row.querySelector('.btn-offer');
+        if (offerBtn) offerBtn.replaceWith(Object.assign(document.createElement('span'), {className:'sent-tag', textContent:'✅ Offered'}));
+      }
+      // Update counter
+      const cnt = document.getElementById('offer-sent-count');
+      cnt.textContent = parseInt(cnt.textContent || '0', 10) + 1;
+      showToast('✅ Offer sent! Student has been notified.');
+    } else {
+      // Show inline error with the server's message (covers hired / duplicate / already-applied cases)
+      _showOfferError(d.message || 'Failed to send offer. Please try again.');
+    }
+  } catch(e) { _showOfferError('Network error — please check your connection and retry.'); }
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Offer';
+}
+
+/* ── Shortlist Modal ── */
+function openShortlistModal(studentId, studentName) {
+  document.getElementById('shortlist-student-id').value = studentId;
+  document.getElementById('shortlist-target-name').textContent = studentName;
+  document.getElementById('shortlist-modal').classList.add('open');
+}
+function closeShortlistModal() { document.getElementById('shortlist-modal').classList.remove('open'); }
+async function submitShortlist() {
+  const studentId = document.getElementById('shortlist-student-id').value;
+  const jobId     = document.getElementById('shortlist-job-id').value;
+  if (!jobId) { alert('Please select a job.'); return; }
+  try {
+    const r = await fetch('/api/leaderboard/shortlist/', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ student_id: studentId, job_id: jobId })
+    });
+    const d = await r.json();
+    if (d.status === 'success') {
+      closeShortlistModal();
+      const row = document.querySelector(`[data-student-id="${studentId}"]`);
+      if (row) {
+        const btn = row.querySelector('.btn-shortlist');
+        if (btn) { btn.innerHTML = '<i class="fas fa-star"></i> In Pipeline'; btn.disabled = true; }
+      }
+      showToast('⭐ Student shortlisted and notified!');
+    } else { alert('Error: ' + d.message); }
+  } catch(e) { alert('Network error.'); }
+}
+
+/* Close modals on overlay click */
+document.getElementById('offer-modal').addEventListener('click', function(e) { if(e.target===this) closeOfferModal(); });
+document.getElementById('shortlist-modal').addEventListener('click', function(e) { if(e.target===this) closeShortlistModal(); });
+</script>
+{% endblock %}

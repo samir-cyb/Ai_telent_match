@@ -1,34 +1,35 @@
 {% extends "base.html" %}
 {% block title %}Skill Demand Heatmap | AI Talent Match{% endblock %}
 
-{% block extra_head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-{% endblock %}
+{% block extra_head %}{% endblock %}
 
 {% block content %}
 <div class="container" style="max-width:1100px;padding:2rem 1rem 4rem;">
 
   <!-- Header -->
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;flex-wrap:wrap;gap:1rem;">
+  <div class="glass-card" style="padding:1.5rem 2rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
     <div>
-      <h1 style="font-size:1.8rem;font-weight:800;margin:0;
-        background:linear-gradient(135deg,#48bbff,#a855f7);
-        -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
-        📊 Skill Demand Heatmap
+      <a href="/company/dashboard/" style="color:#48bbff;font-size:0.85rem;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem;margin-bottom:.5rem;">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+      </a>
+      <h1 style="margin:.2rem 0 .3rem;font-size:1.7rem;font-weight:800;color:#f0f9ff;display:flex;align-items:center;gap:.6rem;">
+        <span style="background:linear-gradient(135deg,#48bbff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+          Skill Demand Heatmap
+        </span>
+        <span style="font-size:1.2rem;">📊</span>
       </h1>
-      <p style="color:#64748b;margin:.3rem 0 0;font-size:.9rem;">
+      <p style="color:#94a3b8;margin:0;font-size:0.88rem;">
         Real-time talent market intelligence across all active jobs on the platform
       </p>
     </div>
-    <div style="display:flex;gap:.75rem;align-items:center;">
+    <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
       <div id="stats-pill" style="
-        background:rgba(72,187,255,.08);border:1px solid rgba(72,187,255,.2);
-        border-radius:999px;padding:.4rem 1rem;font-size:.82rem;color:#93c5fd;
-      ">Loading…</div>
-      <a href="/company/dashboard/" style="
-        background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
-        color:#94a3b8;text-decoration:none;padding:.4rem 1rem;border-radius:8px;font-size:.82rem;
-      ">← Dashboard</a>
+        background:rgba(72,187,255,.08);border:1px solid rgba(72,187,255,.25);
+        border-radius:999px;padding:.45rem 1.1rem;font-size:.82rem;color:#93c5fd;
+        display:flex;align-items:center;gap:.4rem;
+      ">
+        <i class="fas fa-spinner fa-spin" style="font-size:.7rem;"></i> Loading…
+      </div>
     </div>
   </div>
 
@@ -192,8 +193,8 @@ async function loadHeatmap() {
     if (d.status !== 'success') return;
 
     // Stats pill
-    document.getElementById('stats-pill').textContent =
-      `${d.total_active_jobs} active jobs · ${d.total_students} students`;
+    document.getElementById('stats-pill').innerHTML =
+      `<i class="fas fa-briefcase" style="font-size:.7rem;"></i> ${d.total_active_jobs} active jobs &nbsp;·&nbsp; <i class="fas fa-users" style="font-size:.7rem;"></i> ${d.total_students} students`;
 
     buildTop10(d.top10);
     buildGap(d.gap_data);

@@ -41,6 +41,9 @@ Pool{%endblock%} {% block content %}
       <button class="btn-primary" onclick="viewVettingDashboard()">
         <i class="fas fa-code"></i> Vetting Dashboard
       </button>
+      <button class="btn-primary btn-pipeline" onclick="openAutoPipeline()">
+        <i class="fas fa-robot"></i> Auto Pipeline
+      </button>
       <button class="btn-primary" onclick="exportCSV()">
         <i class="fas fa-download"></i> Export
       </button>
@@ -290,12 +293,78 @@ Pool{%endblock%} {% block content %}
   </div>
 </div>
 
+<!-- Auto Pipeline Setup Modal -->
+<div id="pipeline-setup-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);
+  z-index:3000;align-items:center;justify-content:center;">
+  <div class="glass-card" style="padding:2rem;min-width:340px;max-width:460px;width:90%;
+    border:1px solid rgba(72,187,255,.2);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h3 style="margin:0;font-size:1.1rem;font-weight:800;
+        background:linear-gradient(135deg,#48bbff,#a855f7);
+        -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+        🚀 Start Auto Pipeline
+      </h3>
+      <button onclick="closePipelineSetup()"
+        style="background:none;border:none;color:#64748b;font-size:1.1rem;cursor:pointer;">✕</button>
+    </div>
+    <p style="font-size:.84rem;color:#64748b;margin:0 0 1.25rem;">
+      The pipeline will <strong style="color:#48bbff;">AI-sort all applicants</strong>, then let you
+      approve who gets the <strong style="color:#a855f7;">vetting test</strong>, then who gets the
+      <strong style="color:#48bbff;">AI interview</strong>. Final scores = Match×30% + Vetting×40% + Interview×30%.
+    </p>
+
+    <div style="display:grid;gap:.9rem;margin-bottom:1.5rem;">
+      <div>
+        <label style="font-size:.8rem;color:#94a3b8;display:block;margin-bottom:.35rem;">
+          Sort: How many candidates to shortlist for vetting?
+        </label>
+        <input type="number" id="pl-sort-n" value="20" min="1" max="200"
+          style="width:100%;box-sizing:border-box;background:rgba(15,23,42,.9);
+            border:1px solid rgba(72,187,255,.25);border-radius:8px;color:#e2e8f0;
+            padding:.55rem .9rem;font-size:.9rem;">
+      </div>
+      <div>
+        <label style="font-size:.8rem;color:#94a3b8;display:block;margin-bottom:.35rem;">
+          Vetting: How many top vetting candidates to send AI interview?
+        </label>
+        <input type="number" id="pl-vet-n" value="10" min="1" max="100"
+          style="width:100%;box-sizing:border-box;background:rgba(15,23,42,.9);
+            border:1px solid rgba(168,85,247,.25);border-radius:8px;color:#e2e8f0;
+            padding:.55rem .9rem;font-size:.9rem;">
+      </div>
+      <div>
+        <label style="font-size:.8rem;color:#94a3b8;display:block;margin-bottom:.35rem;">
+          Interview: Final shortlist size (for your review)?
+        </label>
+        <input type="number" id="pl-int-n" value="5" min="1" max="50"
+          style="width:100%;box-sizing:border-box;background:rgba(15,23,42,.9);
+            border:1px solid rgba(72,187,255,.25);border-radius:8px;color:#e2e8f0;
+            padding:.55rem .9rem;font-size:.9rem;">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:.75rem;justify-content:flex-end;">
+      <button onclick="closePipelineSetup()"
+        style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+          color:#94a3b8;padding:.55rem 1.1rem;border-radius:8px;cursor:pointer;font-size:.88rem;">
+        Cancel
+      </button>
+      <button id="pl-start-btn" onclick="startPipeline()"
+        style="background:linear-gradient(135deg,#48bbff,#a855f7);border:none;
+          color:#fff;padding:.55rem 1.4rem;border-radius:8px;cursor:pointer;
+          font-weight:700;font-size:.9rem;">
+        <i class="fas fa-rocket"></i> Launch Pipeline
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Vetting Dashboard Modal -->
 <div id="vetting-modal" class="modal" style="display: none">
   <div class="modal-content glass-card" style="max-width: 900px; width: 95%;">
     <h3><i class="fas fa-code"></i> Technical Vetting Dashboard</h3>
     <p>Candidates ranked by coding assessment scores</p>
-    
+
     <div id="vetting-content">
       <div class="loading-spinner">
         <i class="fas fa-spinner fa-spin"></i> Loading vetting data...
@@ -500,12 +569,12 @@ Pool{%endblock%} {% block content %}
   <div class="modal-content glass-card" style="max-width: 800px; width: 95%;">
     <h3><i class="fas fa-code"></i> Candidate Submission</h3>
     <p id="code-modal-title">Student Name - Score: 0%</p>
-    
+
     <div class="form-group">
       <label>Submitted Code</label>
       <pre id="submitted-code" class="code-preview"></pre>
     </div>
-    
+
     <div class="form-group">
       <label>Test Results</label>
       <div id="test-results"></div>
@@ -530,7 +599,7 @@ const companyId = localStorage.getItem("company_id");
 // ✅ FIX: Try localStorage if missing from URL
 if (!jobId || jobId === 'null' || jobId === 'undefined') {
   jobId = localStorage.getItem('last_viewed_job_id');
-  
+
   // If found in localStorage, update URL silently
   if (jobId && jobId !== 'null') {
     const newUrl = window.location.pathname + '?job_id=' + jobId;
@@ -679,7 +748,7 @@ if (!companyId) {
             <i class="fas fa-clock"></i> Assessment Pending
         </button>`);
       }
-      
+
       buttons.push(`<button class="btn-primary btn-sm" onclick="openScheduleModal('${app.id}', '${app.student_name.replace(/'/g, "\\'")}')">
             <i class="fas fa-calendar"></i> Schedule Interview
         </button>`);
@@ -789,11 +858,10 @@ if (!companyId) {
         loadApplicants();
       } else {
         alert('❌ Failed: ' + d.message);
-        btn.innerHTML = orig;
-        btn.disabled = false;
       }
     } catch(e) {
       alert('Network error: ' + e.message);
+    } finally {
       btn.innerHTML = orig;
       btn.disabled = false;
     }
@@ -803,7 +871,7 @@ if (!companyId) {
   async function sendAssessment(btn, applicationId, studentName) {
     // FIX: Properly receive 'btn' as first parameter
     if (!confirm(`Send technical assessment to ${studentName}?`)) return;
-    
+
     const originalHTML = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
     btn.disabled = true;
@@ -816,12 +884,12 @@ if (!companyId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ application_id: applicationId })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.status === 'success') {
             alert(`✅ Assessment sent!\n\nStudent: ${studentName}\nToken: ${data.token.substring(0, 8)}...\nExpires: ${new Date(data.expires_at).toLocaleDateString()}`);
-            
+
             // Update UI
             const app = allApplicants.find(a => a.id === applicationId);
             if (app) app.vetting_invited = true;
@@ -839,6 +907,64 @@ if (!companyId) {
     }
 }
 
+  async function openAutoPipeline() {
+    if (!jobId || jobId === 'null' || jobId === 'undefined') {
+      alert('No job selected. Please pick a job first.');
+      return;
+    }
+    // Check if an active pipeline already exists for this job
+    try {
+      const r = await fetch(`${API_BASE}/job/${jobId}/pipelines/`);
+      const d = await r.json();
+      if (d.status === 'ok' && d.pipelines && d.pipelines.length > 0) {
+        // Find the most recent non-cancelled pipeline
+        const active = d.pipelines.find(p => p.stage !== 'cancelled');
+        if (active) {
+          window.location.href = `/company/pipeline/${active.id}/`;
+          return;
+        }
+      }
+    } catch(e) { /* ignore, fall through to create */ }
+    // No active pipeline — show setup modal
+    document.getElementById('pipeline-setup-modal').style.display = 'flex';
+  }
+
+  function closePipelineSetup() {
+    document.getElementById('pipeline-setup-modal').style.display = 'none';
+  }
+
+  async function startPipeline() {
+    const sortN = parseInt(document.getElementById('pl-sort-n').value) || 20;
+    const vetN  = parseInt(document.getElementById('pl-vet-n').value) || 10;
+    const intN  = parseInt(document.getElementById('pl-int-n').value) || 5;
+
+    const btn = document.getElementById('pl-start-btn');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting…';
+    btn.disabled = true;
+
+    try {
+      const r = await fetch(`${API_BASE}/pipeline/create/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ job_id: jobId, sort_top_n: sortN, vetting_top_n: vetN, interview_top_n: intN }),
+      });
+      const d = await r.json();
+      if (d.status === 'ok') {
+        closePipelineSetup();
+        window.location.href = `/company/pipeline/${d.pipeline_id}/`;
+      } else {
+        alert('Failed: ' + d.message);
+        btn.innerHTML = orig;
+        btn.disabled = false;
+      }
+    } catch(e) {
+      alert('Network error: ' + e.message);
+      btn.innerHTML = orig;
+      btn.disabled = false;
+    }
+  }
+
   function viewVettingDashboard() {
     document.getElementById("vetting-modal").style.display = "flex";
     loadVettingData();
@@ -851,12 +977,12 @@ if (!companyId) {
   async function loadVettingData() {
   const container = document.getElementById("vetting-content");
   container.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
-  
+
   try {
     // ✅ FIX: Use correct URL path that matches your urls.py
     const response = await fetch(`/vetting/api/job/${jobId}/vetting-dashboard/`)
     const data = await response.json();
-    
+
     if (data.status === 'success') {
       vettingData = data.candidates || [];
       renderVettingDashboard(data);
@@ -871,7 +997,7 @@ if (!companyId) {
 
   function renderVettingDashboard(data) {
     const container = document.getElementById("vetting-content");
-    
+
     if (!data.candidates || data.candidates.length === 0) {
       container.innerHTML = `
         <div class="no-vetting-data">
@@ -923,7 +1049,7 @@ if (!companyId) {
           let riskLevel = 'safe';
           let riskClass = 'text-green-400';
           let riskIcon = '✓';
-          
+
           if (c.tab_switches > 5 || c.copy_pastes > 3 || c.fullscreen_exits > 0) {
             riskLevel = 'high';
             riskClass = 'text-red-400';
@@ -933,7 +1059,7 @@ if (!companyId) {
             riskClass = 'text-yellow-400';
             riskIcon = '⚡';
           }
-          
+
           return `
           <tr class="${c.passed ? 'passed' : 'failed'}">
             <td>#${i + 1}</td>
@@ -984,7 +1110,7 @@ if (!companyId) {
       </tbody>
     </table>
   </div>
-  
+
   <!-- Anti-Cheat Legend -->
   <div style="margin-top: 1rem; padding: 1rem; background: rgba(0, 0, 0, 0.2); border-radius: 0.5rem; font-size: 0.85rem; color: #94a3b8;">
     <strong style="color: #48bbff;">Anti-Cheat Legend:</strong>
@@ -1002,11 +1128,11 @@ if (!companyId) {
       const baseUrl = API_BASE.replace('/api', '');
       const response = await fetch(`${baseUrl}/vetting/submission/${submissionId}/`);
       const data = await response.json();
-      
+
       if (data.status === 'success') {
         document.getElementById("code-modal-title").textContent = `${studentName} - Score: ${Math.round(score)}%`;
         document.getElementById("submitted-code").textContent = data.code || 'No code available';
-        
+
         const resultsHtml = data.test_results ? `
           <div class="test-results-summary">
             <p><strong>Passed:</strong> ${data.test_results.passed || 0} / ${data.test_results.total || 0}</p>
@@ -1018,7 +1144,7 @@ if (!companyId) {
             `).join('') : ''}
           </div>
         ` : '<p>No test results available</p>';
-        
+
         document.getElementById("test-results").innerHTML = resultsHtml;
         document.getElementById("code-modal").style.display = "flex";
       } else {
@@ -1656,7 +1782,6 @@ if (!companyId) {
         loadApplicants();
         loadSlotAvailability();
 
-        document.getElementById("meeting-link").value = "";
         document.getElementById("interview-location").value = "";
         document.getElementById("contact-person").value = "";
         document.getElementById("interview-notes").value = "";
@@ -1822,6 +1947,7 @@ if (!companyId) {
       btn.disabled = false;
     }
   }
+
   // Load on page load
   loadApplicants();
   loadSlotAvailability();
@@ -2526,7 +2652,7 @@ if (!companyId) {
     .stats-row-inline {
       flex-direction: column;
     }
-    
+
     .vetting-stats {
       grid-template-columns: 1fr;
     }

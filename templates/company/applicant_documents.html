@@ -2,117 +2,296 @@
 {% block title %}{{ student.name }} — Documents | AI Talent Match{% endblock %}
 
 {% block content %}
-<div class="container" style="padding: 2rem 0; max-width: 1100px;">
+<style>
+.doc-page { max-width: 1140px; margin: 0 auto; padding: 1.75rem 1rem 4rem; }
 
-  <!-- Back link + header -->
-  <div class="glass-card" style="padding: 1.5rem 2rem; margin-bottom: 1.5rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+.doc-header {
+  background: rgba(15,23,42,.85);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  padding: 1.5rem 2rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.doc-back {
+  color: #475569; font-size: .82rem; text-decoration: none;
+  display: inline-flex; align-items: center; gap: .35rem;
+  margin-bottom: .4rem;
+}
+.doc-back:hover { color: #94a3b8; }
+.doc-name { margin: 0; font-size: 1.55rem; font-weight: 800; color: #f0f9ff; }
+.doc-meta { margin: .25rem 0 0; color: #64748b; font-size: .88rem; }
+.doc-meta strong { color: #48bbff; }
+.doc-status {
+  font-weight: 700; font-size: .83rem;
+  padding: .2rem .65rem; border-radius: 6px;
+  display: inline-block;
+}
+
+.stat-pill {
+  text-align: center;
+  border-radius: 12px;
+  padding: .7rem 1.2rem;
+  min-width: 80px;
+}
+
+/* ── Doc grid ── */
+.doc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+@media(max-width:760px) { .doc-grid { grid-template-columns: 1fr; } }
+
+.doc-card {
+  background: rgba(15,23,42,.85);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.doc-card-header {
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  flex-shrink: 0;
+}
+.doc-card-title {
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.doc-download-btn {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .35rem .85rem;
+  border-radius: 8px;
+  font-size: .8rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity .2s;
+}
+.doc-download-btn:hover { opacity: .85; }
+
+.doc-embed-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 640px;
+  background: #0a0f1a;
+}
+.doc-open-bar {
+  background: rgba(15,23,42,.95);
+  border-top: 1px solid rgba(255,255,255,.06);
+  padding: .75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-shrink: 0;
+}
+.doc-open-bar span { font-size: .78rem; color: #475569; }
+.doc-open-link {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-size: .82rem; font-weight: 600;
+  color: #48bbff; text-decoration: none;
+  padding: .3rem .8rem;
+  border: 1px solid rgba(72,187,255,.3);
+  border-radius: 7px;
+  transition: all .2s;
+}
+.doc-open-link:hover { background: rgba(72,187,255,.1); }
+
+.doc-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  gap: .75rem;
+  color: #334155;
+  text-align: center;
+}
+.doc-empty i { font-size: 2.5rem; color: #1e293b; }
+.doc-empty p { margin: 0; font-size: .9rem; color: #475569; }
+</style>
+
+<div class="doc-page">
+
+  <!-- Header -->
+  <div class="doc-header">
     <div>
-      <a href="javascript:history.back()" style="color:#48bbff; text-decoration:none; font-size:0.9rem;">
+      <a href="javascript:history.back()" class="doc-back">
         <i class="fas fa-arrow-left"></i> Back to Applicants
       </a>
-      <h1 style="margin: 0.4rem 0 0.2rem; font-size:1.6rem; color:#f0f9ff;">{{ student.name }}</h1>
-      <p style="color:#94a3b8; margin:0; font-size:0.9rem;">
-        Applied for <strong style="color:#48bbff;">{{ job.title }}</strong>
+      <h1 class="doc-name">{{ student.name }}</h1>
+      <p class="doc-meta">
+        Applied for <strong>{{ job.title }}</strong>
         &nbsp;·&nbsp; {{ student.email }}
         {% if student.phone %}&nbsp;·&nbsp; {{ student.phone }}{% endif %}
         &nbsp;·&nbsp;
-        <span style="color:
-          {% if application.status == 'shortlisted' %}#22c55e
-          {% elif application.status == 'hired' %}#a78bfa
-          {% elif application.status == 'rejected' %}#ef4444
-          {% else %}#f59e0b{% endif %};">
+        <span class="doc-status" style="
+          {% if application.status == 'shortlisted' %}color:#22c55e;background:rgba(34,197,94,.1);
+          {% elif application.status == 'hired' %}color:#a78bfa;background:rgba(167,139,250,.1);
+          {% elif application.status == 'rejected' %}color:#f87171;background:rgba(239,68,68,.1);
+          {% else %}color:#fbbf24;background:rgba(251,191,36,.1);{% endif %}">
           {{ application.status|title }}
         </span>
       </p>
     </div>
 
-    <!-- Quick stats -->
-    <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
       {% if application.match_score %}
-      <div style="text-align:center; background:rgba(72,187,255,0.08); border:1px solid rgba(72,187,255,0.25); border-radius:10px; padding:0.7rem 1.2rem;">
-        <div style="font-size:1.4rem; font-weight:800; color:#48bbff;">{{ application.match_score|floatformat:0 }}%</div>
-        <div style="font-size:0.72rem; color:#64748b; text-transform:uppercase; letter-spacing:.05em;">AI Match</div>
+      <div class="stat-pill" style="background:rgba(72,187,255,.07);border:1px solid rgba(72,187,255,.2);">
+        <div style="font-size:1.4rem;font-weight:800;color:#48bbff;">{{ application.match_score|floatformat:0 }}%</div>
+        <div style="font-size:.68rem;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-top:.1rem;">AI Match</div>
       </div>
       {% endif %}
       {% if student.cgpa %}
-      <div style="text-align:center; background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); border-radius:10px; padding:0.7rem 1.2rem;">
-        <div style="font-size:1.4rem; font-weight:800; color:#22c55e;">{{ student.cgpa }}</div>
-        <div style="font-size:0.72rem; color:#64748b; text-transform:uppercase; letter-spacing:.05em;">CGPA</div>
+      <div class="stat-pill" style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);">
+        <div style="font-size:1.4rem;font-weight:800;color:#22c55e;">{{ student.cgpa }}</div>
+        <div style="font-size:.68rem;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-top:.1rem;">CGPA</div>
       </div>
       {% endif %}
-      {% if student.linkedin_score %}
-      <div style="text-align:center; background:rgba(167,139,250,0.08); border:1px solid rgba(167,139,250,0.2); border-radius:10px; padding:0.7rem 1.2rem;">
-        <div style="font-size:1.4rem; font-weight:800; color:#a78bfa;">{{ student.linkedin_score }}</div>
-        <div style="font-size:0.72rem; color:#64748b; text-transform:uppercase; letter-spacing:.05em;">LinkedIn Score</div>
+      {% if student.trust_score %}
+      <div class="stat-pill" style="background:rgba(168,85,247,.07);border:1px solid rgba(168,85,247,.2);">
+        <div style="font-size:1.4rem;font-weight:800;color:#a855f7;">{{ student.trust_score|floatformat:0 }}</div>
+        <div style="font-size:.68rem;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-top:.1rem;">Trust Score</div>
       </div>
       {% endif %}
     </div>
   </div>
 
-  <!-- Two-column: CV  |  LinkedIn PDF -->
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+  <!-- Document grid -->
+  <div class="doc-grid">
 
-    <!-- ── CV / Resume ── -->
-    <div class="glass-card" style="padding:1.5rem; display:flex; flex-direction:column; gap:1rem;">
-      <div style="display:flex; align-items:center; justify-content:space-between;">
-        <h3 style="margin:0; color:#48bbff; font-size:1rem;">
+    <!-- CV / Resume -->
+    <div class="doc-card">
+      <div class="doc-card-header">
+        <h3 class="doc-card-title" style="color:#48bbff;">
           <i class="fas fa-file-pdf"></i> CV / Resume
         </h3>
         {% if student.resume %}
-        <a href="{{ student.resume.url }}" target="_blank" download
-           style="background:#3b82f6; color:#fff; padding:0.35rem 0.9rem; border-radius:6px; font-size:0.8rem; text-decoration:none;">
+        <a href="{{ student.resume.url }}" download target="_blank"
+           class="doc-download-btn"
+           style="background:#1d4ed8;color:#fff;">
           <i class="fas fa-download"></i> Download
         </a>
         {% endif %}
       </div>
 
       {% if student.resume %}
-        <iframe src="{{ student.resume.url }}"
-                style="width:100%; height:620px; border:none; border-radius:8px; background:#1e293b;"
-                title="CV of {{ student.name }}">
-          <p style="color:#94a3b8; padding:1rem;">
-            Your browser cannot display this PDF inline.
-            <a href="{{ student.resume.url }}" target="_blank" style="color:#48bbff;">Open in new tab</a>
-          </p>
-        </iframe>
+        <div class="doc-embed-wrap">
+          <object
+            data="{{ student.resume.url }}#toolbar=1&navpanes=0&scrollbar=1"
+            type="application/pdf"
+            style="width:100%;height:100%;min-height:640px;display:block;"
+          >
+            <!-- Fallback if object tag doesn't work -->
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+              height:100%;min-height:300px;gap:1rem;padding:2rem;text-align:center;">
+              <i class="fas fa-file-pdf" style="font-size:3rem;color:#3b82f6;"></i>
+              <p style="color:#94a3b8;margin:0;font-size:.9rem;">
+                Browser cannot display PDF inline.
+              </p>
+              <a href="{{ student.resume.url }}" target="_blank"
+                 style="background:#3b82f6;color:#fff;padding:.6rem 1.2rem;border-radius:8px;
+                   text-decoration:none;font-weight:700;font-size:.88rem;">
+                <i class="fas fa-external-link-alt"></i> Open PDF
+              </a>
+            </div>
+          </object>
+        </div>
+        <div class="doc-open-bar">
+          <span><i class="fas fa-info-circle"></i> If PDF is blank, open it in a new tab</span>
+          <a href="{{ student.resume.url }}" target="_blank" class="doc-open-link">
+            <i class="fas fa-external-link-alt"></i> Open in New Tab
+          </a>
+        </div>
       {% else %}
-        <div style="height:200px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.2); border-radius:8px; border:2px dashed #334155;">
-          <i class="fas fa-file-slash" style="font-size:2.5rem; color:#475569; margin-bottom:0.8rem;"></i>
-          <p style="color:#64748b; margin:0;">No CV uploaded by this student</p>
+        <div class="doc-empty">
+          <i class="fas fa-file-slash"></i>
+          <p>No CV uploaded by this student</p>
         </div>
       {% endif %}
     </div>
 
-    <!-- ── LinkedIn PDF ── -->
-    <div class="glass-card" style="padding:1.5rem; display:flex; flex-direction:column; gap:1rem;">
-      <div style="display:flex; align-items:center; justify-content:space-between;">
-        <h3 style="margin:0; color:#a78bfa; font-size:1rem;">
+    <!-- LinkedIn PDF -->
+    <div class="doc-card">
+      <div class="doc-card-header">
+        <h3 class="doc-card-title" style="color:#a78bfa;">
           <i class="fab fa-linkedin"></i> LinkedIn Profile PDF
         </h3>
         {% if student.linkedin_pdf %}
-        <a href="{{ student.linkedin_pdf.url }}" target="_blank" download
-           style="background:#7c3aed; color:#fff; padding:0.35rem 0.9rem; border-radius:6px; font-size:0.8rem; text-decoration:none;">
+        <a href="{{ student.linkedin_pdf.url }}" download target="_blank"
+           class="doc-download-btn"
+           style="background:#7c3aed;color:#fff;">
           <i class="fas fa-download"></i> Download
         </a>
         {% endif %}
       </div>
 
       {% if student.linkedin_pdf %}
-        <iframe src="{{ student.linkedin_pdf.url }}"
-                style="width:100%; height:620px; border:none; border-radius:8px; background:#1e293b;"
-                title="LinkedIn PDF of {{ student.name }}">
-          <p style="color:#94a3b8; padding:1rem;">
-            Your browser cannot display this PDF inline.
-            <a href="{{ student.linkedin_pdf.url }}" target="_blank" style="color:#a78bfa;">Open in new tab</a>
-          </p>
-        </iframe>
+        <div class="doc-embed-wrap">
+          <object
+            data="{{ student.linkedin_pdf.url }}#toolbar=1&navpanes=0&scrollbar=1"
+            type="application/pdf"
+            style="width:100%;height:100%;min-height:640px;display:block;"
+          >
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+              height:100%;min-height:300px;gap:1rem;padding:2rem;text-align:center;">
+              <i class="fab fa-linkedin" style="font-size:3rem;color:#7c3aed;"></i>
+              <p style="color:#94a3b8;margin:0;font-size:.9rem;">
+                Browser cannot display PDF inline.
+              </p>
+              <a href="{{ student.linkedin_pdf.url }}" target="_blank"
+                 style="background:#7c3aed;color:#fff;padding:.6rem 1.2rem;border-radius:8px;
+                   text-decoration:none;font-weight:700;font-size:.88rem;">
+                <i class="fas fa-external-link-alt"></i> Open PDF
+              </a>
+            </div>
+          </object>
+        </div>
+        <div class="doc-open-bar">
+          <span><i class="fas fa-info-circle"></i> If PDF is blank, open it in a new tab</span>
+          <a href="{{ student.linkedin_pdf.url }}" target="_blank"
+             class="doc-open-link" style="color:#a78bfa;border-color:rgba(167,139,250,.3);">
+            <i class="fas fa-external-link-alt"></i> Open in New Tab
+          </a>
+        </div>
+
+        {% if student.linkedin_parsed_data %}
+        <!-- LinkedIn key info extracted -->
+        <div style="padding:1.25rem;border-top:1px solid rgba(255,255,255,.05);">
+          <p style="margin:0 0 .6rem;font-size:.78rem;color:#475569;font-weight:700;
+            text-transform:uppercase;letter-spacing:.05em;">Parsed LinkedIn Data</p>
+          {% with d=student.linkedin_parsed_data %}
+          {% if d.headline %}<p style="margin:0 0 .25rem;font-size:.85rem;color:#e2e8f0;"><strong>{{ d.headline }}</strong></p>{% endif %}
+          {% if d.location %}<p style="margin:0 0 .5rem;font-size:.8rem;color:#64748b;"><i class="fas fa-map-marker-alt"></i> {{ d.location }}</p>{% endif %}
+          {% if d.connections %}<p style="margin:0;font-size:.78rem;color:#64748b;">{{ d.connections }} connections</p>{% endif %}
+          {% endwith %}
+        </div>
+        {% endif %}
+
       {% else %}
-        <div style="height:200px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.2); border-radius:8px; border:2px dashed #334155;">
-          <i class="fab fa-linkedin" style="font-size:2.5rem; color:#475569; margin-bottom:0.8rem;"></i>
-          <p style="color:#64748b; margin:0;">No LinkedIn PDF uploaded by this student</p>
+        <div class="doc-empty">
+          <i class="fab fa-linkedin"></i>
+          <p>No LinkedIn PDF uploaded by this student</p>
           {% if student.linkedin_url %}
           <a href="{{ student.linkedin_url }}" target="_blank"
-             style="margin-top:0.6rem; color:#a78bfa; font-size:0.85rem;">
+             style="color:#a78bfa;font-size:.85rem;text-decoration:none;
+               border:1px solid rgba(167,139,250,.3);padding:.35rem .85rem;border-radius:7px;">
             <i class="fab fa-linkedin"></i> View LinkedIn Profile →
           </a>
           {% endif %}

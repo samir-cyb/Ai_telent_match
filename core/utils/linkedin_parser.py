@@ -2,8 +2,11 @@ import json
 import io
 from google import genai
 from google.genai import types
+from core.utils.llm_client import llm_generate as _llm_generate, llm_generate_image as _llm_generate_image
 
-# Reuse the same client as resume_parser
+# Gemini client — kept for multimodal PDF bytes calls
+client = genai.Client(api_key='AQ.Ab8RN6LBjYwwET910F0CwPAeGmNOHOddFSqtECS22TZ8jD_kuA')
+
 
 
 
@@ -92,27 +95,33 @@ Rules:
             except Exception as e:
                 print(f"[LinkedIn] pdfplumber failed: {e}")
 
-            # Try direct PDF bytes to Gemini first
+            response_text = None
+
+            # 1st choice: Gemini multimodal (PDF bytes)
             try:
                 pdf_part = types.Part.from_bytes(data=file_bytes, mime_type='application/pdf')
                 response = client.models.generate_content(
                     model=self.model,
                     contents=[self.prompt, pdf_part]
                 )
+                response_text = response.text
                 print("[LinkedIn] Sent PDF bytes to Gemini")
             except Exception as e:
-                print(f"[LinkedIn] Direct PDF bytes failed: {e}, trying text")
-                if text_content and len(text_content) > 50:
-                    response = client.models.generate_content(
-                        model=self.model,
-                        contents=f"{self.prompt}\n\nLINKEDIN PROFILE TEXT:\n{text_content}"
-                    )
-                else:
-                    print("[LinkedIn] No usable content")
-                    return self._empty()
+                print(f"[LinkedIn] Gemini PDF bytes failed: {e}")
 
-            print(f"[LinkedIn] Raw response (500): {response.text[:500]}")
-            raw = json.loads(response.text)
+            # 2nd choice: llm_generate with extracted text (Gemini text → Ollama)
+            if not response_text and text_content and len(text_content) > 50:
+                print("[LinkedIn] Trying text-only path (Gemini/Ollama via llm_generate)")
+                response_text = _llm_generate(
+                    f"{self.prompt}\n\nLINKEDIN PROFILE TEXT:\n{text_content}"
+                )
+
+            if not response_text:
+                print("[LinkedIn] No usable content")
+                return self._empty()
+
+            print(f"[LinkedIn] Raw response (500): {response_text[:500]}")
+            raw = json.loads(response_text)
             return self._normalize(raw)
 
         except Exception as e:

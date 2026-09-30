@@ -1,7 +1,6 @@
 import json
 import random
-from google import genai
-
+from core.utils.llm_client import llm_generate as _llm_generate
 
 # Variety seeds so Gemini never generates the same question
 _VARIETY_SEEDS = [
@@ -234,8 +233,7 @@ Return ONLY raw JSON:
 }}
 """
         try:
-            resp = client.models.generate_content(model=self.model, contents=prompt)
-            text = self._clean(resp.text)
+            text = self._clean(_llm_generate(prompt))
             result = json.loads(text)
             return {
                 'score': max(0, min(int(result.get('score', 0)), max_points)),
@@ -244,7 +242,7 @@ Return ONLY raw JSON:
                 'improvements': result.get('improvements', []),
             }
         except Exception as e:
-            print(f'[QGen] Written grading failed: {e}')
+            print(f'[QGen] Written grading failed (Gemini + Ollama): {e}')
             return {'score': max_points // 2, 'feedback': 'Auto-graded (AI unavailable)',
                     'strengths': [], 'improvements': []}
 
@@ -252,17 +250,17 @@ Return ONLY raw JSON:
     # INTERNAL HELPERS
     # ------------------------------------------------------------------
     def _call_gemini(self, prompt, required_keys, fallback_fn):
+        """Try Gemini (with cascade) then Ollama; use fallback_fn if both fail."""
         try:
-            resp = client.models.generate_content(model=self.model, contents=prompt)
-            text = self._clean(resp.text)
+            text = self._clean(_llm_generate(prompt))
             data = json.loads(text)
             for k in required_keys:
                 if k not in data:
                     raise ValueError(f'Missing key: {k}')
-            print(f'[QGen] Generated: {data.get("title")}')
+            print(f'[QGen] Generated successfully: {data.get("title")}')
             return data
         except Exception as e:
-            print(f'[QGen] Generation failed: {e}')
+            print(f'[QGen] All LLM backends failed ({e}) — using fallback')
             return fallback_fn()
 
     @staticmethod
@@ -311,29 +309,118 @@ Return ONLY raw JSON:
         }
 
     def _fallback_mcq(self, job, dept_label, topic, mcq_count=4, written_count=2):
-        mcqs = [
+        # Pre-built varied question bank so each slot is different
+        _bank = [
             {
-                'id': i + 1, 'type': 'mcq',
-                'question': f'Which of the following best describes a key concept in {topic}?',
+                'question': f'What is the primary purpose of {topic} in a professional context?',
                 'options': [
-                    f'A. A fundamental principle of {topic}',
-                    'B. An unrelated server infrastructure concept',
-                    'C. A hardware specification',
-                    'D. None of the above',
+                    f'A. To streamline and improve outcomes in {topic}-related workflows',
+                    f'B. To replace all manual processes in an organisation',
+                    f'C. To eliminate the need for domain expertise',
+                    f'D. To reduce the number of tools used',
                 ],
                 'correct_answer': 'A',
-                'explanation': f'Option A directly describes a principle of {topic}.',
-                'points': 10,
-            }
-            for i in range(mcq_count)
+                'explanation': f'{topic} is primarily used to improve efficiency and outcomes in its domain.',
+            },
+            {
+                'question': f'Which of the following is a best practice when working with {topic}?',
+                'options': [
+                    f'A. Ignoring edge cases and focusing only on the happy path',
+                    f'B. Documenting decisions and maintaining version control',
+                    f'C. Skipping testing to deliver faster',
+                    f'D. Working without feedback loops',
+                ],
+                'correct_answer': 'B',
+                'explanation': 'Documentation and version control are universal best practices.',
+            },
+            {
+                'question': f'What is a common challenge when implementing {topic} in production?',
+                'options': [
+                    f'A. Scalability and handling unexpected load',
+                    f'B. Writing the initial code',
+                    f'C. Naming variables correctly',
+                    f'D. Setting up a local development environment',
+                ],
+                'correct_answer': 'A',
+                'explanation': 'Scalability is a frequent real-world concern once a solution reaches production.',
+            },
+            {
+                'question': f'How should errors and exceptions be handled in a {topic} system?',
+                'options': [
+                    f'A. Catch all exceptions silently and continue',
+                    f'B. Log them and display generic messages to users while handling root causes',
+                    f'C. Show raw stack traces to end users for transparency',
+                    f'D. Restart the system on every error',
+                ],
+                'correct_answer': 'B',
+                'explanation': 'Good error handling means logging internally and giving users safe, helpful messages.',
+            },
+            {
+                'question': f'Which metric is most useful for evaluating the quality of a {topic} solution?',
+                'options': [
+                    f'A. Lines of code written',
+                    f'B. Number of meetings held',
+                    f'C. Measurable outcome improvement (speed, accuracy, cost, uptime)',
+                    f'D. Team size',
+                ],
+                'correct_answer': 'C',
+                'explanation': 'Quality is best measured by concrete, measurable improvements to key outcomes.',
+            },
+            {
+                'question': f'When collaborating on a {topic} project, what is critical for team success?',
+                'options': [
+                    f'A. Each person working in isolation to avoid conflicts',
+                    f'B. Clear communication, shared standards, and regular code/design reviews',
+                    f'C. The most senior person making all decisions alone',
+                    f'D. Avoiding documentation to save time',
+                ],
+                'correct_answer': 'B',
+                'explanation': 'Collaboration requires shared standards, open communication, and peer review.',
+            },
+            {
+                'question': f'How would you approach debugging a complex issue in a {topic} system?',
+                'options': [
+                    f'A. Restart everything and hope it resolves',
+                    f'B. Isolate the problem, reproduce it, analyse logs, then test a fix systematically',
+                    f'C. Ask someone else to fix it without investigating',
+                    f'D. Rewrite the entire module from scratch immediately',
+                ],
+                'correct_answer': 'B',
+                'explanation': 'Systematic debugging — isolate, reproduce, analyse, fix, verify — is the professional approach.',
+            },
+            {
+                'question': f'What role does testing play in a {topic} project?',
+                'options': [
+                    f'A. Testing is optional if the developer is confident',
+                    f'B. Testing validates correctness, prevents regressions, and builds confidence to deploy',
+                    f'C. Testing only matters for large teams',
+                    f'D. Testing slows down delivery and should be skipped in deadlines',
+                ],
+                'correct_answer': 'B',
+                'explanation': 'Testing is essential at all scales to prevent bugs and enable confident iteration.',
+            },
         ]
+        # Cycle through the bank, wrapping if mcq_count > bank size
+        mcqs = []
+        for i in range(mcq_count):
+            entry = _bank[i % len(_bank)]
+            mcqs.append({
+                'id': i + 1,
+                'type': 'mcq',
+                'question': entry['question'],
+                'options': entry['options'],
+                'correct_answer': entry['correct_answer'],
+                'explanation': entry['explanation'],
+                'points': 10,
+            })
+
         written = [
             {
                 'id': mcq_count + 1, 'type': 'written',
-                'question': f'Describe how you would apply {topic} in a real professional scenario. '
-                            f'What challenges would arise and how would you address them? (100-200 words)',
+                'question': f'Describe a real scenario where you applied skills related to {topic}. '
+                            f'What was the problem, what did you do, and what was the outcome? (100-200 words)',
                 'word_limit': 200,
-                'grading_rubric': f'Specific scenario using {topic}, realistic challenge, practical solution',
+                'grading_rubric': f'Specific scenario, clear problem statement, concrete actions, measurable outcome related to {topic}',
                 'points': 30,
             },
         ]
@@ -343,12 +430,12 @@ Return ONLY raw JSON:
                 'question': f'As a {job.title}, how would you prioritise tasks related to {topic} '
                             f'under tight deadlines? Give a specific example. (100-150 words)',
                 'word_limit': 150,
-                'grading_rubric': 'Prioritisation framework, specific example, outcome-focused',
+                'grading_rubric': 'Clear prioritisation framework, specific example, outcome-focused answer',
                 'points': 20,
             })
         return {
             'title': f'{topic} Assessment — {job.title}',
             'instructions': f'This assessment tests your knowledge of {topic}. '
-                            f'Answer all MCQs and provide detailed written responses.',
+                            f'Answer all MCQs carefully and provide detailed written responses.',
             'questions': mcqs + written[:written_count],
         }

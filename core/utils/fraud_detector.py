@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
+from django.utils import timezone
 from django.db.models import Avg, Count
 from core.models import FraudFlag, Student, StudentSkill, Application
 
@@ -120,7 +121,7 @@ class FraudDetectionEngine:
         recent_updates = FraudFlag.objects.filter(
             student=student,
             flag_type='cgpa_changed',
-            created_at__gte=datetime.now() - timedelta(days=7)
+            created_at__gte=timezone.now() - timedelta(days=7)
         ).count()
         
         if recent_updates > 3:
@@ -165,7 +166,7 @@ class FraudDetectionEngine:
         # Check for mass applications in short time
         recent_apps = Application.objects.filter(
             student=student,
-            applied_at__gte=datetime.now() - timedelta(hours=1)
+            applied_at__gte=timezone.now() - timedelta(hours=1)
         ).count()
         
         if recent_apps > 20:
@@ -203,7 +204,7 @@ class FraudDetectionEngine:
         recent_cgpa_flags = FraudFlag.objects.filter(
             student=student,
             flag_type='cgpa_changed',
-            created_at__gte=datetime.now() - timedelta(days=30)
+            created_at__gte=timezone.now() - timedelta(days=30)
         ).order_by('-created_at')
         
         if recent_cgpa_flags.count() >= 2:
@@ -238,7 +239,7 @@ class FraudDetectionEngine:
         if students is None:
             # Analyze students updated in last 24 hours
             students = Student.objects.filter(
-                updated_at__gte=datetime.now() - timedelta(days=1)
+                updated_at__gte=timezone.now() - timedelta(days=1)
             )
         
         results = []
@@ -274,7 +275,7 @@ class FraudDetectionEngine:
         # Trend over last 7 days
         recent_trend = []
         for i in range(7):
-            date = datetime.now().date() - timedelta(days=i)
+            date = timezone.now().date() - timedelta(days=i)
             count = FraudFlag.objects.filter(
                 created_at__date=date
             ).count()

@@ -249,8 +249,17 @@ document.addEventListener('paste', e => { if (!answerSubmitted) { e.preventDefau
 document.addEventListener('contextmenu', e => { if (!answerSubmitted) e.preventDefault(); });
 
 // ── Enter fullscreen on first click / load ───────────────────────────────────
+// sessionStorage key so the overlay only shows once per interview session.
+const FS_KEY = 'interview_fs_accepted';
+
 window.addEventListener('load', () => {
-  // Show fullscreen prompt overlay
+  if (sessionStorage.getItem(FS_KEY)) {
+    // Already accepted on a previous question — silently re-enter fullscreen.
+    enterFullscreen();
+    return;
+  }
+
+  // First question: show the consent overlay.
   const overlay = document.createElement('div');
   overlay.id = 'fs-overlay';
   overlay.style.cssText = `
@@ -274,6 +283,7 @@ window.addEventListener('load', () => {
   document.body.appendChild(overlay);
 
   document.getElementById('fs-start-btn').addEventListener('click', () => {
+    sessionStorage.setItem(FS_KEY, '1');
     overlay.remove();
     enterFullscreen();
   });

@@ -62,6 +62,66 @@ SKILL_ECOSYSTEM = {
     'kotlin': ['android', 'jetpack compose', 'coroutines', 'ktor'],
     'dart':   ['flutter'],
     'r':      ['ggplot', 'dplyr', 'tidyverse', 'shiny', 'caret'],
+    # ── Non-tech ecosystems ───────────────────────────────────────────────────
+    'marketing': [
+        'digital marketing', 'seo', 'sem', 'social media marketing',
+        'content creation', 'copywriting', 'email marketing', 'google analytics',
+        'brand management', 'market research', 'advertising', 'ppc', 'crm',
+        'content marketing', 'influencer marketing',
+    ],
+    'digital marketing': [
+        'seo', 'sem', 'google analytics', 'social media marketing',
+        'content creation', 'email marketing', 'ppc', 'copywriting',
+    ],
+    'seo': ['google analytics', 'sem', 'content marketing', 'digital marketing'],
+    'finance': [
+        'financial modeling', 'financial analysis', 'accounting', 'auditing',
+        'microsoft excel', 'bloomberg', 'valuation', 'budgeting',
+        'forecasting', 'bookkeeping', 'investment analysis', 'risk management',
+    ],
+    'accounting': [
+        'bookkeeping', 'auditing', 'financial analysis', 'microsoft excel',
+        'quickbooks', 'xero', 'tax', 'gaap',
+    ],
+    'financial modeling': [
+        'financial analysis', 'valuation', 'microsoft excel', 'bloomberg',
+        'forecasting', 'budgeting',
+    ],
+    'design': [
+        'figma', 'adobe photoshop', 'adobe illustrator', 'adobe xd',
+        'ui/ux', 'ux design', 'graphic design', 'branding', 'typography',
+        'canva', 'sketch', 'invision', 'video editing', 'after effects',
+        'adobe premiere', 'motion graphics', 'photography',
+    ],
+    'ui/ux': [
+        'figma', 'adobe xd', 'sketch', 'invision', 'ux research',
+        'wireframing', 'prototyping', 'user research',
+    ],
+    'human resources': [
+        'recruitment', 'talent acquisition', 'talent management',
+        'employee relations', 'training & development', 'performance management',
+        'hrm', 'onboarding', 'compensation & benefits',
+    ],
+    'recruitment': [
+        'talent acquisition', 'human resources', 'talent management',
+        'headhunting', 'sourcing', 'interviewing',
+    ],
+    'project management': [
+        'agile', 'scrum', 'kanban', 'pmp', 'prince2',
+        'operations management', 'risk management', 'jira', 'trello',
+    ],
+    'business analysis': [
+        'requirements gathering', 'process improvement', 'stakeholder management',
+        'data analysis', 'microsoft excel', 'sql', 'tableau',
+    ],
+    'sales': [
+        'crm', 'salesforce', 'hubspot', 'business development',
+        'negotiation', 'lead generation', 'account management',
+    ],
+    'supply chain': [
+        'logistics', 'procurement', 'inventory management',
+        'erp', 'sap', 'operations management',
+    ],
     'sql': [
         'mysql', 'postgresql', 'postgres', 'sqlite', 'mssql',
         'oracle', 'mariadb', 'redshift', 'snowflake', 'bigquery',
@@ -552,16 +612,18 @@ class RecruitmentAgent:
         )
 
         # ── Activity: GitHub 60% + platform activity 40% ─────────────────────
-        github_norm    = min(candidate_data['github_score'] / 100, 1.0)
-        activity_raw   = candidate_data['activity_score']
+        github_raw     = candidate_data['github_score'] or 0   # guard None
+        github_norm    = min(github_raw / 100, 1.0)
+        activity_raw   = candidate_data['activity_score'] or 0
         activity_score = round(github_norm * 0.6 + min(activity_raw / 100, 1.0) * 0.4, 3)
-        activity_detail = f"GitHub: {candidate_data['github_score']} pts | Activity: {activity_raw:.0f}/100"
+        activity_detail = f"GitHub: {github_raw} pts | Activity: {activity_raw:.0f}/100"
 
         # ── Trust: LinkedIn 50% + profile trust score 50% ────────────────────
-        linkedin_norm = min(candidate_data['linkedin_score'] / 100, 1.0)
-        trust_raw     = candidate_data['trust_score']
+        linkedin_raw  = candidate_data['linkedin_score'] or 0  # guard None
+        linkedin_norm = min(linkedin_raw / 100, 1.0)
+        trust_raw     = candidate_data['trust_score'] or 0
         trust_score   = round(linkedin_norm * 0.5 + min(trust_raw / 100, 1.0) * 0.5, 3)
-        trust_detail  = f"LinkedIn: {candidate_data['linkedin_score']}/100 | Trust: {trust_raw:.0f}/100"
+        trust_detail  = f"LinkedIn: {linkedin_raw}/100 | Trust: {trust_raw:.0f}/100"
 
         scores = {
             'skills':   {'score': round(skills_score,   3), 'detail': skills_detail},
@@ -583,9 +645,23 @@ class RecruitmentAgent:
     # ── step 4: apply weights ─────────────────────────────────────────────────
 
     def _step4_apply_weights(self, feature_scores, job=None):
-        weights  = self.company.get_weights()
-        # Job-specific weights override company defaults (if set on the job posting)
-        if job and job.custom_weights:
+        if self.company.custom_weights:
+            # Company has manually tuned weights — use them as the base
+            weights = self.company.get_weights()
+        else:
+            # No custom weights set — pick department-aware defaults instead of
+            # the generic 40/20/20/10/10 that unfairly biases against non-tech students
+            try:
+                from core.utils.ai_engine import DEPARTMENT_DEFAULT_WEIGHTS
+                dept = getattr(job, 'department_category', None) or 'any'
+                weights = dict(DEPARTMENT_DEFAULT_WEIGHTS.get(dept, DEPARTMENT_DEFAULT_WEIGHTS.get('any', {})))
+                if not weights:
+                    weights = self.company.get_weights()
+            except Exception:
+                weights = self.company.get_weights()
+
+        # Job-specific weights override everything (if set on the job posting)
+        if job and getattr(job, 'custom_weights', None):
             weights = {**weights, **job.custom_weights}
 
         # ── Normalize weights so they always sum to 1.0 ──────────────────────
@@ -627,28 +703,50 @@ class RecruitmentAgent:
 
     # ── step 5: decide ────────────────────────────────────────────────────────
 
-    def _step5_decide(self, weighted_score):
-        if weighted_score >= self.SHORTLIST_THRESHOLD:
+    JUNIOR_KEYWORDS = ('junior', 'entry', 'intern', 'trainee', 'associate', 'graduate')
+
+    def _step5_decide(self, weighted_score, job=None):
+        """
+        Make shortlist / review / reject decision.
+
+        Thresholds are adjusted for junior/entry-level positions to avoid
+        rejecting genuinely promising candidates who score lower due to limited
+        experience rather than lack of potential.
+        """
+        # Detect junior/entry-level jobs → lower the review threshold
+        shortlist_threshold = self.SHORTLIST_THRESHOLD
+        review_threshold    = self.REVIEW_THRESHOLD
+        is_junior = False
+        if job is not None:
+            title_lower = (job.title or '').lower()
+            if any(kw in title_lower for kw in self.JUNIOR_KEYWORDS):
+                review_threshold = 0.28   # lower bar: 28% review instead of 45%
+                shortlist_threshold = 0.50  # and 50% to shortlist (not 60%)
+                is_junior = True
+
+        if weighted_score >= shortlist_threshold:
             decision   = 'shortlist'
             confidence = 'HIGH' if weighted_score >= 0.75 else 'MEDIUM'
+            level_note = ' (junior-level thresholds)' if is_junior else ''
             reasoning  = (
                 f"Score {weighted_score*100:.1f}% ≥ shortlist threshold "
-                f"{self.SHORTLIST_THRESHOLD*100:.0f}% → SHORTLIST ({confidence} confidence)"
+                f"{shortlist_threshold*100:.0f}%{level_note} → SHORTLIST ({confidence} confidence)"
             )
-        elif weighted_score >= self.REVIEW_THRESHOLD:
+        elif weighted_score >= review_threshold:
             decision   = 'review'
             confidence = 'LOW'
+            level_note = ' (junior-level thresholds)' if is_junior else ''
             reasoning  = (
                 f"Score {weighted_score*100:.1f}% is in the grey zone "
-                f"({self.REVIEW_THRESHOLD*100:.0f}%–{self.SHORTLIST_THRESHOLD*100:.0f}%) "
+                f"({review_threshold*100:.0f}%–{shortlist_threshold*100:.0f}%){level_note} "
                 f"→ MANUAL REVIEW recommended"
             )
         else:
             decision   = 'reject'
             confidence = 'HIGH'
             reasoning  = (
-                f"Score {weighted_score*100:.1f}% < reject threshold "
-                f"{self.REVIEW_THRESHOLD*100:.0f}% → REJECT"
+                f"Score {weighted_score*100:.1f}% < review threshold "
+                f"{review_threshold*100:.0f}% → REJECT"
             )
 
         self._log(
@@ -656,16 +754,18 @@ class RecruitmentAgent:
             '🎯 Make Decision',
             (
                 f"Comparing {weighted_score*100:.1f}% against thresholds: "
-                f"shortlist ≥ {self.SHORTLIST_THRESHOLD*100:.0f}%, "
-                f"reject < {self.REVIEW_THRESHOLD*100:.0f}%…"
+                f"shortlist ≥ {shortlist_threshold*100:.0f}%, "
+                f"review ≥ {review_threshold*100:.0f}%"
+                + (' [junior-level thresholds]' if is_junior else '') + '…'
             ),
             reasoning,
             {
                 'score':               weighted_score,
                 'decision':            decision,
                 'confidence':          confidence,
-                'shortlist_threshold': self.SHORTLIST_THRESHOLD,
-                'review_threshold':    self.REVIEW_THRESHOLD,
+                'shortlist_threshold': shortlist_threshold,
+                'review_threshold':    review_threshold,
+                'is_junior_role':      is_junior,
             }
         )
         return decision, confidence
@@ -784,7 +884,7 @@ class RecruitmentAgent:
             job_data       = self._step2_analyse_job(job)
             feature_scores = self._step3_compute_scores(candidate_data, job_data)
             weighted_score, breakdown, weights = self._step4_apply_weights(feature_scores, job=job)
-            decision, confidence = self._step5_decide(weighted_score)
+            decision, confidence = self._step5_decide(weighted_score, job=job)
             fit_report = self._step6_fit_report(
                 student, job, feature_scores, weighted_score,
                 decision, breakdown, candidate_data, job_data

@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+{% block title %}Skill Demand Heatmap | AI Talent Match{% endblock %}
+
+{% block extra_head %}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:1100px;padding:2rem 1rem 4rem;">
+
+  <!-- Header -->
+  <div class="glass-card" style="padding:1.5rem 2rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+    <div>
+      <a href="/student/dashboard/" style="color:#48bbff;font-size:0.85rem;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem;margin-bottom:.5rem;">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+      </a>
+      <h1 style="margin:.2rem 0 .3rem;font-size:1.7rem;font-weight:800;color:#f0f9ff;display:flex;align-items:center;gap:.6rem;">
+        <span style="background:linear-gradient(135deg,#48bbff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+          Skill Demand Heatmap
+        </span>
+        <span style="font-size:1.2rem;">🔥</span>
+      </h1>
+      <p style="color:#94a3b8;margin:0;font-size:0.88rem;">
+        See what skills companies are hiring for right now — build these to boost your match score
+      </p>
+    </div>
+    <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
+      <div id="stats-pill" style="
+        background:rgba(72,187,255,.08);border:1px solid rgba(72,187,255,.25);
+        border-radius:999px;padding:.45rem 1.1rem;font-size:.82rem;color:#93c5fd;
+        display:flex;align-items:center;gap:.4rem;
+      ">
+        <i class="fas fa-spinner fa-spin" style="font-size:.7rem;"></i> Loading…
+      </div>
+    </div>
+  </div>
+
+  <!-- Student tip banner -->
+  <div style="
+    background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);
+    border-radius:14px;padding:1rem 1.4rem;margin-bottom:1.5rem;
+    display:flex;align-items:center;gap:.9rem;
+  ">
+    <i class="fas fa-lightbulb" style="color:#a855f7;font-size:1.1rem;flex-shrink:0;"></i>
+    <p style="margin:0;font-size:.85rem;color:#c4b5fd;line-height:1.5;">
+      <strong style="color:#e9d5ff;">Pro tip:</strong>
+      The <em>Supply vs Demand Gap</em> tab shows where talent is scarce — skills with a <span style="color:#ef4444;font-weight:700;">CRITICAL</span> gap
+      are your best opportunities. Companies struggle to find candidates with these skills, so learning them will make you stand out.
+    </p>
+  </div>
+
+  <!-- Tab nav -->
+  <div style="display:flex;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+    <button class="tab-btn active" data-tab="top10" onclick="switchTab('top10', this)">🔥 Most In-Demand</button>
+    <button class="tab-btn" data-tab="gap" onclick="switchTab('gap', this)">⚡ Skill Gaps (Opportunity)</button>
+    <button class="tab-btn" data-tab="dept" onclick="switchTab('dept', this)">🏛️ By Department</button>
+    <button class="tab-btn" data-tab="trend" onclick="switchTab('trend', this)">📈 Trending This Week</button>
+  </div>
+
+  <!-- Tab panels -->
+  <div id="tab-top10" class="tab-panel">
+    <div class="glass-card" style="padding:1.5rem;">
+      <h3 style="margin:0 0 .3rem;font-size:1rem;color:#e2e8f0;">Most In-Demand Skills Right Now</h3>
+      <p style="color:#64748b;font-size:.82rem;margin:0 0 1.5rem;">
+        These skills appear in the most active job postings — make sure they're on your profile.
+      </p>
+      <div style="position:relative;height:340px;">
+        <canvas id="top10Chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-gap" class="tab-panel" style="display:none;">
+    <div class="glass-card" style="padding:1.5rem;">
+      <h3 style="margin:0 0 .3rem;font-size:1rem;color:#e2e8f0;">Where Talent is Scarce</h3>
+      <p style="color:#64748b;font-size:.82rem;margin:0 0 1.5rem;">
+        <span style="color:#ef4444;">Red = companies want it, few students have it.</span>
+        <span style="color:#22c55e;">Green = students have it, companies want it.</span>
+        Learning the red skills makes you rare — and hireable.
+      </p>
+      <div style="position:relative;height:360px;">
+        <canvas id="gapChart"></canvas>
+      </div>
+    </div>
+    <div id="gap-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;margin-top:1.5rem;"></div>
+  </div>
+
+  <div id="tab-dept" class="tab-panel" style="display:none;">
+    <div style="margin-bottom:1rem;">
+      <p style="color:#94a3b8;font-size:.85rem;margin:0;">
+        Skills broken down by department — focus on your department's most wanted skills.
+      </p>
+    </div>
+    <div id="dept-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5rem;"></div>
+  </div>
+
+  <div id="tab-trend" class="tab-panel" style="display:none;">
+    <div class="glass-card" style="padding:1.5rem;">
+      <h3 style="margin:0 0 .3rem;font-size:1rem;color:#e2e8f0;">Trending Skills (Last 7 Days)</h3>
+      <p style="color:#64748b;font-size:.82rem;margin:0 0 1.5rem;">
+        Skills from jobs posted this week — these are what companies are hiring for right now.
+      </p>
+      <div style="position:relative;height:340px;">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+.tab-btn {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  color: #64748b;
+  padding: .5rem 1.1rem;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+}
+.tab-btn.active, .tab-btn:hover {
+  background: rgba(72,187,255,.12);
+  border-color: rgba(72,187,255,.35);
+  color: #48bbff;
+}
+.gap-card {
+  background: rgba(15,23,42,.7);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+  transition: border-color .2s;
+}
+.gap-card:hover { border-color: rgba(72,187,255,.3); }
+.dept-card {
+  background: rgba(15,23,42,.7);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 1.25rem;
+}
+.dept-card h4 {
+  margin: 0 0 1rem;
+  font-size: .9rem;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.dept-skill-bar { margin-bottom: .65rem; }
+.dept-skill-bar .label {
+  display: flex;
+  justify-content: space-between;
+  font-size: .78rem;
+  color: #94a3b8;
+  margin-bottom: .25rem;
+}
+.dept-skill-bar .bar-track {
+  height: 8px;
+  background: rgba(255,255,255,.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.dept-skill-bar .bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #48bbff, #a855f7);
+  transition: width .8s ease;
+}
+</style>
+
+<script>
+const STUDENT_ID = "{{ student_id }}";
+const API_BASE   = window.API_BASE || "http://127.0.0.1:8000/api";
+
+const chartDefaults = {
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(10,15,30,.95)',
+      borderColor: 'rgba(72,187,255,.3)',
+      borderWidth: 1,
+      titleColor: '#e2e8f0',
+      bodyColor: '#94a3b8',
+      padding: 10,
+    }
+  },
+  scales: {
+    x: {
+      ticks: { color: '#64748b', font: { size: 11 } },
+      grid:  { color: 'rgba(255,255,255,.04)' },
+    },
+    y: {
+      ticks: { color: '#64748b', font: { size: 11 } },
+      grid:  { color: 'rgba(255,255,255,.04)' },
+    }
+  }
+};
+
+let charts = {};
+
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).style.display = 'block';
+  btn.classList.add('active');
+}
+
+async function loadHeatmap() {
+  try {
+    // Students use the platform-wide heatmap — no company filter needed
+    const r = await fetch(`${API_BASE}/skill-heatmap/`);
+    const d = await r.json();
+    if (d.status !== 'success') throw new Error(d.message || 'Failed');
+
+    document.getElementById('stats-pill').innerHTML =
+      `<i class="fas fa-briefcase" style="font-size:.7rem;"></i> ${d.total_active_jobs} active jobs &nbsp;·&nbsp; <i class="fas fa-users" style="font-size:.7rem;"></i> ${d.total_students} students`;
+
+    buildTop10(d.top10);
+    buildGap(d.gap_data);
+    buildDept(d.dept_breakdown);
+    buildTrend(d.weekly_trend);
+  } catch (e) {
+    console.error('Heatmap load error:', e);
+    document.getElementById('stats-pill').textContent = 'Error loading data';
+  }
+}
+
+function buildTop10(data) {
+  if (!data || !data.length) return;
+  const labels = data.map(d => d.skill);
+  const values = data.map(d => d.count);
+  const maxVal = Math.max(...values);
+  const colors = values.map(v => {
+    const ratio = v / maxVal;
+    return `rgba(${Math.round(72 + (168-72)*ratio)}, ${Math.round(187 - (187-85)*ratio)}, ${Math.round(255 - (255-247)*ratio)}, 0.8)`;
+  });
+
+  if (charts.top10) charts.top10.destroy();
+  charts.top10 = new Chart(document.getElementById('top10Chart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 8, borderSkipped: false }] },
+    options: {
+      ...chartDefaults,
+      indexAxis: 'y',
+      scales: {
+        x: { ...chartDefaults.scales.x, title: { display: true, text: 'Number of Job Postings', color: '#64748b', font: { size: 11 } } },
+        y: { ...chartDefaults.scales.y }
+      }
+    }
+  });
+}
+
+function buildGap(data) {
+  if (!data || !data.length) return;
+  const labels = data.map(d => d.skill);
+  const demand = data.map(d => d.demand);
+  const supply = data.map(d => d.supply);
+
+  if (charts.gap) charts.gap.destroy();
+  charts.gap = new Chart(document.getElementById('gapChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Demand (Jobs)',     data: demand, backgroundColor: 'rgba(239,68,68,.7)',  borderRadius: 6 },
+        { label: 'Supply (Students)', data: supply, backgroundColor: 'rgba(34,197,94,.7)', borderRadius: 6 },
+      ]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: {
+        ...chartDefaults.plugins,
+        legend: { display: true, labels: { color: '#94a3b8', font: { size: 11 } } }
+      },
+    }
+  });
+
+  const container = document.getElementById('gap-cards');
+  container.innerHTML = data.map(d => {
+    const gapPct    = d.demand > 0 ? Math.round((d.gap / d.demand) * 100) : 0;
+    const severity  = gapPct > 60 ? 'critical' : gapPct > 30 ? 'moderate' : 'low';
+    const color     = severity === 'critical' ? '#ef4444' : severity === 'moderate' ? '#f59e0b' : '#22c55e';
+    const advice    = severity === 'critical'
+      ? '🚀 Learn this — huge hiring gap!'
+      : severity === 'moderate'
+      ? '📈 Good opportunity to stand out'
+      : '✅ Competitive but always valuable';
+    return `
+    <div class="gap-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
+        <span style="font-weight:700;color:#e2e8f0;font-size:.9rem;">${d.skill}</span>
+        <span style="background:${color}20;border:1px solid ${color}60;color:${color};
+          font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;">
+          ${severity.toUpperCase()}
+        </span>
+      </div>
+      <div style="font-size:.78rem;color:#64748b;margin-bottom:.4rem;">
+        Demand: <strong style="color:#fca5a5;">${d.demand}</strong> jobs ·
+        Supply: <strong style="color:#86efac;">${d.supply}</strong> students
+      </div>
+      <div style="background:rgba(255,255,255,.05);border-radius:999px;height:6px;overflow:hidden;">
+        <div style="width:${Math.min(100, Math.round((d.supply/Math.max(d.demand,1))*100))}%;
+          height:100%;background:#22c55e;border-radius:999px;"></div>
+      </div>
+      <div style="font-size:.72rem;color:#94a3b8;margin-top:.5rem;">${advice}</div>
+    </div>`;
+  }).join('');
+}
+
+function buildDept(data) {
+  if (!data || !Object.keys(data).length) {
+    document.getElementById('dept-grid').innerHTML =
+      '<p style="color:#64748b;text-align:center;grid-column:1/-1;">No department data available yet.</p>';
+    return;
+  }
+  const deptIcons = { CSE:'💻', BBA:'📊', EEE:'⚡', General:'🏢', CE:'🏗️', ME:'⚙️' };
+  const container = document.getElementById('dept-grid');
+  container.innerHTML = Object.entries(data).map(([dept, skills]) => {
+    const max = Math.max(...skills.map(s => s.count), 1);
+    return `
+    <div class="dept-card">
+      <h4>${deptIcons[dept] || '🎓'} ${dept}</h4>
+      ${skills.map(s => `
+        <div class="dept-skill-bar">
+          <div class="label"><span>${s.skill}</span><span>${s.count} jobs</span></div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:${Math.round((s.count/max)*100)}%;"></div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function buildTrend(data) {
+  if (!data || !data.length) {
+    document.querySelector('#tab-trend .glass-card').innerHTML +=
+      '<p style="color:#64748b;text-align:center;margin-top:2rem;">No new jobs posted in the last 7 days yet.</p>';
+    return;
+  }
+  const labels = data.map(d => d.skill);
+  const values = data.map(d => d.count);
+
+  if (charts.trend) charts.trend.destroy();
+  charts.trend = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: '#a855f7',
+        backgroundColor: 'rgba(168,85,247,.08)',
+        fill: true,
+        tension: .4,
+        pointBackgroundColor: '#a855f7',
+        pointRadius: 5,
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      scales: {
+        x: { ...chartDefaults.scales.x },
+        y: { ...chartDefaults.scales.y,
+          title: { display: true, text: 'New Job Postings (7 days)', color: '#64748b', font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+loadHeatmap();
+</script>
+{% endblock %}

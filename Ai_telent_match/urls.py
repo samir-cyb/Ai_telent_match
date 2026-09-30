@@ -11,9 +11,11 @@ from core.views import (
     company_interview_result,
     CandidateInterviewPageView, SubmitAnswerView, InterviewDonePageView,
     admin_dashboard, admin_analytics, admin_fraud_review, StudentLogoutView, CompanyLogoutView, admin_login_page, ApplicationsListView,
-    student_career_advisor_page, company_skill_heatmap,
+    student_career_advisor_page, company_skill_heatmap, student_leaderboard,
+    student_skill_heatmap, company_leaderboard,
+    SendJobOfferView, StudentQuickPreviewView, LeaderboardShortlistView,
+    company_pipeline_page,
 )
-
 urlpatterns = [
     path('', landing_page, name='landing'),
     path('about/', about_us, name='about'),
@@ -57,6 +59,14 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('applications/', ApplicationsListView.as_view()),
     path('job/<uuid:job_id>/slot-availability/', InterviewSlotAvailabilityView.as_view()),
+    path('student/leaderboard/', student_leaderboard, name='student_leaderboard'),
+    path('student/skill-heatmap/', student_skill_heatmap, name='student_skill_heatmap'),
+    path('company/leaderboard/', company_leaderboard, name='company_leaderboard'),
+    path('api/leaderboard/send-offer/', SendJobOfferView.as_view(), name='send_job_offer'),
+    path('api/leaderboard/shortlist/', LeaderboardShortlistView.as_view(), name='leaderboard_shortlist'),
+    path('api/student/<uuid:student_id>/quick-preview/', StudentQuickPreviewView.as_view(), name='student_quick_preview'),
+    # Auto Pipeline page
+    path('company/pipeline/<uuid:pipeline_id>/', company_pipeline_page, name='company_pipeline'),
     # API
     path('api/', include('core.urls')),
     

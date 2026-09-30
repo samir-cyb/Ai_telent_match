@@ -138,6 +138,27 @@ Match{%endblock %} {% block content %}
         </div>
       </div>
 
+      <!-- Company Notifications Card -->
+      <div class="glass-card" id="company-dash-notif-card" style="padding:1.25rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;">
+          <h3 style="margin:0;font-size:.95rem;">
+            <i class="fas fa-bell" style="color:#a855f7;margin-right:.4rem;"></i> Recent Notifications
+            <span id="dash-notif-unread-badge" style="display:none;background:#ef4444;color:#fff;
+              font-size:.6rem;font-weight:700;border-radius:10px;padding:.1rem .4rem;margin-left:.4rem;vertical-align:middle;">0</span>
+          </h3>
+          <button onclick="markAllCompanyNotifsRead()" style="background:none;border:none;cursor:pointer;
+            color:#64748b;font-size:.72rem;padding:.2rem .4rem;border-radius:4px;"
+            title="Mark all read">
+            <i class="fas fa-check-double"></i>
+          </button>
+        </div>
+        <div id="dash-notif-list" style="display:flex;flex-direction:column;gap:.5rem;max-height:280px;overflow-y:auto;">
+          <p style="color:#475569;font-size:.8rem;text-align:center;padding:1rem 0;">
+            <i class="fas fa-spinner fa-spin"></i> Loading...
+          </p>
+        </div>
+      </div>
+
       <!-- Weight Evolution / RL Agent mini card -->
       <div class="glass-card evolution-card" style="display:flex; flex-direction:column; gap:.8rem;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.5rem;">
@@ -288,18 +309,18 @@ Match{%endblock %} {% block content %}
       // Check if challenge exists by trying to get dashboard data
       const response = await fetch(`/vetting/api/job/${jobId}/vetting-dashboard/`);
       const data = await response.json();
-      
+
       const statusDiv = document.getElementById(`vetting-status-${jobId}`);
       const btnSpan = document.getElementById(`assessment-btn-${jobId}`);
-      
+
       if (data.status === 'success' && data.candidates.length > 0) {
         // Has candidates who took assessment
         const assessed = data.total_assessed || 0;
         const passed = data.pass_count || 0;
         statusDiv.innerHTML = `
           <span class="text-sm text-green-400">
-            <i class="fas fa-check-circle"></i> Assessment Active | 
-            <span class="text-blue-400">${assessed} assessed</span> | 
+            <i class="fas fa-check-circle"></i> Assessment Active |
+            <span class="text-blue-400">${assessed} assessed</span> |
             <span class="text-green-400">${passed} passed</span>
           </span>
         `;
@@ -338,7 +359,7 @@ Match{%endblock %} {% block content %}
     try {
       const response = await fetch(`${API_BASE}/vetting/job/${jobId}/vetting-dashboard/`);
       const data = await response.json();
-      
+
       if (data.status === 'success') {
         // Assessment exists, redirect to results
         window.location.href = `/vetting/job/${jobId}/vetting-dashboard/`;
@@ -355,12 +376,12 @@ Match{%endblock %} {% block content %}
       `Create Technical Assessment for: ${jobTitle}\n\nSelect difficulty level:`,
       "medium"
     );
-    
+
     if (!difficulty || !['easy', 'medium', 'hard'].includes(difficulty)) {
       if (difficulty) alert("Invalid difficulty. Choose: easy, medium, or hard");
       return;
     }
-    
+
     //const btn = event.target.closest('button');
     const originalHTML = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
@@ -370,9 +391,9 @@ Match{%endblock %} {% block content %}
       const response = await fetch(`/vetting/api/challenge/create/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          job_id: jobId, 
-          difficulty: difficulty 
+        body: JSON.stringify({
+          job_id: jobId,
+          difficulty: difficulty
         }),
       });
 
@@ -380,7 +401,7 @@ Match{%endblock %} {% block content %}
 
       if (data.status === "success") {
         alert(`✅ Assessment Created Successfully!\n\nTitle: ${data.data.title}\nTest Cases: ${data.data.test_cases_count}\n\nCandidates will now receive coding challenges when you send them assessments.`);
-        
+
         // Update UI
         checkVettingStatus(jobId);
         const btnSpan = document.getElementById(`assessment-btn-${jobId}`);
@@ -594,9 +615,81 @@ Match{%endblock %} {% block content %}
     } catch(e) { console.warn('Mini chart load failed:', e); }
   }
 
+  // ── Dashboard Notification Card ────────────────────────────────────────────
+  async function loadDashNotifications() {
+    const cid = localStorage.getItem('company_id');
+    if (!cid) return;
+    try {
+      const r = await fetch(`/api/notifications/${cid}/company/`);
+      if (!r.ok) return;
+      const d = await r.json();
+      const notifs = d.notifications || [];
+      const unread = d.unread_count || 0;
+
+      const badge = document.getElementById('dash-notif-unread-badge');
+      if (badge) {
+        badge.textContent = unread > 9 ? '9+' : unread;
+        badge.style.display = unread > 0 ? 'inline' : 'none';
+      }
+
+      const list = document.getElementById('dash-notif-list');
+      if (!list) return;
+
+      if (!notifs.length) {
+        list.innerHTML = '<p style="color:#475569;font-size:.8rem;text-align:center;padding:1rem 0;"><i class="fas fa-bell-slash"></i><br>No notifications yet</p>';
+        return;
+      }
+
+      const typeColors = {
+        new_application:'#48bbff', ai_interview_completed:'#a855f7',
+        interview_scheduled:'#34d399', cheating_alert:'#ef4444'
+      };
+      const typeIcons = {
+        new_application:'fa-user-plus', ai_interview_completed:'fa-brain',
+        interview_scheduled:'fa-calendar-check', cheating_alert:'fa-exclamation-triangle'
+      };
+      const typeLinks = {
+        new_application: () => '/company/applicants/',
+        ai_interview_completed: (d) => d.interview_id ? `/company/interview/${d.interview_id}/result/` : '/company/applicants/',
+        interview_scheduled: () => '/company/applicants/',
+        cheating_alert: (d) => d.interview_id ? `/company/interview/${d.interview_id}/result/` : '/company/applicants/',
+      };
+
+      list.innerHTML = notifs.slice(0,8).map(n => {
+        const color  = typeColors[n.type]  || '#fbbf24';
+        const icon   = typeIcons[n.type]   || 'fa-bell';
+        const href   = (typeLinks[n.type] || (() => '/company/dashboard/'))(n.data || {});
+        return `
+          <a href="${href}" style="display:flex;align-items:flex-start;gap:.6rem;
+              padding:.5rem .6rem;border-radius:8px;text-decoration:none;
+              background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.04);
+              opacity:${n.read?'.55':'1'};transition:background .15s;"
+             onmouseenter="this.style.background='rgba(255,255,255,.07)'"
+             onmouseleave="this.style.background='rgba(255,255,255,.03)'">
+            <div style="width:28px;height:28px;border-radius:8px;flex-shrink:0;
+                background:${color}22;display:flex;align-items:center;justify-content:center;">
+              <i class="fas ${icon}" style="color:${color};font-size:.72rem;"></i>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:.75rem;font-weight:600;color:#e2e8f0;
+                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title}</div>
+              <div style="font-size:.68rem;color:#64748b;margin-top:.1rem;">
+                ${(n.message||'').substring(0,70)}${(n.message||'').length>70?'…':''}
+              </div>
+              <div style="font-size:.62rem;color:#334155;margin-top:.15rem;">${n.time_ago||''}</div>
+            </div>
+            ${!n.read ? `<span style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;margin-top:4px;"></span>` : ''}
+          </a>`;
+      }).join('');
+    } catch(e) { /* silent */ }
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
   // Load on page load
   loadDashboard();
   loadMiniAgentChart();
+  loadDashNotifications();
+  setInterval(loadDashNotifications, 30000);
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 

@@ -255,6 +255,13 @@ def company_skill_heatmap(request):
     return render(request, 'company/skill_heatmap.html', {'company_id': company_id})
 
 
+@student_login_required
+def student_skill_heatmap(request):
+    """Student-facing skill demand heatmap — helps students know what to learn."""
+    student_id = request.session.get('student_id')
+    return render(request, 'student/skill_heatmap.html', {'student_id': student_id})
+
+
 @company_login_required
 def applicant_documents(request, application_id):
     """Show a student's CV and LinkedIn PDF to the company."""
@@ -518,7 +525,7 @@ class StudentProfileView(View):
     
     def _predict_trajectory(self, skills, project_count, student=None):
         """Gemini-powered career trajectory — uses skills + experience + applied jobs + skill gaps."""
-        from google import genai as _genai
+        pass  # genai import removed — using llm_client centrally
         try:
             experiences = []
             applied_job_titles = []
@@ -568,9 +575,8 @@ Return ONLY this JSON (no markdown, no explanation):
   "goal_1_year": "Concrete 1-year goal"
 }}"""
 
-            
-            resp = _client.models.generate_content(model='gemini-2.5-flash-lite', contents=prompt)
-            raw = resp.text.strip()
+            from core.utils.llm_client import llm_generate as _llm_generate
+            raw = _llm_generate(prompt).strip()
             if raw.startswith('```'):
                 raw = raw.split('```')[1]
                 if raw.startswith('json'):
@@ -949,13 +955,81 @@ Return ONLY this JSON (no markdown, no explanation):
                         student.github_score = result.get('score', 0)
                         student.save()
                         print(f"[DEBUG] GitHub verified: {new_gh_username}")
+
+                        # ── Auto-verify student's projects from GitHub ────────
+                        # A project whose github_url belongs to this student → verified = True
+                        def _norm_gh(s):
+                            return (s or '').lower().replace('-', '_').replace(' ', '_')
+
+                        gh_owner_norm = _norm_gh(new_gh_username)
+                        _verified_count = 0
+                        for proj in student.projects.filter(
+                            github_url__isnull=False
+                        ).exclude(github_url=''):
+                            url = proj.github_url.strip().rstrip('/').rstrip('.git').lower()
+                            if 'github.com/' in url:
+                                parts = url.split('github.com/')[-1].split('/')
+                                if parts and _norm_gh(parts[0]) == gh_owner_norm:
+                                    if not proj.verified:
+                                        proj.verified = True
+                                        proj.save(update_fields=['verified'])
+                                        _verified_count += 1
+
+                        # ── Cross-validate student skills from GitHub languages ─
+                        # If GitHub confirms Dart/Flutter → mark matching StudentSkill
+                        # as cross_validated so Trust Score gets the depth bonus.
+                        _cross_val_count = 0
+                        suggested_skills = result.get('suggested_skills', [])
+                        for skill_name in suggested_skills:
+                            qs = StudentSkill.objects.filter(
+                                student=student,
+                                skill__name__iexact=skill_name,
+                            ).select_related('skill')
+                            for ss in qs:
+                                if not ss.cross_validated:
+                                    ss.cross_validated = True
+                                    ss.save(update_fields=['cross_validated'])
+                                    _cross_val_count += 1
+
+                        print(
+                            f"[DEBUG] GitHub enrichment: verified {_verified_count} projects, "
+                            f"cross-validated {_cross_val_count} skills"
+                        )
+                        # ─────────────────────────────────────────────────────
+
                 except Exception as gh_err:
                     print(f"[DEBUG] GitHub verification skipped: {gh_err}")
             
             # Recalculate trust score
             student.calculate_trust_score()
             print(f"[DEBUG] Profile update complete. Trust score: {student.trust_score}")
-            
+
+            # ── Activity tracking: meaningful profile update ───────────────
+            student.activity_score = min(float(student.activity_score or 0) + 5, 100)
+            student.save(update_fields=['activity_score'])
+            # ─────────────────────────────────────────────────────────────
+
+            # Award leaderboard points based on current profile state
+            try:
+                from .utils.points import award_points
+                if StudentSkill.objects.filter(student=student).exists():
+                    award_points(student, 'add_skill')
+                if Project.objects.filter(student=student).exists():
+                    award_points(student, 'add_project')
+                if float(student.profile_complete_score or 0) >= 0.80:
+                    award_points(student, 'profile_complete')
+            except Exception:
+                pass
+
+            # Invalidate trajectory cache so next dashboard load regenerates it
+            try:
+                prefs = student.preferences or {}
+                prefs.pop('_trajectory_cache', None)
+                student.preferences = prefs
+                student.save(update_fields=['preferences'])
+            except Exception:
+                pass
+
             return JsonResponse({
                 'status': 'success',
                 'message': 'Profile updated successfully',
@@ -971,6 +1045,133 @@ Return ONLY this JSON (no markdown, no explanation):
         
         
         
+@method_decorator(csrf_exempt, name='dispatch')
+class DebugStudentScoresView(View):
+    """
+    Debug endpoint — returns a full breakdown of Activity and Trust scores
+    for a student, showing exactly what each signal contributed.
+
+    Usage: GET /api/debug/student-scores/?student_id=<uuid>
+
+    Response includes:
+      - activity.final          : 0–100 final activity score
+      - activity.breakdown      : signal-by-signal point breakdown
+      - activity.raw_pts        : total raw points before capping
+      - trust.final             : 0–100 final trust score
+      - trust.breakdown         : signal-by-signal point breakdown
+      - trust.raw_pts           : total raw points before capping
+      - trust._profile_fields   : which profile fields are filled
+      - trust._skill_detail     : expert/intermediate/cv'd skill counts
+      - trust._ext_detail       : dept-specific external signals detail
+      - stored_trust_score      : value stored on Student model
+      - stored_activity_score   : value stored on Student model
+    """
+    def get(self, request):
+        student_id = request.GET.get('student_id')
+        if not student_id:
+            return JsonResponse({'error': 'student_id required'}, status=400)
+
+        student = get_object_or_404(Student, id=student_id)
+
+        from .utils.ai_engine import AIMatchingEngine
+        engine = AIMatchingEngine()
+
+        activity_score = engine.calculate_activity_score(student)
+        trust_score    = engine.calculate_trust_score_dept_aware(student)
+
+        # Optional: job-aware project scoring when ?job_id=... is provided
+        job_id = request.GET.get('job_id')
+        debug_job = None
+        if job_id:
+            try:
+                debug_job = Job.objects.get(id=job_id)
+            except (Job.DoesNotExist, Exception):
+                pass
+
+        project_score = engine.calculate_project_score(student, job=debug_job)
+
+        activity_breakdown = getattr(student, '_activity_breakdown', {})
+        trust_breakdown    = getattr(student, '_trust_breakdown', {})
+        project_breakdown  = getattr(student, '_project_breakdown', {})
+
+        return JsonResponse({
+            'status': 'ok',
+            'student': {
+                'id':         str(student.id),
+                'name':       student.name,
+                'department': student.department,
+                'dept_cat':   student.department_category or student.get_department_category(),
+            },
+            'activity': {
+                'final':     round(activity_score * 100, 1),
+                'raw_pts':   getattr(student, '_activity_raw', 0),
+                'breakdown': activity_breakdown,
+                'stored':    float(student.activity_score),
+                'note': (
+                    'Activity is computed live from DB. '
+                    '"stored" is the legacy counter; "final" is what the match engine uses.'
+                ),
+            },
+            'trust': {
+                'final':     round(trust_score * 100, 1),
+                'raw_pts':   getattr(student, '_trust_raw', 0),
+                'breakdown': {
+                    k: v for k, v in trust_breakdown.items()
+                    if not k.startswith('_')
+                },
+                'detail': {
+                    k: v for k, v in trust_breakdown.items()
+                    if k.startswith('_')
+                },
+                'stored':    float(student.trust_score),
+                'note': (
+                    'Trust is computed live from DB each time a match is scored. '
+                    '"stored" is refreshed when the student updates their profile.'
+                ),
+            },
+            'projects': {
+                'final':          round(project_score * 100, 1),
+                'mode':           project_breakdown.get('mode', 'unknown'),
+                'job_context':    str(debug_job) if debug_job else None,
+                'job_id':         job_id or None,
+                'total_projects': project_breakdown.get('total_projects', 0),
+                'job_skills':     project_breakdown.get('job_skills', []),
+                'top_3_used':     project_breakdown.get('top_3_used', []),
+                'all_projects':   project_breakdown.get('all_projects', []),
+                'weighted_sum':   project_breakdown.get('weighted_sum', 0),
+                'depth_bonus':    project_breakdown.get('depth_bonus', 0),
+                'note': (
+                    'Job-aware scoring when ?job_id= is provided. '
+                    'Each project gets: relevance × complexity × verification_multiplier. '
+                    'Top-3 projects are used. GitHub-verified = 1.5×, manual = 1.2×.'
+                    if debug_job else
+                    'Complexity-based fallback (no job context). '
+                    'Add ?job_id=<uuid> to see job-relevant project scoring.'
+                ),
+            },
+            'signal_summary': {
+                'activity_signals': [
+                    {'signal': 'vetting_tests',        'pts': activity_breakdown.get('vetting_tests', 0),        'max': 25, 'desc': 'Completed×8 + passed×5'},
+                    {'signal': 'application_quality',  'pts': activity_breakdown.get('application_quality', 0),  'max': 20, 'desc': 'Shortlisted/hired ratio'},
+                    {'signal': 'login_regularity',     'pts': activity_breakdown.get('login_regularity', 0),     'max': 15, 'desc': 'login_frequency / 20 × 15'},
+                    {'signal': 'ai_interviews',        'pts': activity_breakdown.get('ai_interviews', 0),        'max': 15, 'desc': 'Completed AI interviews × 8'},
+                    {'signal': 'profile_freshness',    'pts': activity_breakdown.get('profile_freshness', 0),    'max': 10, 'desc': 'Days since last profile update'},
+                    {'signal': 'certifications',       'pts': activity_breakdown.get('certifications', 0),       'max': 10, 'desc': '× 3 per cert'},
+                    {'signal': 'spam_penalty',         'pts': activity_breakdown.get('spam_penalty', 0),         'max': 0,  'desc': '−1 per excess app with 0 success'},
+                ],
+                'trust_signals': [
+                    {'signal': 'profile_completeness', 'pts': trust_breakdown.get('profile_completeness', 0), 'max': 20, 'desc': '7 required fields'},
+                    {'signal': 'vetting_passed',       'pts': trust_breakdown.get('vetting_passed', 0),       'max': 25, 'desc': 'Passed tests × 8'},
+                    {'signal': 'skill_depth',          'pts': trust_breakdown.get('skill_depth', 0),          'max': 15, 'desc': 'Expert×4 + Intermediate×2 + CV\'d×2'},
+                    {'signal': 'external_validation',  'pts': trust_breakdown.get('external_validation', 0),  'max': 25, 'desc': 'Dept-specific: GitHub/LinkedIn/Portfolio/Papers/ECA'},
+                    {'signal': 'documents',            'pts': trust_breakdown.get('documents', 0),            'max': 10, 'desc': 'CV uploaded + LinkedIn PDF score'},
+                    {'signal': 'certifications',       'pts': trust_breakdown.get('certifications', 0),       'max':  5, 'desc': '1 pt per cert, max 5'},
+                    {'signal': 'spam_penalty',         'pts': trust_breakdown.get('spam_penalty', 0),         'max':  0, 'desc': '−1 per excess app (>15) with 0 success'},
+                ],
+            },
+        })
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class AnalyzeMatchView(View):
     def post(self, request):
@@ -1046,11 +1247,12 @@ class StudentDashboardView(View):
     def _get_dashboard(self, request, student_id):
         student = get_object_or_404(Student, id=student_id)
 
-        # Pre-fetch all active jobs (capped at 30 for performance)
+        # Pre-fetch all active jobs (capped at 200 for performance)
         all_active_jobs = list(
             Job.objects.filter(status='active')
             .select_related('company')
-            .prefetch_related('required_skills')[:30]
+            .prefetch_related('required_skills')
+            .order_by('-created_at')[:200]
         )
 
         # Get IDs of jobs already applied to
@@ -1064,26 +1266,84 @@ class StudentDashboardView(View):
             for ss in StudentSkill.objects.filter(student=student).select_related('skill')
         )
 
-        # ── Recommendations: unapplied jobs scored ≥ 50 ──────────────────────
+        # ── Composite match scoring (skill + CGPA + experience + projects) ──
+        # Weights: skills 50%, cgpa 25%, experience 15%, projects 10%
+        student_cgpa = float(student.cgpa or 0)
+        student_exp  = min(float(getattr(student, 'years_experience', 0) or 0), 5) / 5
+
+        # Precompute project tech_stack sets for job-aware lightweight scoring
+        # (avoids per-job DB queries — one prefetch for all dashboard recommendations)
+        from core.utils.ai_engine import PROJECT_TECH_IMPLIES as _IMPLIES
+        _all_projects = list(student.projects.prefetch_related('tech_stack').all())
+        student_projects_fallback = min(len(_all_projects), 5) / 5   # count-based fallback
+
+        # Direct tech_stack skills across all student projects
+        _student_proj_direct = set()
+        for _proj in _all_projects:
+            for _sk in _proj.tech_stack.all():  # uses prefetch cache
+                _student_proj_direct.add(_sk.name.lower())
+
+        # Expand with implied skills (one level deep)
+        _student_proj_implied = set()
+        for _tech in _student_proj_direct:
+            for _imp in _IMPLIES.get(_tech, []):
+                _student_proj_implied.add(_imp.lower())
+
         recommendations = []
         for job in all_active_jobs:
             if job.id in applied_job_ids:
                 continue
-            try:
-                engine = AIMatchingEngine(company=job.company, job=job)
-                score, explanation = engine.calculate_match(student, job, save_explanation=False)
-                if score >= 50:          # lowered from 60 so more jobs appear
-                    recommendations.append({
-                        'job_id': str(job.id),
-                        'title': job.title,
-                        'company': job.company.name,
-                        'match_score': score,
-                        'skill_gaps': len(explanation.get('missing_skills', [])),
-                        'salary': job.salary_range
-                    })
-            except Exception as e:
-                print(f"[StudentDashboard] match calc failed for job {job.id}: {e}")
+
+            job_skills = {s.name.lower() for s in job.required_skills.all()}
+
+            # Skill score (50%)
+            if job_skills:
+                overlap = student_skills & job_skills
+                skill_score = len(overlap) / len(job_skills)
+            else:
+                skill_score = 0.5  # neutral when job has no required skills
+
+            # Hard gate: zero skill overlap with a job that has required skills = disqualified
+            if job_skills and skill_score == 0:
                 continue
+
+            # CGPA score (25%) — compare against job's min_cgpa or 3.0 default
+            min_cgpa = float(job.min_cgpa or 3.0)
+            cgpa_score = min(student_cgpa / max(min_cgpa, 0.1), 1.0) if min_cgpa > 0 else 1.0
+
+            # Experience score (15%)
+            exp_score = student_exp
+
+            # Projects score (10%) — job-relevant with implied knowledge (lightweight)
+            if job_skills and (_student_proj_direct or _student_proj_implied):
+                _direct_overlap = len(_student_proj_direct & job_skills)
+                _implied_overlap = len(
+                    _student_proj_implied & (job_skills - _student_proj_direct)
+                )
+                proj_score = min(
+                    (_direct_overlap + _implied_overlap * 0.5) / len(job_skills),
+                    1.0,
+                )
+            else:
+                proj_score = student_projects_fallback
+
+            composite = round(
+                (skill_score * 0.50 + cgpa_score * 0.25 + exp_score * 0.15 + proj_score * 0.10) * 100,
+                1
+            )
+
+            # Only show jobs with ≥ 60% match (same threshold as apply eligibility)
+            if composite < 60:
+                continue
+
+            recommendations.append({
+                'job_id': str(job.id),
+                'title': job.title,
+                'company': job.company.name,
+                'match_score': composite,
+                'skill_gaps': len(job_skills - student_skills) if job_skills else 0,
+                'salary': job.salary_range
+            })
         recommendations.sort(key=lambda x: x['match_score'], reverse=True)
 
         # ── Analytics ─────────────────────────────────────────────────────────
@@ -1100,13 +1360,36 @@ class StudentDashboardView(View):
                 if skill.name.lower() not in student_skills:
                     skill_demand[skill.name] = skill_demand.get(skill.name, 0) + 1
         
-        # Career trajectory prediction
-        current_skills = [ss.skill.name for ss in StudentSkill.objects.filter(student=student)]
-        trajectory = self._predict_trajectory(current_skills, student.projects.count(), student=student)
+        # Career trajectory — use 24-hour cache to avoid Gemini call on every load
+        from datetime import timezone as _tz
+        import time as _time
+        prefs = student.preferences or {}
+        _traj_cache = prefs.get('_trajectory_cache', {})
+        _cache_age = _time.time() - _traj_cache.get('ts', 0)
+        if _cache_age < 86400 and _traj_cache.get('data'):
+            trajectory = _traj_cache['data']
+        else:
+            current_skills = [ss.skill.name for ss in StudentSkill.objects.filter(student=student)]
+            trajectory = self._predict_trajectory(current_skills, student.projects.count(), student=student)
+            prefs['_trajectory_cache'] = {'data': trajectory, 'ts': _time.time()}
+            student.preferences = prefs
+            student.save(update_fields=['preferences'])
         
+        # Recompute trust score using the same dept-aware formula the agent uses,
+        # so the dashboard and applicant view always show the same number.
+        try:
+            from core.utils.ai_engine import AIMatchingEngine as _AME
+            _live_trust = round(_AME().calculate_trust_score_dept_aware(student) * 100)
+            # Persist so other reads stay consistent
+            student.trust_score = _live_trust
+            student.save(update_fields=['trust_score'])
+        except Exception:
+            _live_trust = float(student.trust_score)
+
         dashboard = {
             'profile_summary': {
-                'trust_score': float(student.trust_score),
+                'name': student.name,
+                'trust_score': _live_trust,
                 'profile_complete': float(student.profile_complete_score) * 100,
                 'next_milestone': self._get_next_milestone(student)
             },
@@ -1116,7 +1399,7 @@ class StudentDashboardView(View):
                 'interviews': interviews,
                 'success_rate': (shortlisted / total_applications * 100) if total_applications > 0 else 0
             },
-            'recommendations': recommendations[:10],  # Top 10
+            'recommendations': recommendations[:50],
             'skill_analytics': {
                 'most_demanded_missing_skills': sorted(skill_demand.items(), key=lambda x: x[1], reverse=True)[:5],
                 'verified_skills_count': StudentSkill.objects.filter(student=student, verified_via__isnull=False).count()
@@ -1190,7 +1473,14 @@ class ApplyJobView(View):
         # Calculate match score
         engine = AIMatchingEngine(company=job.company, job=job)
         score, explanation = engine.calculate_match(student, job, save_explanation=True)
-        
+
+        # Enforce 60% eligibility threshold
+        if score < 60:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Your match score ({round(score)}%) is below the 60% minimum required to apply for this job.'
+            }, status=400)
+
         application = Application.objects.create(
             student=student,
             job=job,
@@ -1198,24 +1488,47 @@ class ApplyJobView(View):
             status='applied',
             is_auto_applied=False
         )
-        
-        # ADD THESE LINES: Increase activity score for applying
-        student.activity_score = min(
-            (student.activity_score or 0) + 10,  # +10 for applying to jobs
-            100
-        )
+
+        # Increase activity score for applying
+        student.activity_score = min((student.activity_score or 0) + 10, 100)
         student.save()
-        
+
         # Update job applicant count
         job.total_applicants += 1
         job.save()
-        
+
+        # ── Email confirmation ───────────────────────────────────────────────
+        try:
+            from .utils.email_helpers import send_application_confirmation_email
+            send_application_confirmation_email(application)
+        except Exception:
+            pass
+
+        # ── Notify company of new application ───────────────────────────────
+        try:
+            Notification.objects.create(
+                user_id=job.company.id,
+                user_type='company',
+                type='new_application',
+                title=f'📋 New Application: {job.title}',
+                message=f'{student.name} applied to {job.title} with a {round(score)}% match score.',
+                data={
+                    'student_id':     str(student.id),
+                    'student_name':   student.name,
+                    'job_id':         str(job.id),
+                    'job_title':      job.title,
+                    'match_score':    round(score, 1),
+                    'application_id': str(application.id),
+                }
+            )
+        except Exception:
+            pass
+
         # ── Auto-trigger Recruitment Agent ──────────────────────────────────
         try:
             agent = RecruitmentAgent(company=job.company)
             agent.run(application, triggered_by='auto')
         except Exception as agent_err:
-            # Agent failure must never break the apply flow
             import logging
             logging.getLogger(__name__).warning(f"RecruitmentAgent auto-run failed: {agent_err}")
 
@@ -1230,24 +1543,40 @@ class ApplyJobView(View):
 class CompanyDashboardView(View):
     def get(self, request, company_id):
         company = get_object_or_404(Company, id=company_id)
-        
-        # Job postings analytics
-        jobs = Job.objects.filter(company=company)
+
+        # ── Job stats: one aggregated query instead of N+1 ──────────────────
+        jobs = list(Job.objects.filter(company=company))
+        job_ids = [j.id for j in jobs]
+
+        from django.db.models import Count, Avg, Q
+        app_agg = (
+            Application.objects
+            .filter(job_id__in=job_ids)
+            .values('job_id')
+            .annotate(
+                total=Count('id'),
+                shortlisted=Count('id', filter=Q(status='shortlisted')),
+                interviews=Count('id', filter=Q(status='interview')),
+                hired=Count('id', filter=Q(status='hired')),
+                avg_score=Avg('match_score'),
+            )
+        )
+        agg_by_job = {str(r['job_id']): r for r in app_agg}
+
         job_stats = []
-        
         for job in jobs:
-            apps = Application.objects.filter(job=job)
+            agg = agg_by_job.get(str(job.id), {})
             job_stats.append({
                 'job_id': str(job.id),
                 'title': job.title,
                 'status': job.status,
-                'total_applicants': apps.count(),
-                'shortlisted': apps.filter(status='shortlisted').count(),
-                'interviews': apps.filter(status='interview').count(),
-                'hired': apps.filter(status='hired').count(),
-                'avg_match_score': apps.aggregate(Avg('match_score'))['match_score__avg'] or 0
+                'total_applicants': agg.get('total', 0),
+                'shortlisted': agg.get('shortlisted', 0),
+                'interviews': agg.get('interviews', 0),
+                'hired': agg.get('hired', 0),
+                'avg_match_score': round(float(agg.get('avg_score') or 0), 1),
             })
-        
+
         # AI Performance metrics
         feedback_logs = AIFeedbackLog.objects.filter(company=company)
         weight_evolution = [
@@ -1257,40 +1586,59 @@ class CompanyDashboardView(View):
                 'adjusted': log.adjusted_weights
             } for log in feedback_logs.order_by('-created_at')[:5]
         ]
-        
-        # Top candidate recommendations for active jobs
-        active_jobs = jobs.filter(status='active')
+
+        # ── Top candidates: fast skill-overlap (no AI engine loop) ──────────
+        active_jobs = [j for j in jobs if j.status == 'active']
         top_candidates = []
-        
+
+        # Pre-fetch all student skills in bulk
+        all_student_skills = (
+            StudentSkill.objects
+            .select_related('skill', 'student')
+            .values('student_id', 'skill__name')
+        )
+        student_skill_map = {}
+        for row in all_student_skills:
+            sid = str(row['student_id'])
+            student_skill_map.setdefault(sid, set()).add((row['skill__name'] or '').lower())
+
         for job in active_jobs:
-            engine = AIMatchingEngine(company=company, job=job)
-            # Find best unmatched candidates
-            candidates = Student.objects.exclude(
-                applications__job=job
-            ).order_by('-trust_score')[:20]
-            
+            job_skills = {s.name.lower() for s in job.required_skills.all()}
+            if not job_skills:
+                continue
+            already_applied = set(
+                Application.objects.filter(job=job).values_list('student_id', flat=True)
+            )
+            candidates = (
+                Student.objects
+                .exclude(id__in=already_applied)
+                .order_by('-trust_score')[:50]
+            )
             best_matches = []
             for student in candidates:
-                score, _ = engine.calculate_match(student, job, save_explanation=False)
-                if score > 75:
+                s_skills = student_skill_map.get(str(student.id), set())
+                overlap = s_skills & job_skills
+                if not overlap:
+                    continue
+                score = round(len(overlap) / len(job_skills) * 100, 1)
+                if score >= 30:
                     best_matches.append({
                         'student_id': str(student.id),
                         'name': student.name,
+                        'department': student.department or '',
                         'match_score': score,
-                        'trust_score': float(student.trust_score)
+                        'trust_score': round(float(student.trust_score or 0), 1),
                     })
-            
             best_matches.sort(key=lambda x: x['match_score'], reverse=True)
-            
             top_candidates.append({
                 'job_id': str(job.id),
                 'job_title': job.title,
                 'recommended_candidates': best_matches[:5]
             })
-        
+
         return JsonResponse({
             'status': 'success',
-            'company_name': company.name,  # ← ADD THIS LINE
+            'company_name': company.name,
             'jobs': job_stats,
             'ai_weight_evolution': weight_evolution,
             'top_candidate_suggestions': top_candidates,
@@ -1329,25 +1677,12 @@ class PostJobView(View):
                 department_category=data.get('department_category', 'any'),
             )
             
-            # ✅ FIX 2: Improved skill handling with proper error handling
             for skill_name in data.get('required_skills', []):
                 skill_name_clean = skill_name.strip().lower()
-                
-                # Try to get existing skill first (case-insensitive)
-                skill = Skill.objects.filter(name__iexact=skill_name_clean).first()
-                
-                if not skill:
-                    # Create new skill if doesn't exist
-                    skill = Skill.objects.create(
-                        name=skill_name_clean,
-                        category='Uncategorized'
-                    )
-                else:
-                    # Normalize to lowercase
-                    if skill.name != skill_name_clean:
-                        skill.name = skill_name_clean
-                        skill.save()
-                
+                skill, _ = Skill.objects.get_or_create(
+                    name=skill_name_clean,
+                    defaults={'category': 'Uncategorized'}
+                )
                 job.required_skills.add(skill)
             
             # Custom weights for this job type
@@ -1468,7 +1803,7 @@ class ShortlistCandidatesView(View):
                 'trust_score': float(app.student.trust_score)
             })
             
-            # Notify student
+            # In-app notification
             Notification.objects.create(
                 user_id=app.student.id,
                 user_type='student',
@@ -1477,7 +1812,15 @@ class ShortlistCandidatesView(View):
                 message=f'You have been shortlisted by {job.company.name} based on your match score of {app.match_score:.1f}%',
                 data={'job_id': str(job.id)}
             )
-        
+            # Email + points
+            try:
+                from .utils.email_helpers import send_shortlist_email
+                from .utils.points import award_points
+                send_shortlist_email(app)
+                award_points(app.student, 'shortlisted', unique_key=str(app.id))
+            except Exception:
+                pass
+
         return JsonResponse({
             'status': 'success',
             'shortlisted_count': len(shortlisted),
@@ -1500,7 +1843,16 @@ class HireCandidateView(View):
         new_weights = engine.update_weights_from_feedback(
             application.job.company, application, trigger='hire'
         )
-        
+
+        # Email + points
+        try:
+            from .utils.email_helpers import send_hired_email
+            from .utils.points import award_points
+            send_hired_email(application)
+            award_points(application.student, 'hired', unique_key=str(application.id))
+        except Exception:
+            pass
+
         return JsonResponse({
             'status': 'success',
             'message': f'Candidate {application.student.name} marked as hired',
@@ -1635,11 +1987,20 @@ class ResolveFraudFlagView(View):
 @method_decorator(csrf_exempt, name='dispatch')
 class NotificationsView(View):
     def get(self, request, user_id, user_type):
+        from django.utils import timezone as _tz
         notifications = Notification.objects.filter(
             user_id=user_id,
             user_type=user_type
         ).order_by('-created_at')
-        
+
+        def _time_ago(dt):
+            diff = _tz.now() - dt
+            s = int(diff.total_seconds())
+            if s < 60: return 'just now'
+            if s < 3600: return f'{s//60}m ago'
+            if s < 86400: return f'{s//3600}h ago'
+            return f'{s//86400}d ago'
+
         return JsonResponse({
             'unread_count': notifications.filter(read=False).count(),
             'notifications': [
@@ -1650,7 +2011,8 @@ class NotificationsView(View):
                     'message': n.message,
                     'read': n.read,
                     'data': n.data,
-                    'created_at': n.created_at.strftime('%Y-%m-%dT%H:%M:%SZ'),  # Always UTC with Z
+                    'time_ago': _time_ago(n.created_at),
+                    'created_at': n.created_at.strftime('%Y-%m-%dT%H:%M:%SZ'),
                 } for n in notifications[:20]
             ]
         })
@@ -2242,6 +2604,82 @@ class UpdatePreferencesView(APIView):
         
         
 @method_decorator(csrf_exempt, name='dispatch')
+class ApplicationStatusDetailView(View):
+    """Return full status details for a student's application to a specific job."""
+
+    def get(self, request, student_id, job_id):
+        from django.utils import timezone as _tz
+
+        student = get_object_or_404(Student, id=student_id)
+        job     = get_object_or_404(Job, id=job_id)
+
+        application = Application.objects.filter(student=student, job=job).first()
+        if not application:
+            return JsonResponse({'status': 'not_applied'}, status=404)
+
+        # Scheduled interview
+        scheduled = None
+        try:
+            si = application.scheduled_interview
+            scheduled = {
+                'date':         si.date.strftime('%B %d, %Y') if si.date else None,
+                'time':         si.start_time.strftime('%I:%M %p') if si.start_time else None,
+                'location':     si.location or '',
+                'contact':      si.contact_person or '',
+                'meeting_link': si.meeting_link or '',
+            }
+        except Exception:
+            pass
+
+        # AI Interview
+        ai_interview = None
+        ai_iv = application.ai_interviews.order_by('-created_at').first()
+        if ai_iv:
+            ai_interview = {
+                'status':          ai_iv.status,
+                'score':           round(ai_iv.interview_score, 1) if ai_iv.interview_score else None,
+                'combined_score':  round(ai_iv.combined_score, 1)  if ai_iv.combined_score  else None,
+                'expires_at':      ai_iv.expires_at.strftime('%B %d, %Y at %I:%M %p') if ai_iv.expires_at else None,
+                'interview_url':   f'/interview/{ai_iv.token}/' if ai_iv.status in ('pending','in_progress') else None,
+                'result_url':      f'/company/interview/{ai_iv.id}/result/' if ai_iv.status == 'completed' else None,
+            }
+
+        # Recruitment agent latest decision
+        agent_decision = None
+        latest_run = application.agent_runs.order_by('-created_at').first()
+        if latest_run:
+            agent_decision = {
+                'decision':   latest_run.decision,
+                'score':      round(latest_run.score * 100, 1),
+                'confidence': latest_run.confidence,
+            }
+
+        def _time_ago(dt):
+            diff = _tz.now() - dt
+            s = int(diff.total_seconds())
+            if s < 60: return 'just now'
+            if s < 3600: return f'{s//60}m ago'
+            if s < 86400: return f'{s//3600}h ago'
+            return f'{s//86400}d ago'
+
+        return JsonResponse({
+            'status': 'ok',
+            'application': {
+                'id':           str(application.id),
+                'status':       application.status,
+                'match_score':  round(float(application.match_score or 0), 1),
+                'applied_at':   application.applied_at.strftime('%B %d, %Y'),
+                'applied_ago':  _time_ago(application.applied_at),
+                'job_title':    job.title,
+                'company_name': job.company.name,
+            },
+            'scheduled_interview': scheduled,
+            'ai_interview':        ai_interview,
+            'agent_decision':      agent_decision,
+        })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class StudentApplicationsView(View):
     def get(self, request, student_id):
         """Get all jobs that a student has applied to"""
@@ -2297,8 +2735,9 @@ class CareerAdvisorChatView(View):
     """Gemini-powered career advisor chatbot for students."""
 
     def post(self, request, student_id):
-        from google import genai as _genai
+        pass  # genai import removed — using llm_client centrally
         import json as _json
+        from core.models import AdvisorSession, AdvisorMessage
         student = get_object_or_404(Student, id=student_id)
         try:
             body = _json.loads(request.body)
@@ -2306,9 +2745,24 @@ class CareerAdvisorChatView(View):
             return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
 
         user_message = body.get('message', '').strip()
+        session_id   = body.get('session_id')
         history      = body.get('history', [])   # [{role, content}]
         if not user_message:
             return JsonResponse({'status': 'error', 'message': 'Empty message'}, status=400)
+
+        # Resolve or create session
+        session = None
+        if session_id:
+            try:
+                session = AdvisorSession.objects.get(id=session_id, student=student)
+            except AdvisorSession.DoesNotExist:
+                pass
+        if not session:
+            session = AdvisorSession.objects.create(student=student, title=user_message[:80])
+
+        # Build history from DB for this session (more reliable than client-sent)
+        db_messages = list(session.messages.values('role', 'content').order_by('-created_at')[:12])[::-1]
+        history = db_messages  # use DB history, ignore client-sent history
 
         # Build student context
         skills = [ss.skill.name for ss in StudentSkill.objects.filter(student=student).select_related('skill')]
@@ -2320,7 +2774,7 @@ class CareerAdvisorChatView(View):
             Application.objects.filter(student=student)
             .select_related('job').values_list('job__title', flat=True)[:10]
         )
-        context = f"""You are an expert AI Career Advisor for students. Be concise, specific, and encouraging.
+        context = f"""You are a sharp, practical AI Career Advisor. Your job is to give this specific student direct, actionable advice — not generic tips.
 
 STUDENT PROFILE:
 - Name: {student.name}
@@ -2332,8 +2786,16 @@ STUDENT PROFILE:
 - Trust Score: {student.trust_score or 0:.0f}/100
 - Projects: {student.projects.count()} projects
 
-Always give personalized advice based on this specific student's profile.
-Keep responses under 200 words. Use bullet points when listing items. Be direct and actionable."""
+STRICT OUTPUT RULES:
+- Max 180 words total
+- When listing items, use "- Item" format (dash + space), one per line
+- Use **bold** only for section labels or key terms (e.g. **Next step:**)
+- Do NOT use asterisks (*) as bullet points — use dash (-) only
+- Start with the direct answer, not pleasantries
+- Refer to the student by name at most once
+- Be specific to their actual profile above, not generic advice
+- NEVER use placeholder variables like X%, Y%, [value], <number>, or "e.g., ..." style templates in your response — only give concrete, real advice
+- NEVER say "quantify your impact with X%" or similar — if you can't give a specific number, don't mention numbers at all"""
 
         # Build conversation for Gemini
         conv_parts = [context, "\n\nCONVERSATION:"]
@@ -2343,17 +2805,295 @@ Keep responses under 200 words. Use bullet points when listing items. Be direct 
         conv_parts.append(f"Student: {user_message}")
         conv_parts.append("Advisor:")
 
-        try:
-            
-            resp = _client.models.generate_content(
-                model='gemini-2.5-flash-lite',
-                contents='\n'.join(conv_parts)
-            )
-            reply = resp.text.strip()
-        except Exception as e:
-            reply = f"Sorry, I'm having trouble connecting right now. Please try again in a moment. (Error: {e})"
+        import logging as _logging
+        _log = _logging.getLogger(__name__)
+        from core.utils.llm_client import llm_generate as _llm_generate
 
-        return JsonResponse({'status': 'success', 'reply': reply})
+        _prompt = '\n'.join(conv_parts)
+        reply = None
+        _last_error = None
+
+        try:
+            _log.warning("[CareerAdvisor] Calling llm_generate (Gemini → Ollama fallback)")
+            reply = _llm_generate(_prompt).strip()
+            _log.warning("[CareerAdvisor] SUCCESS")
+        except Exception as e:
+            _last_error = str(e)
+            _log.error(f"[CareerAdvisor] ALL backends failed: {_last_error}")
+
+        if not reply:
+            reply = "⚠️ AI service is temporarily unavailable (Gemini + local model both failed). Please try again in a moment."
+            return JsonResponse({
+                'status': 'error',
+                'reply': reply,
+                'session_id': str(session.id) if session else None,
+                'session_title': session.title if session else None,
+            })
+
+        # Save messages to DB
+        AdvisorMessage.objects.create(session=session, role='user', content=user_message)
+        AdvisorMessage.objects.create(session=session, role='assistant', content=reply)
+        # Touch updated_at
+        session.save(update_fields=['updated_at'])
+
+        return JsonResponse({
+            'status': 'success',
+            'reply': reply,
+            'session_id': str(session.id),
+            'session_title': session.title,
+        })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AdvisorSessionListView(View):
+    """List all sessions for a student (GET) or delete one (DELETE)."""
+
+    def get(self, request, student_id):
+        from core.models import AdvisorSession
+        student = get_object_or_404(Student, id=student_id)
+        sessions = AdvisorSession.objects.filter(student=student).order_by('-updated_at')[:50]
+        return JsonResponse({'sessions': [
+            {
+                'id': str(s.id),
+                'title': s.title,
+                'updated_at': s.updated_at.isoformat(),
+            }
+            for s in sessions
+        ]})
+
+    def delete(self, request, student_id):
+        import json as _json
+        from core.models import AdvisorSession
+        student = get_object_or_404(Student, id=student_id)
+        try:
+            body = _json.loads(request.body)
+            session_id = body.get('session_id')
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+        AdvisorSession.objects.filter(id=session_id, student=student).delete()
+        return JsonResponse({'status': 'ok'})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AdvisorSessionDetailView(View):
+    """Return all messages for a session."""
+
+    def get(self, request, student_id, session_id):
+        from core.models import AdvisorSession, AdvisorMessage
+        student = get_object_or_404(Student, id=student_id)
+        session = get_object_or_404(AdvisorSession, id=session_id, student=student)
+        messages = session.messages.order_by('created_at')
+        return JsonResponse({
+            'session_id': str(session.id),
+            'title': session.title,
+            'messages': [
+                {'role': m.role, 'content': m.content}
+                for m in messages
+            ]
+        })
+
+
+# ──────────────────────────────────────────────────────────────────
+# AUTO HIRING PIPELINE VIEWS
+# ──────────────────────────────────────────────────────────────────
+
+@method_decorator(csrf_exempt, name='dispatch')
+class PipelineCreateView(View):
+    """Create and start a new pipeline for a job."""
+    def post(self, request, job_id):
+        import json as _json
+        from core.models import PipelineRun, PipelineCandidate
+        from core.utils.pipeline_engine import run_sort
+
+        company_id = request.session.get('company_id')
+        if not company_id:
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        job = get_object_or_404(Job, id=job_id)
+        if str(job.company.id) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        try:
+            body = _json.loads(request.body)
+        except Exception:
+            body = {}
+
+        company = get_object_or_404(Company, id=company_id)
+
+        # Cancel any existing active pipeline for this job
+        PipelineRun.objects.filter(job=job).exclude(stage__in=['completed', 'cancelled']).update(stage='cancelled')
+
+        pipeline = PipelineRun.objects.create(
+            job=job,
+            created_by=company,
+            sort_top_n=int(body.get('sort_top_n', 20)),
+            vetting_top_n=int(body.get('vetting_top_n', 10)),
+            interview_top_n=int(body.get('interview_top_n', 5)),
+        )
+
+        count = run_sort(pipeline)
+
+        return JsonResponse({
+            'status': 'success',
+            'pipeline_id': str(pipeline.id),
+            'candidates_scored': count,
+            'message': f'Pipeline started. {count} candidates scored.',
+        })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class PipelineStatusView(View):
+    """Get current pipeline status and candidates."""
+    def get(self, request, pipeline_id):
+        from core.models import PipelineRun
+        from core.utils.pipeline_engine import check_and_advance_deadlines, get_pipeline_report
+
+        company_id = request.session.get('company_id')
+        pipeline = get_object_or_404(PipelineRun, id=pipeline_id)
+        if str(pipeline.job.company.id) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        # Auto-advance if deadline passed
+        check_and_advance_deadlines(pipeline)
+        pipeline.refresh_from_db()
+
+        report = get_pipeline_report(pipeline)
+        report['vetting_deadline'] = pipeline.vetting_deadline.isoformat() if pipeline.vetting_deadline else None
+        report['interview_deadline'] = pipeline.interview_deadline.isoformat() if pipeline.interview_deadline else None
+        report['sort_top_n'] = pipeline.sort_top_n
+        report['vetting_top_n'] = pipeline.vetting_top_n
+        report['interview_top_n'] = pipeline.interview_top_n
+        return JsonResponse(report)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class PipelineApproveSortView(View):
+    """Company approves sorted list -> vetting tests sent."""
+    def post(self, request, pipeline_id):
+        import json as _json
+        from core.models import PipelineRun
+        from core.utils.pipeline_engine import approve_sort_and_send_vetting
+        from django.utils.dateparse import parse_datetime
+
+        company_id = request.session.get('company_id')
+        pipeline = get_object_or_404(PipelineRun, id=pipeline_id)
+        if str(pipeline.job.company.id) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        try:
+            body = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+        approved_ids = body.get('approved_application_ids', [])
+        deadline_str = body.get('vetting_deadline')
+        if not approved_ids or not deadline_str:
+            return JsonResponse({'status': 'error', 'message': 'approved_application_ids and vetting_deadline required'}, status=400)
+
+        from django.utils import timezone as _tz
+        try:
+            deadline = parse_datetime(deadline_str)
+            if deadline and not deadline.tzinfo:
+                import pytz
+                deadline = pytz.utc.localize(deadline)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid deadline format'}, status=400)
+
+        if not deadline or deadline <= _tz.now():
+            return JsonResponse({'status': 'error', 'message': 'Deadline must be in the future'}, status=400)
+
+        approve_sort_and_send_vetting(pipeline, approved_ids, deadline)
+        return JsonResponse({'status': 'success', 'message': f'{len(approved_ids)} candidates sent vetting test.'})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class PipelineApproveVettingView(View):
+    """Company approves vetting results -> AI interviews sent."""
+    def post(self, request, pipeline_id):
+        import json as _json
+        from core.models import PipelineRun
+        from core.utils.pipeline_engine import approve_vetting_and_send_interviews
+        from django.utils.dateparse import parse_datetime
+
+        company_id = request.session.get('company_id')
+        pipeline = get_object_or_404(PipelineRun, id=pipeline_id)
+        if str(pipeline.job.company.id) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        try:
+            body = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+        approved_ids = body.get('approved_application_ids', [])
+        deadline_str = body.get('interview_deadline')
+        if not approved_ids or not deadline_str:
+            return JsonResponse({'status': 'error', 'message': 'approved_application_ids and interview_deadline required'}, status=400)
+
+        from django.utils import timezone as _tz
+        try:
+            deadline = parse_datetime(deadline_str)
+            if deadline and not deadline.tzinfo:
+                import pytz
+                deadline = pytz.utc.localize(deadline)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid deadline format'}, status=400)
+
+        if not deadline or deadline <= _tz.now():
+            return JsonResponse({'status': 'error', 'message': 'Deadline must be in the future'}, status=400)
+
+        approve_vetting_and_send_interviews(pipeline, approved_ids, deadline)
+        return JsonResponse({'status': 'success', 'message': f'{len(approved_ids)} candidates sent AI interview.'})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class PipelineCancelView(View):
+    """Cancel a running pipeline."""
+    def post(self, request, pipeline_id):
+        from core.models import PipelineRun
+        company_id = request.session.get('company_id')
+        pipeline = get_object_or_404(PipelineRun, id=pipeline_id)
+        if str(pipeline.job.company.id) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+        pipeline.stage = 'cancelled'
+        pipeline.save(update_fields=['stage', 'updated_at'])
+        return JsonResponse({'status': 'success'})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class JobPipelineListView(View):
+    """List all pipelines for a job."""
+    def get(self, request, job_id):
+        from core.models import PipelineRun
+        company_id = request.session.get('company_id')
+        job = get_object_or_404(Job, id=job_id)
+        if str(job.company.id) != str(company_id):
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+        pipelines = PipelineRun.objects.filter(job=job).order_by('-created_at')[:5]
+        return JsonResponse({'pipelines': [
+            {
+                'id': str(p.id),
+                'stage': p.stage,
+                'stage_label': p.get_stage_display(),
+                'created_at': p.created_at.isoformat(),
+                'total_candidates': p.candidates.count(),
+                'final_candidates': p.candidates.filter(stage='final').count(),
+            }
+            for p in pipelines
+        ]})
+
+
+def company_pipeline_page(request, job_id):
+    """Render the auto pipeline management page."""
+    company_id = request.session.get('company_id')
+    if not company_id:
+        return redirect('/company/login/')
+    job = get_object_or_404(Job, id=job_id, company__id=company_id)
+    return render(request, 'company/pipeline.html', {
+        'job_id': str(job_id),
+        'job_title': job.title,
+        'company_id': company_id,
+    })
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -2426,87 +3166,335 @@ class ReportInterviewCheatingView(View):
         return JsonResponse({'status': 'success', 'total_violations': total_violations})
 
 
+def _build_heatmap_response():
+    """
+    Build the skill-demand heatmap payload using aggregated DB queries.
+    Replaces the old N+1 per-job loop approach — typically 5-10x faster.
+    """
+    from django.db.models import Count, Value
+    from django.db.models.functions import Lower, Coalesce
+    from datetime import timedelta
+    from django.utils import timezone as tz
+
+    week_ago = tz.now() - timedelta(days=7)
+
+    # --- 1. Skill demand across ALL active jobs (single query) ---
+    skill_demand_rows = (
+        Job.objects.filter(status='active', required_skills__name__isnull=False)
+        .values('required_skills__name')
+        .annotate(count=Count('id', distinct=True))
+        .order_by('-count')
+    )
+    skill_demand = {row['required_skills__name'].lower(): row['count'] for row in skill_demand_rows}
+
+    # --- 2. Student supply per skill (single query) ---
+    student_rows = (
+        StudentSkill.objects.filter(skill__name__isnull=False)
+        .values('skill__name')
+        .annotate(count=Count('id'))
+    )
+    student_skill_counts = {row['skill__name'].lower(): row['count'] for row in student_rows}
+
+    # --- 3. Department breakdown (single query) ---
+    dept_rows = (
+        Job.objects.filter(status='active', required_skills__name__isnull=False)
+        .values('department_category', 'required_skills__name')
+        .annotate(count=Count('id', distinct=True))
+    )
+    dept_skills = {}
+    for row in dept_rows:
+        dept = row['department_category'] or 'General'
+        skill = row['required_skills__name']
+        if dept not in dept_skills:
+            dept_skills[dept] = {}
+        dept_skills[dept][skill] = dept_skills[dept].get(skill, 0) + row['count']
+
+    # --- 4. Weekly trend (single query) ---
+    weekly_rows = (
+        Job.objects.filter(status='active', created_at__gte=week_ago, required_skills__name__isnull=False)
+        .values('required_skills__name')
+        .annotate(count=Count('id', distinct=True))
+        .order_by('-count')[:10]
+    )
+    weekly_top = [(row['required_skills__name'], row['count']) for row in weekly_rows]
+
+    # --- Build top10 + gap ---
+    top10 = sorted(skill_demand.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    gap_data = [
+        {
+            'skill': skill_name.title(),
+            'demand': demand_count,
+            'supply': student_skill_counts.get(skill_name, 0),
+            'gap': max(0, demand_count - student_skill_counts.get(skill_name, 0)),
+        }
+        for skill_name, demand_count in top10
+    ]
+
+    dept_breakdown = {
+        dept: [{'skill': s, 'count': c} for s, c in sorted(skills.items(), key=lambda x: x[1], reverse=True)[:5]]
+        for dept, skills in dept_skills.items()
+    }
+
+    total_jobs    = Job.objects.filter(status='active').count()
+    total_students = Student.objects.count()
+
+    return JsonResponse({
+        'status': 'success',
+        'top10': [{'skill': s.title(), 'count': c} for s, c in top10],
+        'gap_data': gap_data,
+        'dept_breakdown': dept_breakdown,
+        'weekly_trend': [{'skill': s.title(), 'count': c} for s, c in weekly_top],
+        'total_active_jobs': total_jobs,
+        'total_students': total_students,
+    })
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class SkillDemandHeatmapView(View):
     """Returns skill demand analytics for company dashboard heatmap."""
 
     def get(self, request, company_id):
-        from django.db.models import Count
-        from datetime import timedelta
-        from django.utils import timezone as tz
+        company = get_object_or_404(Company, id=company_id)
+        return _build_heatmap_response()
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class PlatformSkillHeatmapView(View):
+    """Platform-wide skill demand heatmap — no company filter, accessible to students."""
+
+    def get(self, request):
+        return _build_heatmap_response()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTO PIPELINE VIEWS
+# ─────────────────────────────────────────────────────────────────────────────
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CreatePipelineView(View):
+    """Start an auto pipeline for a job. Runs sort immediately."""
+
+    def post(self, request):
+        import json as _json
+        company_id = request.session.get('company_id')
+        if not company_id:
+            return JsonResponse({'status': 'error', 'message': 'Not logged in'}, status=403)
+
+        try:
+            body = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+        job_id      = body.get('job_id')
+        sort_top_n  = int(body.get('sort_top_n', 20))
+        vet_top_n   = int(body.get('vetting_top_n', 10))
+        int_top_n   = int(body.get('interview_top_n', 5))
+
+        job = get_object_or_404(Job, id=job_id)
+        if str(job.company.id) != company_id:
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        from core.models import PipelineRun, Company
+        from core.utils.pipeline_engine import run_sort
 
         company = get_object_or_404(Company, id=company_id)
 
-        # All active jobs on platform
-        active_jobs = Job.objects.filter(status='active').prefetch_related('required_skills')
-        week_ago    = tz.now() - timedelta(days=7)
-        recent_jobs = Job.objects.filter(status='active', created_at__gte=week_ago).prefetch_related('required_skills')
+        # Cancel any existing active pipeline for this job
+        PipelineRun.objects.filter(
+            job=job
+        ).exclude(stage__in=['completed', 'cancelled']).update(stage='cancelled')
 
-        # All student skills
-        all_student_skills = list(
-            StudentSkill.objects.select_related('skill').values_list('skill__name', flat=True)
+        pipeline = PipelineRun.objects.create(
+            job=job,
+            created_by=company,
+            sort_top_n=sort_top_n,
+            vetting_top_n=vet_top_n,
+            interview_top_n=int_top_n,
         )
-        student_skill_counts = {}
-        for s in all_student_skills:
-            k = s.lower()
-            student_skill_counts[k] = student_skill_counts.get(k, 0) + 1
 
-        # Build skill demand from all jobs
-        skill_demand = {}
-        for job in active_jobs:
-            for skill in job.required_skills.all():
-                k = skill.name.lower()
-                skill_demand[k] = skill_demand.get(k, 0) + 1
-
-        # Department breakdown
-        dept_skills = {}
-        for job in active_jobs:
-            dept = job.department or 'General'
-            if dept not in dept_skills:
-                dept_skills[dept] = {}
-            for skill in job.required_skills.all():
-                k = skill.name
-                dept_skills[dept][k] = dept_skills[dept].get(k, 0) + 1
-
-        # Weekly trend
-        weekly_demand = {}
-        for job in recent_jobs:
-            for skill in job.required_skills.all():
-                k = skill.name.lower()
-                weekly_demand[k] = weekly_demand.get(k, 0) + 1
-
-        # Top 10 skills
-        top10 = sorted(skill_demand.items(), key=lambda x: x[1], reverse=True)[:10]
-
-        # Supply vs demand gap (top 10 by gap)
-        gap_data = []
-        for skill_name, demand_count in top10:
-            supply = student_skill_counts.get(skill_name, 0)
-            gap_data.append({
-                'skill': skill_name.title(),
-                'demand': demand_count,
-                'supply': supply,
-                'gap': max(0, demand_count - supply),
-            })
-
-        # Department breakdown — top 5 skills per dept
-        dept_breakdown = {}
-        for dept, skills_dict in dept_skills.items():
-            top5 = sorted(skills_dict.items(), key=lambda x: x[1], reverse=True)[:5]
-            dept_breakdown[dept] = [{'skill': s, 'count': c} for s, c in top5]
-
-        # Weekly trending (skills with demand in last 7 days)
-        weekly_top = sorted(weekly_demand.items(), key=lambda x: x[1], reverse=True)[:10]
-
+        count = run_sort(pipeline)
         return JsonResponse({
-            'status': 'success',
-            'top10': [{'skill': s.title(), 'count': c} for s, c in top10],
-            'gap_data': gap_data,
-            'dept_breakdown': dept_breakdown,
-            'weekly_trend': [{'skill': s.title(), 'count': c} for s, c in weekly_top],
-            'total_active_jobs': active_jobs.count(),
-            'total_students': Student.objects.count(),
+            'status': 'ok',
+            'pipeline_id': str(pipeline.id),
+            'total_sorted': count,
+            'message': f'Pipeline started. {count} candidates sorted.',
         })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class PipelineStatusView(View):
+    """Get full pipeline status + candidates. Also auto-advances on deadlines."""
+
+    def get(self, request, pipeline_id):
+        company_id = request.session.get('company_id')
+        from core.models import PipelineRun
+        from core.utils.pipeline_engine import check_and_advance_deadlines, get_pipeline_report
+
+        pipeline = get_object_or_404(PipelineRun, id=pipeline_id)
+        if str(pipeline.job.company.id) != company_id:
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+
+        # Auto-advance if deadlines passed
+        check_and_advance_deadlines(pipeline)
+        pipeline.refresh_from_db()
+
+        report = get_pipeline_report(pipeline)
+
+        # Add deadline info
+        report['sort_top_n']     = pipeline.sort_top_n
+        report['vetting_top_n']  = pipeline.vetting_top_n
+        report['interview_top_n']= pipeline.interview_top_n
+        report['vetting_deadline']  = pipeline.vetting_deadline.isoformat() if pipeline.vetting_deadline else None
+        report['interview_deadline']= pipeline.interview_deadline.isoformat() if pipeline.interview_deadline else None
+        report['job_id']         = str(pipeline.job.id)
+        report['created_at']     = pipeline.created_at.isoformat()
+
+        return JsonResponse({'status': 'ok', **report})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ApproveSortView(View):
+    """Company approves sorted list → generate vetting test → send to candidates."""
+
+    def post(self, request, pipeline_id):
+        import json as _json
+        from django.utils.dateparse import parse_datetime
+        company_id = request.session.get('company_id')
+        from core.models import PipelineRun
+        from core.utils.pipeline_engine import approve_sort_and_send_vetting
+
+        pipeline = get_object_or_404(PipelineRun, id=pipeline_id)
+        if str(pipeline.job.company.id) != company_id:
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+        if pipeline.stage != 'sort_review':
+            return JsonResponse({'status': 'error', 'message': f'Pipeline is in stage: {pipeline.stage}'}, status=400)
+
+        try:
+            body = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+        approved_ids      = body.get('approved_application_ids', [])
+        vetting_deadline  = parse_datetime(body.get('vetting_deadline', ''))
+        # Assessment configuration fields (optional — improve question quality)
+        assessment_topic    = body.get('assessment_topic', '').strip()
+        assessment_type     = body.get('assessment_type', '').strip()   # 'coding' | 'mcq_written' | ''
+        assessment_keywords = body.get('assessment_keywords', '').strip()
+
+        if not approved_ids or not vetting_deadline:
+            return JsonResponse({'status': 'error', 'message': 'approved_application_ids and vetting_deadline required'}, status=400)
+
+        from django.utils import timezone as _tz
+        if not _tz.is_aware(vetting_deadline):
+            vetting_deadline = _tz.make_aware(vetting_deadline)
+
+        try:
+            approve_sort_and_send_vetting(
+                pipeline, approved_ids, vetting_deadline,
+                topic=assessment_topic,
+                force_type=assessment_type,
+                keywords=assessment_keywords,
+            )
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+        return JsonResponse({'status': 'ok', 'message': f'Vetting tests sent to {len(approved_ids)} candidates.'})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ApproveVettingView(View):
+    """Company approves vetting results → send AI interviews."""
+
+    def post(self, request, pipeline_id):
+        import json as _json
+        from django.utils.dateparse import parse_datetime
+        company_id = request.session.get('company_id')
+        from core.models import PipelineRun
+        from core.utils.pipeline_engine import approve_vetting_and_send_interviews
+
+        pipeline = get_object_or_404(PipelineRun, id=pipeline_id)
+        if str(pipeline.job.company.id) != company_id:
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+        if pipeline.stage != 'vetting_review':
+            return JsonResponse({'status': 'error', 'message': f'Pipeline is in stage: {pipeline.stage}'}, status=400)
+
+        try:
+            body = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+        approved_ids        = body.get('approved_application_ids', [])
+        interview_deadline  = parse_datetime(body.get('interview_deadline', ''))
+        if not approved_ids or not interview_deadline:
+            return JsonResponse({'status': 'error', 'message': 'approved_application_ids and interview_deadline required'}, status=400)
+
+        from django.utils import timezone as _tz
+        if not _tz.is_aware(interview_deadline):
+            interview_deadline = _tz.make_aware(interview_deadline)
+
+        try:
+            approve_vetting_and_send_interviews(pipeline, approved_ids, interview_deadline)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+        return JsonResponse({'status': 'ok', 'message': f'AI interviews sent to {len(approved_ids)} candidates.'})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CancelPipelineView(View):
+    """Cancel an active pipeline."""
+
+    def post(self, request, pipeline_id):
+        company_id = request.session.get('company_id')
+        from core.models import PipelineRun
+        pipeline = get_object_or_404(PipelineRun, id=pipeline_id)
+        if str(pipeline.job.company.id) != company_id:
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
+        pipeline.stage = 'cancelled'
+        pipeline.save(update_fields=['stage', 'updated_at'])
+        return JsonResponse({'status': 'ok', 'message': 'Pipeline cancelled.'})
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class JobPipelinesView(View):
+    """List all pipelines for a job."""
+
+    def get(self, request, job_id):
+        company_id = request.session.get('company_id')
+        from core.models import PipelineRun
+        job = get_object_or_404(Job, id=job_id, company__id=company_id)
+        pipelines = PipelineRun.objects.filter(job=job).order_by('-created_at')
+        return JsonResponse({'status': 'ok', 'pipelines': [
+            {
+                'id': str(p.id),
+                'stage': p.stage,
+                'sort_top_n': p.sort_top_n,
+                'vetting_top_n': p.vetting_top_n,
+                'interview_top_n': p.interview_top_n,
+                'created_at': p.created_at.isoformat(),
+                'total_candidates': p.candidates.count(),
+            }
+            for p in pipelines
+        ]})
+
+
+# Page view for pipeline
+def company_pipeline_page(request, pipeline_id):
+    company_id = request.session.get('company_id')
+    if not company_id:
+        return redirect('/company/login/')
+    from core.models import PipelineRun
+    pipeline = get_object_or_404(PipelineRun, id=pipeline_id)
+    if str(pipeline.job.company.id) != company_id:
+        from django.http import Http404
+        raise Http404
+    return render(request, 'company/pipeline.html', {
+        'pipeline_id': str(pipeline_id),
+        'job_title': pipeline.job.title,
+        'job_id': str(pipeline.job.id),
+        'company_id': company_id,
+    })
 
 
 def student_career_advisor_page(request):
@@ -2514,7 +3502,15 @@ def student_career_advisor_page(request):
     student_id = request.session.get('student_id')
     if not student_id:
         return redirect(f'/student/login/?next=/student/career-advisor/')
-    return render(request, 'student/career_advisor.html', {'student_id': student_id})
+    try:
+        _student = Student.objects.get(id=student_id)
+        _name = _student.name
+    except Student.DoesNotExist:
+        _name = 'Student'
+    return render(request, 'student/career_advisor.html', {
+        'student_id': student_id,
+        'student_name': _name,
+    })
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -3398,6 +4394,44 @@ class SubmitAnswerView(View):
 
         interview.save()
 
+        # ── Activity tracking: AI Interview completed ──────────────────────────
+        if interview.status == 'completed':
+            try:
+                _student = interview.application.student
+                _student.activity_score = min(float(_student.activity_score or 0) + 20, 100)
+                _student.save(update_fields=['activity_score'])
+            except Exception:
+                pass
+
+        # ── Notify company when interview is completed ────────────────────────
+        if interview.status == 'completed':
+            try:
+                Notification.objects.create(
+                    user_id=interview.application.job.company.id,
+                    user_type='company',
+                    type='ai_interview_completed',
+                    title=f'🎯 AI Interview Completed: {interview.application.student.name}',
+                    message=(
+                        f'{interview.application.student.name} finished the AI interview for '
+                        f'{interview.application.job.title}. '
+                        f'Interview score: {round(interview.interview_score or 0, 1)}/100. '
+                        f'Combined score: {round(interview.combined_score or 0, 1)}/100.'
+                    ),
+                    data={
+                        'interview_id':   str(interview.id),
+                        'application_id': str(interview.application.id),
+                        'student_id':     str(interview.application.student.id),
+                        'student_name':   interview.application.student.name,
+                        'job_id':         str(interview.application.job.id),
+                        'job_title':      interview.application.job.title,
+                        'interview_score': round(interview.interview_score or 0, 1),
+                        'combined_score':  round(interview.combined_score or 0, 1),
+                    }
+                )
+            except Exception:
+                pass
+        # ─────────────────────────────────────────────────────────────────────
+
         return JsonResponse({
             'status':      'success',
             'score':       result['score'],
@@ -3835,4 +4869,406 @@ class AvailableSlotsView(View):
             })
             
         except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)    
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+# ==================== LEADERBOARD VIEWS ====================
+
+@student_login_required
+def student_leaderboard(request):
+    """Render the student leaderboard page with rich context."""
+    from .models import LeaderboardEntry
+    student_id = str(request.session.get('student_id', ''))
+    entries = list(LeaderboardEntry.objects.select_related('student').order_by('-total_points')[:50])
+    student_entry = LeaderboardEntry.objects.filter(student_id=student_id).first()
+
+    # Bulk-fetch top 3 skills per student
+    entry_ids = [e.student_id for e in entries]
+    skill_rows = (
+        StudentSkill.objects
+        .filter(student_id__in=entry_ids)
+        .select_related('skill')
+        .values('student_id', 'skill__name')
+        .order_by('student_id')
+    )
+    skill_map = {}
+    for row in skill_rows:
+        sid = str(row['student_id'])
+        skill_map.setdefault(sid, [])
+        if len(skill_map[sid]) < 3:
+            skill_map[sid].append(row['skill__name'] or '')
+
+    # Build list of plain dicts (Django templates can't access underscore attrs)
+    student_rank = None
+    max_pts = entries[0].total_points if entries else 1
+    entry_list = []
+    for i, entry in enumerate(entries, 1):
+        is_you = str(entry.student_id) == student_id
+        if is_you:
+            student_rank = i
+        entry_list.append({
+            'rank': i,
+            'student_name': entry.student.name,
+            'student_dept': entry.student.department or '',
+            'student_id_str': str(entry.student_id),
+            'university': entry.university or '',
+            'total_points': entry.total_points,
+            'awarded_count': len(entry.awarded_actions) if entry.awarded_actions else 0,
+            'skills': skill_map.get(str(entry.student_id), []),
+            'pct': round(entry.total_points / max(max_pts, 1) * 100, 1),
+            'is_you': is_you,
+        })
+
+    # Unique departments for filter
+    departments = sorted(set(
+        e['student_dept'] for e in entry_list if e['student_dept']
+    ))
+
+    # Points gap to beat rank above
+    pts_to_next = None
+    if student_rank and student_rank > 1:
+        pts_to_next = entry_list[student_rank - 2]['total_points'] - (student_entry.total_points if student_entry else 0)
+
+    return render(request, 'student/leaderboard.html', {
+        'entry_list': entry_list,
+        'podium': entry_list[:3],
+        'table_rows': entry_list[3:],
+        'student_entry': student_entry,
+        'student_id': student_id,
+        'student_rank': student_rank,
+        'departments': departments,
+        'pts_to_next': pts_to_next,
+        'total_on_board': len(entry_list),
+    })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class LeaderboardView(View):
+    """API: return top 50 leaderboard entries."""
+    def get(self, request):
+        from .models import LeaderboardEntry
+        entries = LeaderboardEntry.objects.select_related('student').order_by('-total_points')[:50]
+        data = [
+            {
+                'rank': i + 1,
+                'student_name': e.student.name,
+                'university': e.student.university_id,
+                'department': e.student.department,
+                'total_points': e.total_points,
+            }
+            for i, e in enumerate(entries)
+        ]
+        return JsonResponse({'status': 'success', 'leaderboard': data})
+
+
+@company_login_required
+def company_leaderboard(request):
+    """Company view of the leaderboard — with match scores, offer/shortlist actions."""
+    from .models import LeaderboardEntry
+    company_id = str(request.session.get('company_id', ''))
+    company = get_object_or_404(Company, id=company_id)
+
+    entries = list(LeaderboardEntry.objects.select_related('student').order_by('-total_points')[:50])
+    max_pts = entries[0].total_points if entries else 1
+
+    # Bulk skills
+    entry_ids = [e.student_id for e in entries]
+    skill_rows = (
+        StudentSkill.objects
+        .filter(student_id__in=entry_ids)
+        .select_related('skill')
+        .values('student_id', 'skill__name')
+    )
+    skill_map = {}        # display: capped at 5 for chips
+    full_skill_map = {}   # matching: all skills (no cap)
+    for row in skill_rows:
+        sid = str(row['student_id'])
+        skill_name = row['skill__name'] or ''
+        # full set for match scoring
+        full_skill_map.setdefault(sid, set()).add(skill_name.lower())
+        # display chips (capped at 5)
+        skill_map.setdefault(sid, [])
+        if len(skill_map[sid]) < 5:
+            skill_map[sid].append(skill_name)
+
+    # Company's active jobs and their required skills (for match score)
+    active_jobs = list(Job.objects.filter(company=company, status='active').prefetch_related('required_skills'))
+    job_skills_map = {str(j.id): {s.name.lower() for s in j.required_skills.all()} for j in active_jobs}
+
+    # ── Build company demand profile ──────────────────────────────────────
+    # skill_freq[skill] = number of active jobs that need this skill
+    skill_freq = {}
+    for js_set in job_skills_map.values():
+        for sk in js_set:
+            skill_freq[sk] = skill_freq.get(sk, 0) + 1
+
+    # Extend with keywords from company description + industry (lower weight)
+    import re as _re
+    _SKIP = {'and','the','for','with','our','are','that','this','from','have','will','your',
+             'all','can','has','was','not','but','its','who','also','they','been','more',
+             'their','about','which','into','than','then','some','such','these','those'}
+    _profile_text = f"{company.description or ''} {company.industry or ''}".lower()
+    _profile_kws  = {w for w in _re.findall(r'\b[a-z]{3,}\b', _profile_text) if w not in _SKIP}
+    for kw in _profile_kws:
+        if kw not in skill_freq:
+            skill_freq[kw] = 0.3   # low weight — profile keyword, not job requirement
+
+    # Pre-compute denominator (max achievable weighted score)
+    _demand_total = sum(max(v, 0.3) for v in skill_freq.values()) if skill_freq else 1
+
+    # Students already applied / already offered
+    applied_ids = set(
+        Application.objects.filter(job__company=company)
+        .values_list('student_id', flat=True)
+    )
+    # Track sent offers (stored in notifications)
+    offered_ids = set(
+        Notification.objects.filter(
+            user_type='student', type='job_offer',
+            data__company_id=company_id
+        ).values_list('user_id', flat=True)
+    )
+
+    entry_list = []
+    for i, entry in enumerate(entries, 1):
+        sid = str(entry.student_id)
+        s_skills_lower = full_skill_map.get(sid, set())  # already lowercase, all skills
+
+        # Company-demand weighted match score
+        # = Σ weight[sk] for each student skill that's in demand / total_demand * 100
+        if skill_freq:
+            student_weight = sum(
+                max(skill_freq[sk], 0.3)
+                for sk in s_skills_lower if sk in skill_freq
+            )
+            best_match = round(min(student_weight / _demand_total * 100, 100), 1)
+        else:
+            best_match = 0
+
+        # Still track best matching job title for display hint
+        best_job_id = ''
+        best_job_title = ''
+        _best_job_overlap = -1
+        for job in active_jobs:
+            js = job_skills_map[str(job.id)]
+            if not js:
+                continue
+            overlap_count = len(s_skills_lower & js)
+            if overlap_count > _best_job_overlap:
+                _best_job_overlap = overlap_count
+                best_job_id    = str(job.id)
+                best_job_title = job.title
+
+        entry_list.append({
+            'rank': i,
+            'student_id': sid,
+            'student_name': entry.student.name,
+            'student_dept': entry.student.department or '',
+            'student_cgpa': float(entry.student.cgpa or 0),
+            'trust_score': float(entry.student.trust_score or 0),
+            'university': entry.university or '',
+            'total_points': entry.total_points,
+            'awarded_count': len(entry.awarded_actions) if entry.awarded_actions else 0,
+            'skills': skill_map.get(sid, []),
+            'pct': round(entry.total_points / max(max_pts, 1) * 100, 1),
+            'match_score': best_match,
+            'best_job_id': best_job_id,
+            'best_job_title': best_job_title,
+            'already_applied': entry.student_id in applied_ids,
+            'offer_sent': entry.student_id in offered_ids,
+        })
+
+    departments = sorted(set(e['student_dept'] for e in entry_list if e['student_dept']))
+
+    return render(request, 'company/leaderboard.html', {
+        'entry_list': entry_list,
+        'podium': entry_list[:3],
+        'table_rows': entry_list[3:],
+        'total_on_board': len(entry_list),
+        'company': company,
+        'active_jobs': active_jobs,
+        'departments': departments,
+    })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class SendJobOfferView(View):
+    """Company sends a direct job offer to a top leaderboard student."""
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            company_id = str(request.session.get('company_id', ''))
+            student_id = data.get('student_id')
+            job_id     = data.get('job_id')
+            salary     = data.get('salary', '')
+            message    = data.get('message', '')
+            deadline   = data.get('deadline', '')
+
+            company = get_object_or_404(Company, id=company_id)
+            student = get_object_or_404(Student, id=student_id)
+            job_title = ''
+            if job_id:
+                try:
+                    job = Job.objects.get(id=job_id, company=company)
+                    job_title = job.title
+                except Job.DoesNotExist:
+                    job_title = data.get('job_title', '')
+            else:
+                job_title = data.get('job_title', '')
+
+            # ── Guard 1: student already hired by this company (any job) ──────
+            already_hired = Application.objects.filter(
+                student=student,
+                job__company=company,
+                status='hired'
+            ).first()
+            if already_hired:
+                return JsonResponse({
+                    'status': 'error',
+                    'code': 'already_hired',
+                    'message': (
+                        f'{student.name} is already hired by your company '
+                        f'(for "{already_hired.job.title}"). '
+                        f'You cannot send another offer to a current employee.'
+                    )
+                }, status=409)
+
+            # ── Guard 2: duplicate offer for this exact job ──────────────────
+            if job_id:
+                duplicate_offer = Notification.objects.filter(
+                    user_id=student.id,
+                    user_type='student',
+                    type='job_offer',
+                    data__company_id=company_id,
+                    data__job_id=job_id,
+                ).exists()
+                if duplicate_offer:
+                    return JsonResponse({
+                        'status': 'error',
+                        'code': 'offer_already_sent',
+                        'message': (
+                            f'You have already sent an offer to {student.name} '
+                            f'for "{job_title}". Please wait for their response.'
+                        )
+                    }, status=409)
+
+                # ── Guard 3: student already applied/hired for this specific job
+                existing_app = Application.objects.filter(
+                    student=student,
+                    job_id=job_id
+                ).first()
+                if existing_app and existing_app.status in ('hired', 'shortlisted', 'applied'):
+                    return JsonResponse({
+                        'status': 'error',
+                        'code': 'already_applied',
+                        'message': (
+                            f'{student.name} has already applied to "{job_title}" '
+                            f'(status: {existing_app.status}). No need to send an offer.'
+                        )
+                    }, status=409)
+            # ─────────────────────────────────────────────────────────────────
+
+            Notification.objects.create(
+                user_id=student.id,
+                user_type='student',
+                type='job_offer',
+                title=f'🎯 Job Offer from {company.name}',
+                message=message or f'{company.name} wants you to join as {job_title}.',
+                data={
+                    'company_id': company_id,
+                    'company_name': company.name,
+                    'job_id': job_id or '',
+                    'job_title': job_title,
+                    'salary': salary,
+                    'deadline': deadline,
+                    'message': message,
+                }
+            )
+            return JsonResponse({'status': 'success', 'message': 'Offer sent!'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class StudentQuickPreviewView(View):
+    """Return lightweight profile data for the leaderboard drawer."""
+    def get(self, request, student_id):
+        try:
+            student = get_object_or_404(Student, id=student_id)
+            skills = [
+                {'name': ss.skill.name, 'verified': ss.verified_via is not None}
+                for ss in StudentSkill.objects.filter(student=student).select_related('skill')[:10]
+            ]
+            projects = [
+                {'title': p.title, 'github_url': p.github_url or ''}
+                for p in Project.objects.filter(student=student)[:5]
+            ]
+            return JsonResponse({
+                'status': 'success',
+                'student': {
+                    'id': str(student.id),
+                    'name': student.name,
+                    'email': student.email,
+                    'department': student.department or '',
+                    'university_id': student.university_id or '',
+                    'cgpa': float(student.cgpa or 0),
+                    'trust_score': float(student.trust_score or 0),
+                    'profile_complete': float(student.profile_complete_score or 0) * 100,
+                    'github_username': student.github_username or '',
+                    'linkedin_url': student.linkedin_url or '',
+                    'portfolio_url': student.portfolio_url or '',
+                    'skills': skills,
+                    'projects': projects,
+                    'total_applications': Application.objects.filter(student=student).count(),
+                }
+            })
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class LeaderboardShortlistView(View):
+    """Shortlist a student for a job directly from the leaderboard."""
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            company_id = str(request.session.get('company_id', ''))
+            company  = get_object_or_404(Company, id=company_id)
+            student  = get_object_or_404(Student, id=data['student_id'])
+            job      = get_object_or_404(Job, id=data['job_id'], company=company)
+
+            app, created = Application.objects.get_or_create(
+                student=student, job=job,
+                defaults={'match_score': 0, 'status': 'shortlisted'}
+            )
+            if not created and app.status == 'applied':
+                app.status = 'shortlisted'
+                app.save()
+
+            # Award points + notify student
+            try:
+                from .utils.points import award_points
+                award_points(student, 'shortlisted', unique_key=str(app.id))
+            except Exception:
+                pass
+            Notification.objects.create(
+                user_id=student.id, user_type='student', type='shortlist',
+                title=f'⭐ Shortlisted by {company.name}',
+                message=f'You were shortlisted for {job.title} at {company.name} from the leaderboard!',
+                data={'job_id': str(job.id), 'company_name': company.name, 'job_title': job.title}
+            )
+            return JsonResponse({'status': 'success', 'created': created})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AIEffectivenessView(View):
+    """API: report on how effective the AI agent decisions have been for an application."""
+    def get(self, request, application_id):
+        try:
+            from .utils.ai_effectiveness import get_effectiveness_report
+            report = get_effectiveness_report(application_id)
+            return JsonResponse({'status': 'success', 'report': report})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

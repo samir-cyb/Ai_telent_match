@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <h2>🎉 Congratulations, {{ student_name }}!</h2>
+    <p>
+      You have been <strong>shortlisted</strong> for the position of
+      <strong>{{ job_title }}</strong> at <strong>{{ company_name }}</strong>.
+    </p>
+    <p>Your match score was <strong>{{ match_score }}%</strong>.</p>
+    <p>
+      Next steps: The company may contact you for an interview. Keep an eye on
+      your dashboard.
+    </p>
+    <p>
+      <a
+        href="{{ dashboard_url }}"
+        style="
+          background: #48bbff;
+          color: #fff;
+          padding: 10px 20px;
+          text-decoration: none;
+          border-radius: 5px;
+        "
+        >Go to Dashboard</a
+      >
+    </p>
+    <hr />
+    <p style="color: #888">AI Talent Match – Smart Hiring</p>
+  </body>
+</html>

@@ -319,7 +319,8 @@ class Command(BaseCommand):
         for j_data in JOBS_DATA:
             company = companies[j_data['company_idx']]
             dept_cat = DEPT_CAT_MAP.get(j_data.get('department', ''), 'any')
-            job, created = Job.objects.get_or_create(
+            # Use update_or_create so department_category is always in sync
+            job, created = Job.objects.update_or_create(
                 title=j_data['title'],
                 company=company,
                 defaults={
@@ -332,13 +333,15 @@ class Command(BaseCommand):
                     'status': 'active',
                 }
             )
-            if created:
-                for skill_name in j_data['skills']:
-                    if skill_name in skills_map:
-                        job.required_skills.add(skills_map[skill_name])
+            # Always sync required skills using set() so re-running this command
+            # restores the EXACT canonical skill list (removing any contamination
+            # added by other scripts such as create_synthetic_dataset.py).
+            job.required_skills.set(
+                [skills_map[sn] for sn in j_data['skills'] if sn in skills_map]
+            )
             jobs.append(job)
-            status = '✓ Created' if created else '→ Already exists'
-            self.stdout.write(f'   {status}: {job.title} @ {company.name}')
+            status = '✓ Created' if created else '↺ Updated'
+            self.stdout.write(f'   {status}: {job.title} @ {company.name} [dept={dept_cat}]')
 
         # ── Students ─────────────────────────────────────────────────
         self.stdout.write('\n🎓 Creating students...')
@@ -365,7 +368,8 @@ class Command(BaseCommand):
                 student.set_password('TestPass123!')
                 student.save()
 
-                # Skills
+            # Always sync skills (add missing ones; never remove existing ones)
+            if True:
                 for skill_name in s_data['skills']:
                     if skill_name in skills_map:
                         StudentSkill.objects.get_or_create(
@@ -374,6 +378,7 @@ class Command(BaseCommand):
                             defaults={'proficiency_level': 'Intermediate', 'source': 'manual'}
                         )
 
+            if created:
                 # Experience
                 for exp in s_data.get('experience', []):
                     WorkExperience.objects.get_or_create(

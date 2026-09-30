@@ -1,12 +1,21 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-your-secret-key-here-change-in-production'
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / '.env')
+
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-fallback-key-change-in-production')
 
 DEBUG = True
 ALLOWED_HOSTS = ['*']
+
+# ── LLM preference ─────────────────────────────────────────────────────────
+# Set True  → go straight to Ollama (skip Gemini) — use when Gemini quota exhausted
+# Set False → try Gemini first, fall back to Ollama
+LLM_PREFER_LOCAL = True
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -96,8 +105,8 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
-#API_key=os.getenv('API_KEY')
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'

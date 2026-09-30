@@ -84,19 +84,45 @@ function initMobileMenu() {
     }
 }
 
-// Dropdown handling for mobile
+// Dropdown handling — hover with close-delay on desktop, tap on mobile
 function initDropdowns() {
     const dropdowns = document.querySelectorAll('.dropdown');
-    
+
     dropdowns.forEach(dropdown => {
         const toggle = dropdown.querySelector('.dropdown-toggle');
-        
-        toggle.addEventListener('click', (e) => {
-            if (window.innerWidth <= 768) {
-                e.preventDefault();
-                dropdown.classList.toggle('active');
+        let closeTimer = null;
+
+        // --- DESKTOP: hover with 200ms close grace period ---
+        dropdown.addEventListener('mouseenter', () => {
+            if (window.innerWidth > 768) {
+                clearTimeout(closeTimer);
+                dropdown.classList.add('open');
             }
         });
+
+        dropdown.addEventListener('mouseleave', () => {
+            if (window.innerWidth > 768) {
+                closeTimer = setTimeout(() => {
+                    dropdown.classList.remove('open');
+                }, 200);
+            }
+        });
+
+        // --- MOBILE / TOUCH: tap toggle ---
+        toggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            const isOpen = dropdown.classList.contains('open');
+            // Close all other dropdowns first
+            dropdowns.forEach(d => d !== dropdown && d.classList.remove('open'));
+            dropdown.classList.toggle('open', !isOpen);
+        });
+    });
+
+    // Close any open dropdown when tapping outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.dropdown')) {
+            dropdowns.forEach(d => d.classList.remove('open'));
+        }
     });
 }
 

@@ -49,6 +49,14 @@ Match{%endblock %} {% block content %}
       <i class="fas fa-robot"></i>
       <span>AI Advisor</span>
     </a>
+    <a href="/student/skill-heatmap/" class="glass-card action-card">
+      <i class="fas fa-fire"></i>
+      <span>Skill Heatmap</span>
+    </a>
+    <a href="/student/leaderboard/" class="glass-card action-card">
+      <i class="fas fa-trophy"></i>
+      <span>Leaderboard</span>
+    </a>
   </div>
 
   <!-- Stats Row -->
@@ -222,7 +230,7 @@ Match{%endblock %} {% block content %}
         </div>
       </div>
 
-      <!-- ── AI Interviews ─────────────────────────────────────── -->
+      <!-- ── AI Interviews ─────────────────────────────────────────────────────────── -->
       <div class="glass-card" id="ai-interviews-card" style="display:none; border:1px solid rgba(167,139,250,0.35); background:rgba(109,40,217,0.08);">
         <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;">
           <span style="font-size:1.4rem;">🤖</span>
@@ -722,17 +730,17 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
     container.innerHTML = recommendations
       .map(
         (job) => `
-        <div class="job-card" data-job-id="${job.job_id}">
-            <div class="job-header">
-                <h4>${job.title}</h4>
-                <span class="match-score">${Math.round(job.match_score)}% Match</span>
+        <div class="job-card" data-job-id="${job.job_id}" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.6rem 1rem;">
+            <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+                    <h4 style="margin:0;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${job.title}</h4>
+                    <span class="match-score" style="flex-shrink:0;">${Math.round(job.match_score)}% Match</span>
+                    <span style="color:#64748b;font-size:.78rem;white-space:nowrap;"><i class="fas fa-building"></i> ${job.company}</span>
+                    <span style="color:#64748b;font-size:.78rem;white-space:nowrap;"><i class="fas fa-map-marker-alt"></i> ${job.salary?.range || "N/A"}</span>
+                    <span style="color:#64748b;font-size:.78rem;white-space:nowrap;"><i class="fas fa-exclamation-circle"></i> ${job.skill_gaps} gaps</span>
+                </div>
             </div>
-            <p class="company-name"><i class="fas fa-building"></i> ${job.company}</p>
-            <div class="job-meta">
-                <span><i class="fas fa-map-marker-alt"></i> ${job.salary?.range || "Not specified"}</span>
-                <span><i class="fas fa-exclamation-circle"></i> ${job.skill_gaps} skill gaps</span>
-            </div>
-            <div class="job-actions">
+            <div style="display:flex;gap:.4rem;flex-shrink:0;">
                 <button class="btn-primary btn-sm" onclick="applyToJob('${job.job_id}')">
                     <i class="fas fa-paper-plane"></i> Apply
                 </button>
@@ -834,7 +842,17 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
           <a href="${d.test_url}" class="notif-action-btn notif-btn-warning">
             <i class="fas fa-code"></i> Take Assessment
           </a>`;
-        break;
+        return `<a href="/vetting/pending/" class="notif-action-btn notif-btn-warning">
+          <i class="fas fa-clipboard-list"></i> View Assessments
+        </a>`;
+      case 'pipeline_vetting':
+        if (d.test_url) return `
+          <a href="${d.test_url}" class="notif-action-btn" style="background:linear-gradient(135deg,#ea580c,#f97316);border:none;color:#fff;box-shadow:0 4px 12px rgba(249,115,22,.35);">
+            <i class="fas fa-play"></i> Start Pipeline Test
+          </a>`;
+        return `<a href="/vetting/pending/" class="notif-action-btn notif-btn-warning">
+          <i class="fas fa-clipboard-list"></i> View My Tests
+        </a>`;
       case 'interview_scheduled':
         if (d.meeting_type === 'in_person') {
           return `<span class="notif-chip" style="color:#94a3b8;font-size:0.75rem;"><i class="fas fa-building"></i> In-Person — arrive on time</span>`;
@@ -844,6 +862,26 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
             <i class="fas fa-video"></i> Join Meeting
           </a>`;
         return `<span class="notif-chip" style="color:#94a3b8;font-size:0.75rem;">Meeting link will be shared by company</span>`;
+      case 'job_offer': {
+        const _jobLink = d.job_id ? `/student/job-detail/?id=${d.job_id}` : `/student/jobs/`;
+        return `
+          <div style="margin-top:.5rem;">
+            ${d.salary ? `<div style="font-size:.75rem;color:#fbbf24;margin-bottom:.4rem;"><i class="fas fa-money-bill-wave"></i> Salary: <strong>${d.salary}</strong></div>` : ''}
+            ${d.deadline ? `<div style="font-size:.72rem;color:#94a3b8;margin-bottom:.5rem;"><i class="fas fa-clock"></i> Respond by: ${d.deadline}</div>` : ''}
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
+              <a href="${_jobLink}" class="notif-action-btn" style="background:linear-gradient(135deg,#a855f7,#6366f1);border:none;color:#fff;">
+                <i class="fas fa-paper-plane"></i> ${d.job_id ? 'View & Apply' : 'Browse Jobs'}
+              </a>
+              ${d.job_title ? `<span class="notif-chip" style="color:#94a3b8;font-size:.72rem;">for <strong style="color:#c4b5fd;">${d.job_title}</strong></span>` : ''}
+            </div>
+          </div>`;
+      }
+      case 'pipeline_interview':
+        if (d.interview_url) return `
+          <a href="${d.interview_url}" class="notif-action-btn" style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;color:#fff;box-shadow:0 4px 12px rgba(124,58,237,.4);">
+            🤖 Start AI Interview
+          </a>`;
+        break;
       case 'shortlisted':
         return `
           <a href="/student/jobs/" class="notif-action-btn notif-btn-info">
@@ -861,8 +899,11 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
       ai_interview:        'fa-robot',
       auto_applied:        'fa-magic',
       shortlisted:         'fa-star',
+      job_offer:           'fa-paper-plane',
       interview_scheduled: 'fa-calendar-check',
       vetting_invitation:  'fa-code',
+      pipeline_vetting:    'fa-code',
+      pipeline_interview:  'fa-robot',
       match:               'fa-briefcase',
       status_rejected:     'fa-times-circle',
       status_interview:    'fa-calendar-alt',
@@ -874,8 +915,11 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
     const colors = {
       ai_interview:        '#a78bfa',
       shortlisted:         '#fbbf24',
+      job_offer:           '#a855f7',
       interview_scheduled: '#34d399',
       vetting_invitation:  '#f97316',
+      pipeline_vetting:    '#f97316',
+      pipeline_interview:  '#a78bfa',
       status_rejected:     '#ef4444',
       auto_applied:        '#48bbff',
       match:               '#48bbff',
@@ -1021,32 +1065,32 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
   // Load data on page load
   loadDashboard();
   checkVettingNotifications(); // FIXED: Call the correct function
-  
+
 
   // Check for pending vetting assessments
 async function checkVettingAssessments() {
     try {
         const response = await fetch(`${API_BASE}/student/${studentId}/applications/`);
         const data = await response.json();
-        
+
         if (data.status === 'success' && data.applied_job_ids) {
             // Check each application for vetting sessions
             for (const jobId of data.applied_job_ids) {
                 try {
                     const appResponse = await fetch(`${API_BASE}/applications/?job_id=${jobId}`);
                     const appData = await appResponse.json();
-                    
+
                     if (appData.status === 'success' && appData.applications) {
                         const myApp = appData.applications.find(a => a.student_id === studentId);
                         if (myApp && myApp.status === 'shortlisted') {
                             // Check if there's a vetting session
                             const vetResponse = await fetch(`${API_BASE}/vetting/job/${jobId}/vetting-dashboard/`);
                             const vetData = await vetResponse.json();
-                            
+
                             if (vetData.status === 'success') {
                                 // Show notification if assessment exists and not completed
                                 document.getElementById('vetting-alert-container').style.display = 'block';
-                                document.getElementById('vetting-job-title').textContent = 
+                                document.getElementById('vetting-job-title').textContent =
                                     `Complete your technical assessment for ${vetData.job_title}`;
                                 // You'll need to store the token somewhere accessible or modify API to return it
                                 document.getElementById('vetting-start-btn').href = `/vetting/pending/`; // Generic link, customize as needed
@@ -1069,12 +1113,12 @@ async function checkVettingNotifications() {
     try {
         const response = await fetch(`${API_BASE}/notifications/${studentId}/student/`);
         const data = await response.json();
-        
+
         if (data.status === 'success' && data.notifications) {
-            const vettingNotif = data.notifications.find(n => 
+            const vettingNotif = data.notifications.find(n =>
                 n.type === 'vetting_invitation' && !n.read
             );
-            
+
             if (vettingNotif && vettingNotif.data && vettingNotif.data.test_url) {
                 document.getElementById('vetting-alert-container').style.display = 'block';
                 document.getElementById('vetting-job-title').textContent = vettingNotif.title;
@@ -1086,7 +1130,6 @@ async function checkVettingNotifications() {
     }
 }
 
-  
 
   // ── Notification toast system ──────────────────────────────────
   let _knownNotifIds = new Set();      // IDs seen since page load

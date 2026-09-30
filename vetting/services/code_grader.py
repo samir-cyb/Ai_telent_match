@@ -1,12 +1,10 @@
 import ast
 import re
 import json
+import time
 from typing import Dict, List, Any, Optional
 
-# Gemini client reused from question_generator
-from google import genai
-
-_MODEL = 'gemini-2.5-flash-lite'
+from core.utils.llm_client import llm_generate as _llm_generate
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -45,35 +43,123 @@ def _smart_match_score(actual: str, expected: str) -> float:
     """
     Returns 0.0 – 1.0 credit for this test case.
     1.0  = exact match (after normalization)
-    0.5  = numeric near-match (within 1% relative tolerance)
-    0.0  = no match
+    0.9  = whitespace-only difference
+    0.5  = numeric near-match (within 10% tolerance)
+    0.3  = expected is a substring of actual (partial output)
+    0.0  = no output, or no match
+
+    IMPORTANT: '' (empty string) is always `in` any string in Python,
+    so we MUST check for empty actual BEFORE the substring check to
+    avoid giving 0.3 credit for zero-output submissions.
     """
     a = _normalize(actual)
     e = _normalize(expected)
 
+    # ── No output at all → zero credit ────────────────────────────────────
+    if not a:
+        return 0.0
+
+    # Exact match
     if a == e:
         return 1.0
 
-    # Try numeric comparison
+    # JSON structural match — key order / spacing differences don't matter
+    # e.g. {"B":{"views":1},"A":{"views":2}} == {"A":{"views":2},"B":{"views":1}}
+    try:
+        a_parsed = json.loads(a)
+        e_parsed = json.loads(e)
+        if a_parsed == e_parsed:
+            return 1.0
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Whitespace-only difference
+    if e and a.replace(' ', '') == e.replace(' ', ''):
+        return 0.9
+
+    # Numeric near-match
     try:
         av = float(a)
         ev = float(e)
         rel = abs(av - ev) / (abs(ev) + 1e-9)
-        if rel < 0.01:       # within 1%
+        if rel < 0.01:
             return 1.0
-        if rel < 0.10:       # within 10%
+        if rel < 0.10:
             return 0.5
     except ValueError:
         pass
 
-    # Partial string overlap (student forgot trailing newline, etc.)
-    if e and a.replace(' ', '') == e.replace(' ', ''):
-        return 0.9  # only whitespace difference
-
-    if e and (a in e or e in a):
+    # Partial: expected is contained inside actual output
+    if e and e in a:
         return 0.3
 
     return 0.0
+
+
+def _inject_harness(code: str, test_input: str) -> str:
+    """
+    If the student wrote function-only code (no top-level print/stdin),
+    append a harness that reads the JSON input, calls their function,
+    and prints the result as JSON.
+
+    This lets students write LeetCode-style (just define a function)
+    instead of competitive-programming-style (read stdin, print stdout).
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code  # syntax error — let executor capture it naturally
+
+    top_funcs  = [n for n in tree.body if isinstance(n, ast.FunctionDef)]
+    top_others = [n for n in tree.body
+                  if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                        ast.Import, ast.ImportFrom,
+                                        ast.ClassDef))]
+
+    # If there are top-level executable statements (not just imports/defs),
+    # the student is already handling I/O themselves — don't touch their code.
+    if top_others:
+        return code
+
+    # No functions to call either
+    if not top_funcs:
+        return code
+
+    # Use the LAST top-level function as the solution entry point
+    main_fn_node = top_funcs[-1]
+    main_fn      = main_fn_node.name
+    num_args     = len(main_fn_node.args.args)
+
+    # Build the call expression based on argument count:
+    #   0 args → fn()
+    #   1 arg  → fn(_arg)          ← test input passed as single value
+    #   2+ args → fn(*_arg)        ← test input must be a JSON list of N values
+    if num_args == 0:
+        call_expr = f'{main_fn}()'
+    elif num_args == 1:
+        call_expr = f'{main_fn}(_arg)'
+    else:
+        call_expr = f'{main_fn}(*_arg)'  # e.g. def solve(a, b) → solve(*[1, 2])
+
+    harness = f'''
+import sys as _sys, json as _json
+
+try:
+    _raw = _sys.stdin.read().strip()
+    _arg = _json.loads(_raw) if _raw else None
+    if _arg is not None or {num_args} == 0:
+        _out = {call_expr}
+        if _out is not None:
+            if isinstance(_out, (dict, list)):
+                print(_json.dumps(_out, separators=(',', ':')))
+            elif isinstance(_out, bool):
+                print(str(_out).lower())
+            else:
+                print(str(_out).strip())
+except Exception as _harness_err:
+    _sys.stderr.write(f"[harness] {{_harness_err}}\\n")
+'''
+    return code + harness
 
 
 def smart_run_test_cases(executor, code: str, language: str, test_cases: list) -> Dict:
@@ -82,7 +168,12 @@ def smart_run_test_cases(executor, code: str, language: str, test_cases: list) -
     total_credit = 0.0
 
     for i, test in enumerate(test_cases):
-        execution = executor.execute(code, language, test.get('input', ''))
+        test_input = test.get('input', '')
+
+        # Inject call harness for Python function-only submissions
+        runnable = _inject_harness(code, test_input) if language == 'python' else code
+
+        execution = executor.execute(runnable, language, test_input)
         actual = (execution.get('stdout') or '').strip()
         expected = str(test.get('expected', '')).strip()
 
@@ -159,12 +250,15 @@ class CodeGrader:
             'final_score':          round(final_score, 2),
             'passed':               final_score >= 60,
             'details': {
-                'test_cases':        test_results,
-                'static_analysis':   l2,
-                'quality_issues':    l2.get('issues', []),
-                'complexity':        l3.get('complexity', {}),
-                'security':          l3.get('security', {}),
-                'ai_review':         l4,
+                'test_cases':           test_results,
+                'static_analysis':      l2,
+                'quality_issues':       l2.get('issues', []),
+                'complexity':           l3.get('complexity', {}),
+                'complexity_score':     round(l3.get('score', 100), 2),  # layer3 10% weight
+                'security':             l3.get('security', {}),
+                'ai_review':            l4,
+                'ai_review_available':  'unavailable' not in l4.get('summary', '').lower()
+                                        and 'estimated' not in l4.get('summary', '').lower(),
             },
         }
 
@@ -378,9 +472,10 @@ Scoring guide:
 - 0-39: Incorrect logic or very poor code
 """
 
+        # Try Gemini first, then Ollama qwen2.5:3b as fallback (via llm_client)
+        _last_err = ''
         try:
-            resp = _client.models.generate_content(model=_MODEL, contents=prompt)
-            text = resp.text
+            text = _llm_generate(prompt)
             if '```json' in text:
                 text = text.split('```json')[1].split('```')[0]
             elif '```' in text:
@@ -395,16 +490,23 @@ Scoring guide:
                 'verdict':     result.get('verdict', 'Consider'),
             }
         except Exception as e:
-            print(f'[Grader] AI review failed: {e}')
-            # Heuristic fallback
-            score = 40
-            if passed_pct == 100: score = 80
-            elif passed_pct >= 60: score = 60
-            return {
-                'score': score,
-                'summary': 'AI review unavailable — score based on test results and code structure.',
-                'strengths': ['Code submitted successfully'],
-                'weaknesses': ['Could not run AI analysis'],
-                'suggestions': ['Ensure code handles edge cases', 'Add comments and docstrings'],
-                'verdict': 'Consider' if passed_pct >= 50 else 'Reject',
-            }
+            _last_err = str(e)
+            print(f'[Grader] AI review failed (Gemini + Ollama): {_last_err}')
+
+        # Heuristic fallback when all attempts fail
+        score = 40
+        if passed_pct == 100:   score = 80
+        elif passed_pct >= 80:  score = 72
+        elif passed_pct >= 60:  score = 60
+        elif passed_pct >= 40:  score = 48
+        return {
+            'score':   score,
+            'summary': (
+                f'AI review temporarily unavailable (Gemini returned: {_last_err[:120]}). '
+                f'Score estimated from test results ({passed_pct}% tests passed).'
+            ),
+            'strengths':   ['Code submitted and executed successfully'],
+            'weaknesses':  ['AI code review could not run — manual review recommended'],
+            'suggestions': ['Ensure code handles edge cases', 'Add comments and docstrings'],
+            'verdict': 'Hire' if passed_pct == 100 else ('Consider' if passed_pct >= 50 else 'Reject'),
+        }

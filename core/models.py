@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
 from datetime import datetime, timedelta
 from django.utils import timezone
+from django.db.models import Avg, Count
 class Skill(models.Model):
     CATEGORY_CHOICES = [
         # Technology
@@ -186,29 +187,170 @@ class Student(models.Model):
         return min(base_score + skills_bonus + projects_bonus + dept_bonus, 1.0)
     
     def calculate_trust_score(self):
-        """Calculate trust score based on multiple factors"""
-        profile_weight = 0.3
-        activity_weight = 0.3
-        project_weight = 0.4
-        
-        # Profile completeness (0-1) - Convert Decimal to float
-        self.profile_complete_score = self.calculate_profile_completeness()
-        profile_score = float(self.profile_complete_score)  # FIX: Convert to float
-        
-        # Activity normalized (assume 100 is max) - Convert Decimal to float
-        activity_score = min(float(self.activity_score) / 100, 1.0)  # FIX: Convert to float
-        
-        # Projects count (assume 5+ is max score)
+        """
+        Compute and store a meaningful trust score (0–100) on this model.
+        Used as a quick snapshot; the AI engine's calculate_trust_score_dept_aware()
+        does a deeper per-match computation on top of this.
+
+        Signal budget (100 pts):
+          profile_core    : 4 required fields × 6.25   → max 25 pts
+          cv_uploaded     : resume on file               → max  5 pts
+          skills          : count (capped at 5)          →  up to 10 pts
+          projects        : count (capped at 3)          →  up to 10 pts
+          linkedin_score  : PDF verification score/100 × 20 → max 20 pts
+          github_score    : GitHub quality score/100 × 15   → max 15 pts
+          certifications  : count (capped at 5)          →  up to 10 pts
+          cross_validated : CV'd skills (capped at 5)    →  up to  5 pts
+        """
+        # 1. Core profile fields (max 25 pts)
+        core_fields = [self.name, self.email, self.department, self.cgpa]
+        filled_core = sum(1 for f in core_fields if f)
+        profile_pts = round((filled_core / len(core_fields)) * 25)
+
+        # 2. CV uploaded (max 5 pts)
+        cv_pts = 5 if self.resume else 0
+
+        # 3. Skills (max 10 pts)
+        skills_count = StudentSkill.objects.filter(student=self).count()
+        skills_pts = min(round((skills_count / 5.0) * 10), 10)
+
+        # 4. Projects (max 10 pts)
         project_count = self.projects.count()
-        project_score = min(project_count / 5.0, 1.0)
-        
-        trust = (profile_score * profile_weight + 
-                activity_score * activity_weight + 
-                project_score * project_weight) * 100
-        
+        project_pts = min(round((project_count / 3.0) * 10), 10)
+
+        # 5. LinkedIn PDF score (max 20 pts)
+        linkedin_pts = round((float(self.linkedin_score or 0) / 100.0) * 20)
+
+        # 6. GitHub quality score (max 15 pts)
+        github_pts = round((float(self.github_score or 0) / 100.0) * 15)
+
+        # 7. Certifications (max 10 pts — 2 pts each, up to 5)
+        certs = getattr(self, 'certifications', []) or []
+        cert_pts = min(len(certs) * 2, 10)
+
+        # 8. Cross-validated skills (max 5 pts)
+        cv_skill_count = StudentSkill.objects.filter(student=self, cross_validated=True).count()
+        cv_skill_pts = min(cv_skill_count, 5)
+
+        trust = min(
+            profile_pts + cv_pts + skills_pts + project_pts +
+            linkedin_pts + github_pts + cert_pts + cv_skill_pts,
+            100
+        )
+
+        self.profile_complete_score = self.calculate_profile_completeness()
         self.trust_score = trust
         self.save()
         return trust
+
+    def calculate_hire_readiness(self):
+        """
+        Returns a dict: {
+            'score': int (0-100),
+            'days_estimate': int,
+            'label': str,
+            'factors': dict
+        }
+        """
+        # 1. Profile completeness (0-1)
+        profile_score = float(self.profile_complete_score or 0)
+
+        # 2. Skill demand fit – compare student's skills with top demanded skills
+        from core.models import Skill
+        top_skills = Skill.objects.annotate(
+            job_count=Count('job__required_skills')
+        ).order_by('-job_count').values_list('name', flat=True)[:20]
+        top_skills_set = set(top_skills)
+        student_skill_names = {ss.skill.name for ss in self.student_skills.select_related('skill')}
+        matched = len(student_skill_names & top_skills_set)
+        total_skills = len(student_skill_names)
+        demand_score = (matched / max(total_skills, 1)) if total_skills > 0 else 0.0
+
+        # 3. Application activity – applications per week, average match score
+        from django.utils import timezone
+        from datetime import timedelta
+        week_ago = timezone.now() - timedelta(days=7)
+        recent_apps = self.applications.filter(applied_at__gte=week_ago).count()
+        avg_match = float(self.applications.aggregate(avg=Avg('match_score'))['avg'] or 0)
+        # Encourage activity: more recent apps = better (capped at 10 per week)
+        activity_score = min(recent_apps / 5, 1.0) if recent_apps > 0 else 0.0
+        # Match score contribution (normalized 0-1)
+        match_score = avg_match / 100.0
+
+        # 4. External validation – trust score, GitHub, LinkedIn
+        trust = float(self.trust_score or 0) / 100.0
+        github_bonus = 0.1 if self.github_verified else 0.0
+        linkedin_bonus = 0.05 if self.linkedin_url else 0.0
+
+        # Weighted combination (adjust weights as needed)
+        weights = {
+            'profile': 0.25,
+            'demand': 0.20,
+            'activity': 0.15,
+            'match': 0.20,
+            'trust': 0.15,
+            'github': 0.05,
+            'linkedin': 0.05,
+        }
+        raw_score = (
+            profile_score * weights['profile'] +
+            demand_score * weights['demand'] +
+            activity_score * weights['activity'] +
+            match_score * weights['match'] +
+            trust * weights['trust'] +
+            github_bonus * weights['github'] +
+            linkedin_bonus * weights['linkedin']
+        )
+        # Normalise to 0-100
+        raw_score = min(1.0, raw_score) * 100
+        score = int(round(raw_score))
+
+        # Map score to days estimate
+        if score >= 90:
+            days = 7 + (14-7) * (1 - (score-90)/10)  # 7-14
+            label = "Excellent"
+        elif score >= 70:
+            days = 15 + (30-15) * (1 - (score-70)/20)  # 15-30
+            label = "Good"
+        elif score >= 50:
+            days = 31 + (60-31) * (1 - (score-50)/20)  # 31-60
+            label = "Fair"
+        elif score >= 30:
+            days = 61 + (90-61) * (1 - (score-30)/20)  # 61-90
+            label = "Needs Improvement"
+        else:
+            days = 91 + (180-91) * (1 - (score)/30)  # 91-180
+            label = "Significant Gaps"
+
+        days_estimate = int(round(days))
+
+        return {
+            'score': score,
+            'days_estimate': days_estimate,
+            'label': label,
+            'factors': {
+                'profile_completeness': round(profile_score * 100),
+                'skill_demand_fit': round(demand_score * 100),
+                'application_activity': round(activity_score * 100),
+                'average_match_score': round(match_score * 100),
+                'trust_score': round(trust * 100),
+            }
+        }
+
+class LeaderboardEntry(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.OneToOneField(Student, on_delete=models.CASCADE, related_name='leaderboard')
+    total_points = models.IntegerField(default=0)
+    university = models.CharField(max_length=200, blank=True)  # derived from student.university_id or profile
+    last_updated = models.DateTimeField(auto_now=True)
+    awarded_actions = models.JSONField(default=list)  # list of action strings already awarded
+
+    class Meta:
+        ordering = ['-total_points']
+
+    def __str__(self):
+        return f"{self.student.name} - {self.total_points} pts"
+
 
 class StudentSkill(models.Model):
     PROFICIENCY_LEVELS = [
@@ -350,6 +492,7 @@ class Application(models.Model):
     applied_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_auto_applied = models.BooleanField(default=False)
+    vetting_score = models.FloatField(null=True, blank=True)
 
 class MatchExplanation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -450,6 +593,8 @@ class Admin(models.Model):
     
     def __str__(self):
         return f"{self.email} ({'Super' if self.is_super_admin else 'Admin'})"
+
+
 class InterviewSlot(models.Model):
     """Pre-defined interview slots set by company"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -665,3 +810,83 @@ class InterviewNotification(models.Model):
     notification_type = models.CharField(max_length=50)  # scheduled, reminder, cancelled, updated
     sent_at = models.DateTimeField(auto_now_add=True)
     read_at = models.DateTimeField(null=True, blank=True)
+
+
+class AdvisorSession(models.Model):
+    """A single career advisor conversation thread."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='advisor_sessions')
+    title = models.CharField(max_length=120, default='New Chat')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"{self.student.name} — {self.title}"
+
+
+class AdvisorMessage(models.Model):
+    """A single message inside an AdvisorSession."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(AdvisorSession, on_delete=models.CASCADE, related_name='messages')
+    role = models.CharField(max_length=10)   # 'user' or 'assistant'
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+
+class PipelineRun(models.Model):
+    STAGE_CHOICES = [
+        ('sort_review', 'Awaiting Sort Approval'),
+        ('vetting', 'Vetting In Progress'),
+        ('vetting_review', 'Awaiting Vetting Approval'),
+        ('interviewing', 'AI Interviews In Progress'),
+        ('completed', 'Pipeline Complete'),
+        ('cancelled', 'Cancelled'),
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='pipeline_runs')
+    created_by = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='pipeline_runs')
+    stage = models.CharField(max_length=20, choices=STAGE_CHOICES, default='sort_review')
+    sort_top_n = models.IntegerField(default=20)
+    vetting_top_n = models.IntegerField(default=10)
+    interview_top_n = models.IntegerField(default=5)
+    vetting_deadline = models.DateTimeField(null=True, blank=True)
+    interview_deadline = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class PipelineCandidate(models.Model):
+    STAGE_CHOICES = [
+        ('sort', 'Sorted'),
+        ('vetting', 'In Vetting'),
+        ('interview', 'In Interview'),
+        ('final', 'Final Stage'),
+        ('eliminated', 'Eliminated'),
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    pipeline = models.ForeignKey(PipelineRun, on_delete=models.CASCADE, related_name='candidates')
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='pipeline_stages')
+    sort_score = models.FloatField(null=True, blank=True)
+    sort_rank = models.IntegerField(null=True, blank=True)
+    vetting_score = models.FloatField(null=True, blank=True)
+    vetting_rank = models.IntegerField(null=True, blank=True)
+    interview_score = models.FloatField(null=True, blank=True)
+    interview_rank = models.IntegerField(null=True, blank=True)
+    final_score = models.FloatField(null=True, blank=True)
+    stage = models.CharField(max_length=15, choices=STAGE_CHOICES, default='sort')
+    eliminated_at_stage = models.CharField(max_length=15, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_rank']
+        unique_together = [('pipeline', 'application')]

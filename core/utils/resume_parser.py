@@ -3,8 +3,11 @@ import io
 import mimetypes
 from google import genai
 from PIL import Image
+from core.utils.llm_client import llm_generate as _llm_generate, llm_generate_image as _llm_generate_image
 
-# Initialize the client using the modern SDK layout
+# Gemini client — kept for multimodal (image/PDF bytes) calls
+client = genai.Client(api_key='AQ.Ab8RN6LBjYwwET910F0CwPAeGmNOHOddFSqtECS22TZ8jD_kuA')
+
 
 
 class ResumeParser:
@@ -64,22 +67,23 @@ GENERAL RULES:
                 mime_type, _ = mimetypes.guess_type(file_obj.name)
             print(f"[DEBUG] Detected MIME type: {mime_type}")
             
-            # Handle Images (JPEG/PNG)
+            response_text = None
+
+            # Handle Images (JPEG/PNG) — Gemini multimodal → gemma3:4b fallback
             if mime_type and mime_type.startswith('image/'):
                 print("[DEBUG] Processing as image")
-                image = Image.open(file_obj)
-                response = client.models.generate_content(
-                    model=self.model,
-                    contents=[self.prompt, image]
-                )
-            
+                file_obj.seek(0)
+                image_bytes = file_obj.read()
+                response_text = _llm_generate_image(self.prompt, image_bytes, mime_type=mime_type)
+                print("[DEBUG] Image processed via llm_generate_image (Gemini → gemma3:4b)")
+
             # Handle PDFs
             else:
                 print("[DEBUG] Processing as PDF/document")
                 file_obj.seek(0)
                 file_bytes = file_obj.read()
-                
-                # Debug: try text extraction
+
+                # Extract plain text (needed for Ollama fallback)
                 text_content = ""
                 try:
                     import pdfplumber
@@ -91,8 +95,8 @@ GENERAL RULES:
                     print(f"[DEBUG] pdfplumber extracted {len(text_content)} characters")
                 except Exception as pdf_err:
                     print(f"[DEBUG] pdfplumber extraction skipped/error: {pdf_err}")
-                
-                # Try multimodal PDF upload via SDK
+
+                # 1st choice: Gemini multimodal (PDF bytes)
                 try:
                     from google.genai import types
                     pdf_part = types.Part.from_bytes(data=file_bytes, mime_type='application/pdf')
@@ -100,23 +104,25 @@ GENERAL RULES:
                         model=self.model,
                         contents=[self.prompt, pdf_part]
                     )
+                    response_text = response.text
                     print("[DEBUG] Sent PDF bytes directly to Gemini")
                 except Exception as byte_err:
-                    print(f"[DEBUG] Direct PDF bytes failed: {byte_err}")
-                    # Fallback to extracted text
-                    if text_content and len(text_content) > 50:
-                        response = client.models.generate_content(
-                            model=self.model,
-                            contents=f"{self.prompt}\n\nRESUME TEXT CONTENT:\n{text_content}"
-                        )
-                        print("[DEBUG] Sent extracted text to Gemini")
-                    else:
-                        print("[DEBUG] No usable content extracted from PDF")
-                        return self._empty_schema()
-            
-            print(f"[DEBUG] Gemini response text (first 500 chars): {response.text[:500]}")
-            
-            result = json.loads(response.text)
+                    print(f"[DEBUG] Gemini PDF bytes failed: {byte_err}")
+
+                # 2nd choice: llm_generate with extracted text (Gemini text → Ollama)
+                if not response_text and text_content and len(text_content) > 50:
+                    print("[DEBUG] Trying text-only path (Gemini/Ollama via llm_generate)")
+                    response_text = _llm_generate(
+                        f"{self.prompt}\n\nRESUME TEXT CONTENT:\n{text_content}"
+                    )
+
+                if not response_text:
+                    print("[DEBUG] No usable content extracted from PDF")
+                    return self._empty_schema()
+
+            print(f"[DEBUG] LLM response text (first 500 chars): {response_text[:500]}")
+
+            result = json.loads(response_text)
             print(f"[DEBUG] JSON parsed successfully")
             
             return self._normalize_result(result)
