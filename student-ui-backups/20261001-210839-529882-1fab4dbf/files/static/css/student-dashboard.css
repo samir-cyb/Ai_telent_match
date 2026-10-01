@@ -1,0 +1,87 @@
+/* Layout overrides are limited to the Student Dashboard. */
+.student-workspace-page { --student-rail-width: 88px; }
+.student-workspace-page.sidebar-expanded { --student-rail-width: 248px; }
+.student-workspace-page > main,
+.student-workspace-page > .glass-footer { margin-left: var(--student-rail-width); transition: margin-left .2s ease; }
+.student-sidebar { position: fixed; inset: 0 auto 0 0; width: var(--student-rail-width); z-index: 9100; display: flex; flex-direction: column; background: rgba(5, 15, 25, .96); border-right: 1px solid rgba(72, 187, 255, .22); transition: width .2s ease, transform .2s ease; }
+.student-sidebar-brand { min-height: 86px; padding: 20px; display: flex; align-items: center; border-bottom: 1px solid rgba(72, 187, 255, .14); }
+.student-sidebar-brand a { display: flex; align-items: center; gap: 14px; min-width: 0; text-decoration: none; color: #aaffff; font-size: 16px; font-weight: 800; white-space: nowrap; }
+.student-sidebar-brand i { width: 48px; text-align: center; flex-shrink: 0; font-size: 26px; color: #48bbff; }
+.student-nav-label { display: none; }
+.sidebar-expanded .student-nav-label { display: inline; }
+.student-sidebar-nav { padding: 20px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto; overflow-x: hidden; }
+.student-nav-item { position: relative; display: flex; align-items: center; gap: 14px; min-height: 48px; width: 100%; padding: 12px 16px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #94a3b8; text-decoration: none; font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; white-space: nowrap; transition: color .15s ease, background .15s ease, border-color .15s ease; }
+.student-nav-item i { width: 22px; flex-shrink: 0; text-align: center; font-size: 19px; }
+.student-nav-item:hover { color: #ccf4ff; background: rgba(72, 187, 255, .08); }
+.student-nav-item.is-active { color: #48bbff; background: rgba(72, 187, 255, .16); border-color: rgba(72, 187, 255, .32); }
+.student-sidebar-footer { padding: 12px 16px; border-top: 1px solid rgba(72, 187, 255, .14); }
+.student-workspace-header { position: sticky; top: 0; z-index: 1000; margin-left: var(--student-rail-width); min-height: 86px; display: flex; align-items: center; gap: 16px; padding: 16px 32px; border-bottom: 1px solid rgba(72, 187, 255, .18); background: rgba(5, 15, 25, .92); backdrop-filter: blur(20px); transition: margin-left .2s ease; }
+.student-icon-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; border: 1px solid rgba(72, 187, 255, .22); border-radius: 10px; background: rgba(72, 187, 255, .06); color: #ccf4ff; cursor: pointer; font-size: 17px; }
+.student-icon-button:hover { background: rgba(72, 187, 255, .14); }
+.student-workspace-heading h2 { color: #f0f9ff; font-size: 19px; font-weight: 700; margin: 0; }
+.student-workspace-heading p { color: #94a3b8; font-size: 12px; margin-top: 4px; }
+.student-workspace-profile { margin-left: auto; display: flex; align-items: center; gap: 10px; color: #ccf4ff; text-decoration: none; font-size: 13px; white-space: nowrap; }
+.student-workspace-profile i { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: rgba(72, 187, 255, .12); color: #48bbff; }
+.student-sidebar-close, .student-sidebar-backdrop { display: none; }
+.student-nav-tooltip { position: fixed; z-index: 9200; padding: 8px 12px; background: #0a1a2f; border: 1px solid rgba(72, 187, 255, .32); border-radius: 8px; color: #ccf4ff; font-size: 12px; pointer-events: none; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+.student-skip-link { position: fixed; left: 100px; top: -60px; z-index: 9300; padding: 12px 18px; color: #f0f9ff; background: #0a1a2f; border: 1px solid #48bbff; border-radius: 8px; }
+.student-skip-link:focus { top: 12px; }
+.student-workspace-page :is(a, button, input):focus-visible { outline: 2px solid #48bbff; outline-offset: 4px; }
+.student-workspace-page .dashboard-container { width: 100%; max-width: 1440px; margin: 0 auto; padding: 28px 32px 40px; }
+.student-workspace-page .glass-card { border-radius: 20px; }
+.student-workspace-page .welcome-header { padding: 28px; margin-bottom: 24px; gap: 24px; }
+.student-workspace-page .welcome-text h1 { font-size: clamp(22px, 2.2vw, 30px); }
+.student-workspace-page .welcome-text p { font-size: 14px; line-height: 1.6; }
+.student-workspace-page .stats-row { gap: 16px; margin-bottom: 24px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.student-workspace-page .stat-card { padding: 20px; gap: 14px; }
+.student-workspace-page .stat-card i { width: 42px; height: 42px; font-size: 20px; flex-shrink: 0; border-radius: 12px; }
+.student-workspace-page .stat-info h3 { font-size: 25px; }
+.student-workspace-page .stat-info p { font-size: 12px; }
+.student-workspace-page .dashboard-grid { grid-template-columns: minmax(280px, .85fr) minmax(0, 1.65fr); gap: 24px; }
+.student-workspace-page .dashboard-left, .student-workspace-page .dashboard-right { min-width: 0; }
+.student-workspace-page .dashboard-grid .glass-card { overflow-wrap: anywhere; }
+.student-workspace-page .smart-apply-header { flex-wrap: wrap; gap: 16px; }
+.student-workspace-page #vetting-alert-container .glass-card > div { flex-wrap: wrap; gap: 16px; }
+@media (max-width: 1100px) {
+  .student-workspace-page .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .student-workspace-page .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+  .student-workspace-page .welcome-header { flex-direction: row; text-align: left; }
+}
+@media (max-width: 768px) {
+  .student-workspace-page { --student-rail-width: 0px; }
+  .student-sidebar { width: min(280px, 85vw); transform: translateX(-100%); visibility: hidden; }
+  .student-workspace-page.sidebar-open { overflow: hidden !important; }
+  .sidebar-open .student-sidebar { transform: translateX(0); visibility: visible; }
+  .student-sidebar .student-nav-label { display: inline; }
+  .student-sidebar-brand { padding: 16px; gap: 8px; }
+  .student-sidebar-brand a { flex: 1; font-size: 14px; gap: 6px; }
+  .student-sidebar-close { display: inline-flex; width: 32px; height: 32px; }
+  .student-sidebar-backdrop:not([hidden]) { display: block; position: fixed; inset: 0; width: 100%; height: 100%; z-index: 9050; border: 0; background: rgba(0, 0, 0, .6); }
+  .student-workspace-page .student-workspace-header { min-height: 76px; margin-left: 0; padding: 14px 16px; gap: 12px; }
+  .student-workspace-heading h2 { font-size: 16px; }
+  .student-workspace-profile span { display: none; }
+  .student-workspace-page .dashboard-container { padding: 20px 16px 32px; }
+  .student-workspace-page .welcome-header { padding: 20px; }
+  .student-workspace-page .welcome-text p { font-size: 12px; }
+  .student-workspace-page .score-circle { width: 80px; height: 80px; }
+  .student-workspace-page .score-circle::before { width: 64px; height: 64px; }
+  .student-workspace-page .score-value { font-size: 22px; }
+  .student-workspace-page .stats-row { gap: 12px; }
+  .student-workspace-page .stat-card { padding: 16px 12px; gap: 10px; }
+  .student-workspace-page .stat-card i { width: 32px; height: 32px; font-size: 16px; }
+  .student-workspace-page #advisor-mini-panel { right: 12px !important; width: min(380px, calc(100vw - 24px)) !important; }
+  .student-workspace-page #advisor-bubble { bottom: 16px !important; right: 16px !important; }
+  .student-workspace-page .notifications-card .notif-header-row { flex-wrap: wrap; gap: 12px; }
+  .student-workspace-page .job-card { flex-wrap: wrap; }
+  .student-workspace-page .job-card > div:first-child { flex-basis: 100% !important; }
+  .student-workspace-page .job-card > div:last-child { margin-left: auto; }
+}
+@media (max-width: 420px) {
+  .student-workspace-page .welcome-header { flex-wrap: wrap; }
+  .student-workspace-page .welcome-text { flex: 1 1 180px; }
+  .student-workspace-page .coach-card > div:first-child { flex-wrap: wrap; gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .student-workspace-page *, .student-workspace-page *::before { animation: none !important; transition: none !important; }
+  .student-workspace-page .glass-card { transform: none !important; opacity: 1 !important; }
+}
