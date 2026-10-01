@@ -1,0 +1,75 @@
+/* Shared presentation for Student pages; existing forms and actions stay intact. */
+.student-content-page > main { min-width: 0; min-height: calc(100vh - 86px); }
+.student-content-page > main > :is(.container, .lb-wrap, .pa-page) { width: 100%; max-width: 1440px; margin: 0 auto; padding: 28px 32px 40px; }
+.student-content-page .glass-card { border-radius: 20px; }
+.student-content-page :is(.page-header, .profile-header, .lb-hero, .pa-header) { border-radius: 20px; border-color: rgba(72, 187, 255, .22); }
+.student-leaderboard-page > main > .lb-wrap { padding-bottom: 120px; }
+.student-leaderboard-page .you-strip { left: var(--student-rail-width); transition: left .2s ease; }
+.student-content-page :is(.profile-grid, .job-detail-grid, .jobs-grid) > * { min-width: 0; }
+.student-content-page :is(.identity-info, .job-title-section, .job-info-section, .search-box) { min-width: 0; }
+.student-content-page :is(.page-header h1, .identity-info h1, .job-title-section h1) { overflow-wrap: anywhere; }
+.student-jobs-page .filters-bar { gap: 16px; }
+.student-jobs-page .search-box { min-width: min(100%, 240px); }
+.student-jobs-page .filter-options .btn-primary { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.student-job-detail-page .job-detail-grid { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); }
+.student-job-detail-page .analysis-section { top: 106px; }
+.student-profile-page .profile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.student-advisor-page > .glass-footer { display: none; }
+.student-advisor-page #advisor-app { inset: 86px 0 0 var(--student-rail-width); overflow: hidden; transition: left .2s ease; }
+.student-advisor-page #chat-main { min-width: 0; margin: 0; }
+.student-advisor-page #sidebar { width: 240px; min-width: 240px; }
+.student-advisor-page #sidebar.collapsed { width: 0; min-width: 0; }
+.student-advisor-page #chat-topbar { min-width: 0; }
+.student-advisor-page #chat-title-label { min-width: 0; }
+.student-history-close { display: none; }
+@media (max-width: 1100px) {
+  .student-job-detail-page .job-detail-grid { grid-template-columns: minmax(0, 1fr); }
+  .student-job-detail-page .analysis-section { position: static; max-height: none; }
+  .student-profile-page .profile-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 768px) {
+  .student-content-page > main { min-height: calc(100vh - 76px); }
+  .student-content-page > main > :is(.container, .lb-wrap, .pa-page) { padding: 20px 16px 32px; }
+  .student-skills-page > main > .container { padding: 20px 16px 32px !important; }
+  .student-content-page :is(.page-header, .profile-header, .lb-hero, .pa-header, .pa-card) { padding: 20px; }
+  .student-content-page .page-header h1 { font-size: 24px; }
+  .student-jobs-page .filters-bar { padding: 16px; }
+  .student-jobs-page .search-box { flex-basis: 100%; }
+  .student-jobs-page .filter-options { flex-wrap: wrap; width: 100%; }
+  .student-jobs-page .filter-options select { flex: 1; min-width: 0; }
+  .student-jobs-page .jobs-grid { grid-template-columns: minmax(0, 1fr); }
+  .student-jobs-page .job-footer { flex-wrap: wrap; gap: 16px; }
+  .student-jobs-page .job-meta { flex-wrap: wrap; gap: 12px; }
+  .student-jobs-page .job-meta span { white-space: nowrap; }
+  .student-jobs-page .job-footer .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+  .student-profile-page .profile-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .student-profile-page .avatar-section { gap: 16px; min-width: 0; }
+  .student-profile-page .profile-actions { flex-wrap: wrap; }
+  .student-profile-page .section-header { flex-wrap: wrap; gap: 12px; }
+  .student-profile-page .ai-progress-card { min-width: 0; width: calc(100vw - 32px); }
+  .student-profile-page .edit-modal-container { min-width: 0; }
+  .student-job-detail-page .job-header-card { align-items: flex-start; }
+  .student-leaderboard-page .lb-hero-title { font-size: 26px; }
+  .student-leaderboard-page .lb-stat-trio { width: 100%; gap: 8px; }
+  .student-leaderboard-page .lb-stat { flex: 1; min-width: 0; padding: 12px 8px; }
+  .student-advisor-page #advisor-app { inset: 76px 0 0 0; }
+}
+@media (max-width: 640px) {
+  .student-advisor-page #sidebar { position: absolute; inset: 0 auto 0 0; z-index: 100; width: min(260px, 85vw); min-width: min(260px, 85vw); height: 100%; box-shadow: 12px 0 28px rgba(0, 0, 0, .3); }
+  .student-advisor-page #sidebar.collapsed { width: 0; min-width: 0; box-shadow: none; }
+  .student-advisor-page #sidebar-top { display: flex; gap: 8px; align-items: center; }
+  .student-advisor-page #new-chat-btn { flex: 1; min-width: 0; }
+  .student-history-close { display: inline-flex; width: 32px; height: 32px; }
+  .student-advisor-page #suggestions { width: 100%; }
+  .student-advisor-page .sugg-btn { max-width: 100%; white-space: normal; }
+  .student-advisor-page #welcome-screen { padding: 24px 16px; }
+  .student-advisor-page #input-bar { padding: 12px; }
+}
+@media (max-width: 420px) {
+  .student-profile-page .profile-stats-row { grid-template-columns: minmax(0, 1fr); }
+  .student-profile-page .avatar-section { flex-wrap: wrap; }
+  .student-profile-page :is(.skills-grid, .projects-grid) { grid-template-columns: minmax(0, 1fr); }
+  .student-leaderboard-page .lb-podium { flex-direction: column; align-items: stretch; gap: 12px; }
+  .student-leaderboard-page .podium-card { margin-bottom: 0; }
+  .student-assessments-page .pa-card > div { flex-basis: 100% !important; }
+}

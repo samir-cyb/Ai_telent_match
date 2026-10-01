@@ -1,0 +1,46 @@
+<a class="student-skip-link" href="#student-workspace">Skip to page content</a>
+<aside class="student-sidebar" id="student-sidebar" aria-label="Student workspace">
+  <div class="student-sidebar-brand">
+    <a href="/" aria-label="AI Talent Match home" title="AI Talent Match">
+      <i class="fas fa-brain" aria-hidden="true"></i>
+      <span class="student-nav-label">AI Talent Match</span>
+    </a>
+    <button type="button" class="student-sidebar-close student-icon-button" aria-label="Close navigation">
+      <i class="fas fa-times" aria-hidden="true"></i>
+    </button>
+  </div>
+  <nav class="student-sidebar-nav" aria-label="Student navigation">
+    <a href="/student/dashboard/" class="student-nav-item{% if student_active == "dashboard" %} is-active{% endif %}"{% if student_active == "dashboard" %} aria-current="page"{% endif %} aria-label="Dashboard" data-tooltip="Dashboard">
+      <i class="fas fa-home" aria-hidden="true"></i><span class="student-nav-label">Dashboard</span>
+    </a>
+    <a href="/student/jobs/" class="student-nav-item{% if student_active == "jobs" %} is-active{% endif %}"{% if student_active == "jobs" %} aria-current="page"{% endif %} aria-label="Browse Jobs" data-tooltip="Browse Jobs">
+      <i class="fas fa-search" aria-hidden="true"></i><span class="student-nav-label">Browse Jobs</span>
+    </a>
+    <a href="/student/profile/" class="student-nav-item{% if student_active == "profile" %} is-active{% endif %}"{% if student_active == "profile" %} aria-current="page"{% endif %} aria-label="Update Profile" data-tooltip="Update Profile">
+      <i class="fas fa-user-edit" aria-hidden="true"></i><span class="student-nav-label">Update Profile</span>
+    </a>
+    <a href="/student/career-advisor/" class="student-nav-item{% if student_active == "advisor" %} is-active{% endif %}"{% if student_active == "advisor" %} aria-current="page"{% endif %} aria-label="AI Advisor" data-tooltip="AI Advisor">
+      <i class="fas fa-robot" aria-hidden="true"></i><span class="student-nav-label">AI Advisor</span>
+    </a>
+    <a href="/student/skill-heatmap/" class="student-nav-item{% if student_active == "skills" %} is-active{% endif %}"{% if student_active == "skills" %} aria-current="page"{% endif %} aria-label="Skill Heatmap" data-tooltip="Skill Heatmap">
+      <i class="fas fa-fire" aria-hidden="true"></i><span class="student-nav-label">Skill Heatmap</span>
+    </a>
+    <a href="/student/leaderboard/" class="student-nav-item{% if student_active == "leaderboard" %} is-active{% endif %}"{% if student_active == "leaderboard" %} aria-current="page"{% endif %} aria-label="Leaderboard" data-tooltip="Leaderboard">
+      <i class="fas fa-trophy" aria-hidden="true"></i><span class="student-nav-label">Leaderboard</span>
+    </a>
+    <a href="/vetting/pending/" class="student-nav-item{% if student_active == "assessments" %} is-active{% endif %}"{% if student_active == "assessments" %} aria-current="page"{% endif %} aria-label="Pending Assessments" data-tooltip="Pending Assessments">
+      <i class="fas fa-clipboard-check" aria-hidden="true"></i><span class="student-nav-label">Assessments</span>
+    </a>
+  </nav>
+  <div class="student-sidebar-footer">
+    <a href="/about/" class="student-nav-item" aria-label="About Us" data-tooltip="About Us"><i class="fas fa-info-circle" aria-hidden="true"></i><span class="student-nav-label">About Us</span></a>
+    <a href="/services/" class="student-nav-item" aria-label="Services" data-tooltip="Services"><i class="fas fa-layer-group" aria-hidden="true"></i><span class="student-nav-label">Services</span></a>
+    <button type="button" class="student-nav-item" onclick="logoutStudent()" aria-label="Logout" data-tooltip="Logout"><i class="fas fa-sign-out-alt" aria-hidden="true"></i><span class="student-nav-label">Logout</span></button>
+  </div>
+</aside>
+<button type="button" class="student-sidebar-backdrop" aria-label="Close navigation" tabindex="-1" hidden></button>
+<header class="student-workspace-header">
+  <button type="button" class="student-icon-button student-sidebar-toggle" aria-label="Expand navigation" aria-controls="student-sidebar" aria-expanded="false"><i class="fas fa-bars" aria-hidden="true"></i></button>
+  <div class="student-workspace-heading"><h2>{{ workspace_title|default:"Student Dashboard" }}</h2><p>{{ workspace_subtitle|default:"Your career workspace" }}</p></div>
+  <a href="/student/profile/" class="student-workspace-profile" aria-label="Open my profile"><i class="fas fa-user-graduate" aria-hidden="true"></i><span>My Profile</span></a>
+</header>

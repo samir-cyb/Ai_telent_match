@@ -1,0 +1,92 @@
+{
+  "version": "2026-10-01-student-ui-hover",
+  "project": "G:\\Ai project",
+  "operation": "update",
+  "status": "complete",
+  "files": {
+    "static/css/student-dashboard.css": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "92f845e6d6288578f3aa607646742fe1a639578fde31b14e3a9130a558b5f716",
+      "after_sha256": "53a27cf49fb910d88fcc15ff3c202ca7aea61be0889be4427d25f4b604d3e6a1"
+    },
+    "static/css/student-pages.css": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "e565ae532c8b0c730937fcfbd2797514a3a002aa14abf04098ece0d3d00aeaec",
+      "after_sha256": "e565ae532c8b0c730937fcfbd2797514a3a002aa14abf04098ece0d3d00aeaec"
+    },
+    "static/js/student-dashboard-layout.js": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "9f787d189f640d9c41cb873da6dbfc5b9be8746b654776027d047a164caf9816",
+      "after_sha256": "6847eac575e88143e1638e5542b03d7e6f144c424196c8f3d114a8e276915201"
+    },
+    "templates/base.html": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "7007793c3e69c9603536e09afdb0d94ade4d7d7baf7882ad797fe0786491dcdf",
+      "after_sha256": "7007793c3e69c9603536e09afdb0d94ade4d7d7baf7882ad797fe0786491dcdf"
+    },
+    "templates/student/base.html": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "5086285d7e22ad6254000f924113e3a50cd1051f4757cbefc384b2fac8dc4f96",
+      "after_sha256": "5086285d7e22ad6254000f924113e3a50cd1051f4757cbefc384b2fac8dc4f96"
+    },
+    "templates/student/career_advisor.html": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "27349e74f54c25d355d5b534ecb1a8b90df3d2ba146763f317c1a8db42d56d45",
+      "after_sha256": "27349e74f54c25d355d5b534ecb1a8b90df3d2ba146763f317c1a8db42d56d45"
+    },
+    "templates/student/dashboard.html": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "958a70a1157ca1c15fc8e238dfc086cbf02ad15217574a0d6bf7226f5ce3649c",
+      "after_sha256": "958a70a1157ca1c15fc8e238dfc086cbf02ad15217574a0d6bf7226f5ce3649c"
+    },
+    "templates/student/dashboard_navigation.html": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "1b77324befa5ed64fcb3f586b6564aab0a386975e6265b5b7bf888c1e171dc79",
+      "after_sha256": "1b77324befa5ed64fcb3f586b6564aab0a386975e6265b5b7bf888c1e171dc79"
+    },
+    "templates/student/job_detail.html": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "3b233b9aab80fd084066d10c56bf92c7d3c264c02352f540b9234a766c1e22ac",
+      "after_sha256": "3b233b9aab80fd084066d10c56bf92c7d3c264c02352f540b9234a766c1e22ac"
+    },
+    "templates/student/jobs.html": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "1e0f6ba28488f849b7b699f28439fe230e3a5a996a9896e55064cd4a83ef0822",
+      "after_sha256": "1e0f6ba28488f849b7b699f28439fe230e3a5a996a9896e55064cd4a83ef0822"
+    },
+    "templates/student/leaderboard.html": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "0ed526c0e87b225b6269c0546bac8fa3e856ce8d1cb1d0f42ba9038e7f554ab4",
+      "after_sha256": "0ed526c0e87b225b6269c0546bac8fa3e856ce8d1cb1d0f42ba9038e7f554ab4"
+    },
+    "templates/student/profile.html": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "83a59a619a62b48db77856a6e432dab836f95d253782aa0edad305fd495fd25c",
+      "after_sha256": "83a59a619a62b48db77856a6e432dab836f95d253782aa0edad305fd495fd25c"
+    },
+    "templates/student/skill_heatmap.html": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "79839c995d115b9a8ed04dbe979c78ff34c49d1ed507dfae47d1559a9f1d5636",
+      "after_sha256": "79839c995d115b9a8ed04dbe979c78ff34c49d1ed507dfae47d1559a9f1d5636"
+    },
+    "templates/vetting/student_pending.html": {
+      "existed": true,
+      "mode": 438,
+      "before_sha256": "d671f5146a42ec97aa66e754aa561764a75097e3439be55f32ec705c9606a6bf",
+      "after_sha256": "d671f5146a42ec97aa66e754aa561764a75097e3439be55f32ec705c9606a6bf"
+    }
+  }
+}

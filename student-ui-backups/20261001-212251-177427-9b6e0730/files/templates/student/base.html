@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load static %}
+{% block body_class %}student-workspace-page {% block student_page_class %}student-content-page{% endblock %}{% endblock %}
+{% block extra_head %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/student-dashboard.css' %}">
+<link rel="stylesheet" href="{% static 'css/student-pages.css' %}">
+{% endblock %}
+{% block navigation %}{% include "student/dashboard_navigation.html" %}{% endblock %}
+{% block main %}
+<main id="student-workspace" tabindex="-1">
+  {% block content %}{% endblock %}
+</main>
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'js/student-dashboard-layout.js' %}"></script>
+{% endblock %}
