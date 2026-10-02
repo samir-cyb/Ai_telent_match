@@ -884,7 +884,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <script>
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = "/api";
 const studentId = localStorage.getItem('student_id');
 window.__studentId = studentId;  // expose for LinkedIn + recommendations functions
 
@@ -948,6 +948,10 @@ async function loadProfile() {
             currentExperiences = data.data.experiences || [];
             currentProjects = data.data.projects || [];
             updateProfile(data.data);
+            fetch(`${API_BASE}/student/${studentId}/trajectory/`, {method: 'POST'})
+                .then(response => response.json())
+                .then(result => { if (result.status === 'success') updateTrajectory(result.data); })
+                .catch(() => {});
         }
     } catch (error) {
         console.error('Error loading profile:', error);
@@ -975,12 +979,12 @@ function updateProfile(data) {
     document.getElementById('total-experience').textContent = (data.experiences || []).length;
     
     document.getElementById('email').textContent = data.email || '--';
-    document.getElementById('cgpa-display').textContent = data.cgpa || '--';
+    document.getElementById('cgpa-display').textContent = data.cgpa ?? '--';
     document.getElementById('graduation-date').textContent = data.graduation_date || 'Not set';
     
     if (data.github && data.github.username) {
         document.getElementById('github-username').textContent = data.github.username;
-        document.getElementById('github-link').href = `https://github.com/${data.github.username}`;
+        document.getElementById('github-link').href = `https://github.com/${escapeHtml(data.github.username)}`;
         document.getElementById('github-verified').style.display = data.github.verified ? 'inline' : 'none';
     } else {
         document.getElementById('github-username').textContent = 'Not set';
@@ -1002,7 +1006,7 @@ function updateProfile(data) {
     document.getElementById('pref-company-size').textContent = (prefs.company_size || []).join(', ') || 'Not set';
     document.getElementById('pref-relocate').textContent = prefs.willing_to_relocate ? 'Yes' : 'No';
 
-    document.getElementById('github-score').textContent = `Score: ${data.github?.score || '--'}`;
+    document.getElementById('github-score').textContent = `Score: ${escapeHtml(data.github?.score || '--')}`;
 
     currentProjects = data.projects || [];
     updateProjects(currentProjects);
@@ -1097,12 +1101,12 @@ function updateSkills(skills) {
     }
     
     container.innerHTML = skills.map(skill => `
-        <div class="skill-tag-item ${skill.verified ? 'verified' : ''}" data-category="${skill.category}">
+        <div class="skill-tag-item ${skill.verified ? 'verified' : ''}" data-category="${escapeHtml(skill.category)}">
             <div class="skill-info">
-                <span class="skill-name">${skill.name}</span>
-                <span class="skill-category">${skill.category}</span>
+                <span class="skill-name">${escapeHtml(skill.name)}</span>
+                <span class="skill-category">${escapeHtml(skill.category)}</span>
             </div>
-            <span class="skill-level-badge ${skill.level.toLowerCase()}">${skill.level}</span>
+            <span class="skill-level-badge ${escapeHtml(skill.level.toLowerCase())}">${escapeHtml(skill.level)}</span>
             ${skill.verified ? '<i class="fas fa-check-circle verified-icon"></i>' : ''}
         </div>
     `).join('');
@@ -1124,16 +1128,16 @@ function updateProjects(projects) {
     container.innerHTML = projects.map((proj, index) => `
         <div class="project-card" style="animation-delay: ${index * 0.1}s">
             <div class="project-header">
-                <h4>${proj.title}</h4>
+                <h4>${escapeHtml(proj.title)}</h4>
                 <span class="${proj.verified ? 'verified-badge' : 'manual-badge'}">${proj.verified ? 'Verified' : 'Manual'}</span>
             </div>
-            <p class="project-desc">${proj.description || 'No description'}</p>
+            <p class="project-desc">${escapeHtml(proj.description || 'No description')}</p>
             <div class="project-tech">
-                ${(proj.tech_stack || []).map(tech => `<span class="tech-tag">${tech}</span>`).join('')}
+                ${(proj.tech_stack || []).map(tech => `<span class="tech-tag">${escapeHtml(tech)}</span>`).join('')}
             </div>
             <div class="project-meta">
                 <span class="complexity">Complexity: ${'★'.repeat(proj.complexity || 1)}</span>
-                ${proj.github_url ? `<a href="${proj.github_url}" target="_blank"><i class="fab fa-github"></i></a>` : ''}
+                ${proj.github_url ? `<a href="${safeURL(proj.github_url)}" target="_blank"><i class="fab fa-github"></i></a>` : ''}
             </div>
         </div>
     `).join('');
@@ -1154,9 +1158,9 @@ function updateExperience(experiences) {
         <div class="timeline-node" style="animation-delay: ${index * 0.1}s">
             <div class="node-dot"></div>
             <div class="node-content">
-                <h4>${exp.role}</h4>
-                <p class="company">${exp.company}</p>
-                <p class="duration">${exp.duration}</p>
+                <h4>${escapeHtml(exp.role)}</h4>
+                <p class="company">${escapeHtml(exp.company)}</p>
+                <p class="duration">${escapeHtml(exp.duration)}</p>
                 <span class="verify-status ${exp.verified ? 'verified' : 'pending'}">
                     ${exp.verified ? '<i class="fas fa-check"></i> Verified' : '<i class="fas fa-clock"></i> Pending'}
                 </span>
@@ -1186,7 +1190,7 @@ function updateTrajectory(trajectory) {
     
     if (trajectory.recommended_skills_to_add && trajectory.recommended_skills_to_add.length > 0) {
         skillsContainer.innerHTML = trajectory.recommended_skills_to_add.map(skill => 
-            `<span class="rec-skill">${skill}</span>`
+            `<span class="rec-skill">${escapeHtml(skill)}</span>`
         ).join('');
     } else {
         skillsContainer.innerHTML = '<span class="rec-skill">Great! You have all recommended skills</span>';
@@ -1211,7 +1215,7 @@ function updateTrustBreakdown(data) {
     if ((data.skills || []).filter(s => s.verified).length < 3) tips.push('Take skill assessments to verify your skills');
     if (activity < 50) tips.push('Login regularly and explore job listings');
     
-    document.getElementById('tips-list').innerHTML = tips.map(tip => `<li><i class="fas fa-chevron-right"></i> ${tip}</li>`).join('');
+    document.getElementById('tips-list').innerHTML = tips.map(tip => `<li><i class="fas fa-chevron-right"></i> ${escapeHtml(tip)}</li>`).join('');
 }
 
 function animateProfileElements() {
@@ -1236,7 +1240,7 @@ function animateProfileElements() {
 // ==================== MODAL FUNCTIONS ====================
 
 function editProfile() {
-    console.log('[DEBUG] editProfile() called - opening full-screen edit profile');
+
     const modal = document.getElementById('edit-modal');
     
     // FIX: Use CSS class to show modal - cleaner and more reliable
@@ -1298,7 +1302,7 @@ function editProfile() {
 }
 
 function closeModal() {
-    console.log('[DEBUG] closeModal() called - closing edit profile');
+
     const modal = document.getElementById('edit-modal');
     modal.classList.remove('active');
     
@@ -1330,8 +1334,8 @@ function renderModalSkills() {
     container.innerHTML = currentSkills.map((skill, index) => `
         <div class="managed-item">
             <div class="managed-item-info">
-                <span class="managed-item-title">${skill.name}</span>
-                <span class="managed-item-subtitle">${skill.category} • ${skill.level}</span>
+                <span class="managed-item-title">${escapeHtml(skill.name)}</span>
+                <span class="managed-item-subtitle">${escapeHtml(skill.category)} • ${escapeHtml(skill.level)}</span>
             </div>
             <button type="button" class="btn-delete" onclick="removeSkill(${index})">
                 <i class="fas fa-trash"></i>
@@ -1364,13 +1368,13 @@ function addSkillFromModal() {
     document.getElementById('new-skill-level').value = 'Intermediate';
     
     renderModalSkills();
-    showNotification(`Skill "${name}" added`, 'success');
+    showNotification(`Skill "${escapeHtml(name)}" added`, 'success');
 }
 
 function removeSkill(index) {
     const removed = currentSkills.splice(index, 1)[0];
     renderModalSkills();
-    showNotification(`Skill "${removed.name}" removed`, 'success');
+    showNotification(`Skill "${escapeHtml(removed.name)}" removed`, 'success');
 }
 
 // ==================== PROJECTS MANAGEMENT IN MODAL ====================
@@ -1387,10 +1391,10 @@ function renderModalProjects() {
     container.innerHTML = currentProjects.map((proj, index) => `
         <div class="managed-item ${editingProjectIndex === index ? 'managed-item-editing' : ''}">
             <div class="managed-item-info">
-                <span class="managed-item-title">${proj.title}</span>
+                <span class="managed-item-title">${escapeHtml(proj.title)}</span>
                 <span class="managed-item-subtitle">
-                    ${(proj.tech_stack || []).join(', ') || 'No tech stack'} &bull; Complexity: ${proj.complexity || 1}/5
-                    ${proj.github_url ? `&bull; <a href="${proj.github_url}" target="_blank" style="color:#48bbff;font-size:0.75rem;"><i class="fab fa-github"></i> GitHub</a>` : ''}
+                    ${escapeHtml((proj.tech_stack || []).join(', ') || 'No tech stack')} &bull; Complexity: ${escapeHtml(proj.complexity || 1)}/5
+                    ${proj.github_url ? `&bull; <a href="${safeURL(proj.github_url)}" target="_blank" style="color:#48bbff;font-size:0.75rem;"><i class="fab fa-github"></i> GitHub</a>` : ''}
                 </span>
             </div>
             <div class="managed-item-actions">
@@ -1463,13 +1467,13 @@ function addProjectFromModal() {
         // Update existing
         projectData.verified = currentProjects[editingProjectIndex].verified || false;
         currentProjects[editingProjectIndex] = projectData;
-        showNotification(`Project "${title}" updated`, 'success');
+        showNotification(`Project "${escapeHtml(title)}" updated`, 'success');
         editingProjectIndex = -1;
         const addBtn = document.getElementById('project-add-btn');
         if (addBtn) { addBtn.innerHTML = '<i class="fas fa-plus"></i> Add Project'; addBtn.style.background = ''; }
     } else {
         currentProjects.push(projectData);
-        showNotification(`Project "${title}" added`, 'success');
+        showNotification(`Project "${escapeHtml(title)}" added`, 'success');
     }
 
     document.getElementById('new-project-title').value       = '';
@@ -1484,7 +1488,7 @@ function removeProject(index) {
     if (editingProjectIndex === index) cancelEditProject();
     const removed = currentProjects.splice(index, 1)[0];
     renderModalProjects();
-    showNotification(`Project "${removed.title}" removed`, 'success');
+    showNotification(`Project "${escapeHtml(removed.title)}" removed`, 'success');
 }
 
 // ==================== EXPERIENCE MANAGEMENT IN MODAL ====================
@@ -1500,8 +1504,8 @@ function renderModalExperience() {
     container.innerHTML = currentExperiences.map((exp, index) => `
         <div class="managed-item">
             <div class="managed-item-info">
-                <span class="managed-item-title">${exp.role} at ${exp.company}</span>
-                <span class="managed-item-subtitle">${exp.duration}</span>
+                <span class="managed-item-title">${escapeHtml(exp.role)} at ${escapeHtml(exp.company)}</span>
+                <span class="managed-item-subtitle">${escapeHtml(exp.duration)}</span>
             </div>
             <button type="button" class="btn-delete" onclick="removeExperience(${index})">
                 <i class="fas fa-trash"></i>
@@ -1551,13 +1555,13 @@ function addExperienceFromModal() {
     document.getElementById('new-exp-description').value = '';
     
     renderModalExperience();
-    showNotification(`Experience at "${company}" added`, 'success');
+    showNotification(`Experience at "${escapeHtml(company)}" added`, 'success');
 }
 
 function removeExperience(index) {
     const removed = currentExperiences.splice(index, 1)[0];
     renderModalExperience();
-    showNotification(`Experience at "${removed.company}" removed`, 'success');
+    showNotification(`Experience at "${escapeHtml(removed.company)}" removed`, 'success');
 }
 
 // ==================== CERTIFICATIONS ====================
@@ -1572,8 +1576,8 @@ function renderCertifications() {
     container.innerHTML = currentCertifications.map((c, i) => `
         <div class="managed-item">
             <div class="managed-item-info">
-                <span class="managed-item-title">${c.name}</span>
-                <span class="managed-item-subtitle">${c.issuer || ''}${c.year ? ' • ' + c.year : ''}</span>
+                <span class="managed-item-title">${escapeHtml(c.name)}</span>
+                <span class="managed-item-subtitle">${escapeHtml(c.issuer || '')}${escapeHtml(c.year ? ' • ' + c.year : '')}</span>
             </div>
             <button type="button" class="btn-delete" onclick="removeCertification(${i})">
                 <i class="fas fa-trash"></i>
@@ -1594,13 +1598,13 @@ function addCertification() {
     document.getElementById('new-cert-year').value = '';
     document.getElementById('new-cert-url').value = '';
     renderCertifications();
-    showNotification(`Certification "${name}" added`, 'success');
+    showNotification(`Certification "${escapeHtml(name)}" added`, 'success');
 }
 
 function removeCertification(index) {
     const removed = currentCertifications.splice(index, 1)[0];
     renderCertifications();
-    showNotification(`Removed "${removed.name}"`, 'success');
+    showNotification(`Removed "${escapeHtml(removed.name)}"`, 'success');
 }
 
 // ==================== ECA ACTIVITIES ====================
@@ -1615,8 +1619,8 @@ function renderECA() {
     container.innerHTML = currentECA.map((a, i) => `
         <div class="managed-item">
             <div class="managed-item-info">
-                <span class="managed-item-title">${a.title}</span>
-                <span class="managed-item-subtitle">${a.role || ''}${a.duration ? ' • ' + a.duration : ''}</span>
+                <span class="managed-item-title">${escapeHtml(a.title)}</span>
+                <span class="managed-item-subtitle">${escapeHtml(a.role || '')}${escapeHtml(a.duration ? ' • ' + a.duration : '')}</span>
             </div>
             <button type="button" class="btn-delete" onclick="removeECA(${i})">
                 <i class="fas fa-trash"></i>
@@ -1635,13 +1639,13 @@ function addECA() {
     document.getElementById('new-eca-role').value = '';
     document.getElementById('new-eca-duration').value = '';
     renderECA();
-    showNotification(`Activity "${title}" added`, 'success');
+    showNotification(`Activity "${escapeHtml(title)}" added`, 'success');
 }
 
 function removeECA(index) {
     const removed = currentECA.splice(index, 1)[0];
     renderECA();
-    showNotification(`Removed "${removed.title}"`, 'success');
+    showNotification(`Removed "${escapeHtml(removed.title)}"`, 'success');
 }
 
 // ==================== RESEARCH PAPERS ====================
@@ -1656,8 +1660,8 @@ function renderResearchPapers() {
     container.innerHTML = currentResearchPapers.map((p, i) => `
         <div class="managed-item">
             <div class="managed-item-info">
-                <span class="managed-item-title">${p.title}</span>
-                <span class="managed-item-subtitle">${p.venue || ''}${p.year ? ' • ' + p.year : ''}</span>
+                <span class="managed-item-title">${escapeHtml(p.title)}</span>
+                <span class="managed-item-subtitle">${escapeHtml(p.venue || '')}${escapeHtml(p.year ? ' • ' + p.year : '')}</span>
             </div>
             <button type="button" class="btn-delete" onclick="removeResearchPaper(${i})">
                 <i class="fas fa-trash"></i>
@@ -1678,13 +1682,13 @@ function addResearchPaper() {
     document.getElementById('new-research-year').value = '';
     document.getElementById('new-research-url').value = '';
     renderResearchPapers();
-    showNotification(`Paper "${title}" added`, 'success');
+    showNotification(`Paper "${escapeHtml(title)}" added`, 'success');
 }
 
 function removeResearchPaper(index) {
     const removed = currentResearchPapers.splice(index, 1)[0];
     renderResearchPapers();
-    showNotification(`Removed "${removed.title}"`, 'success');
+    showNotification(`Removed "${escapeHtml(removed.title)}"`, 'success');
 }
 
 // ==================== LINKEDIN PDF UPLOAD ====================
@@ -1742,9 +1746,9 @@ function renderLinkedInResult(data) {
     // Stats row
     const statsRow = document.getElementById('li-stats-row');
     statsRow.innerHTML = [
-        summary.total_skills && `<span class="li-stat-pill"><i class="fas fa-star"></i> ${summary.total_skills} skills</span>`,
-        summary.total_experiences && `<span class="li-stat-pill"><i class="fas fa-briefcase"></i> ${summary.total_experiences} roles</span>`,
-        summary.total_certifications && `<span class="li-stat-pill"><i class="fas fa-certificate"></i> ${summary.total_certifications} certs</span>`,
+        summary.total_skills && `<span class="li-stat-pill"><i class="fas fa-star"></i> ${escapeHtml(summary.total_skills)} skills</span>`,
+        summary.total_experiences && `<span class="li-stat-pill"><i class="fas fa-briefcase"></i> ${escapeHtml(summary.total_experiences)} roles</span>`,
+        summary.total_certifications && `<span class="li-stat-pill"><i class="fas fa-certificate"></i> ${escapeHtml(summary.total_certifications)} certs</span>`,
         summary.experience_months && `<span class="li-stat-pill"><i class="fas fa-clock"></i> ${Math.round(summary.experience_months/12*10)/10}y exp</span>`,
     ].filter(Boolean).join('');
 
@@ -1753,13 +1757,13 @@ function renderLinkedInResult(data) {
     if (data.newly_cross_validated && data.newly_cross_validated.length) {
         cvList.innerHTML = `
             <p style="color:#10b981;font-size:0.8rem;margin-bottom:0.4rem;">
-                <i class="fas fa-check-double"></i> Cross-validated (${data.newly_cross_validated.length} skills confirmed in both CV & LinkedIn)
+                <i class="fas fa-check-double"></i> Cross-validated (${escapeHtml(data.newly_cross_validated.length)} skills confirmed in both CV & LinkedIn)
             </p>
             <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
-                ${data.newly_cross_validated.map(s => `<span class="li-cv-pill">${s}</span>`).join('')}
+                ${data.newly_cross_validated.map(s => `<span class="li-cv-pill">${escapeHtml(s)}</span>`).join('')}
             </div>`;
     } else {
-        cvList.innerHTML = `<p style="color:#64748b;font-size:0.8rem;"><i class="fas fa-info-circle"></i> ${data.cross_validated_count || 0} existing skills confirmed</p>`;
+        cvList.innerHTML = `<p style="color:#64748b;font-size:0.8rem;"><i class="fas fa-info-circle"></i> ${escapeHtml(data.cross_validated_count || 0)} existing skills confirmed</p>`;
     }
 
     // New skills from LinkedIn
@@ -1767,10 +1771,10 @@ function renderLinkedInResult(data) {
     if (data.added_skills && data.added_skills.length) {
         newList.innerHTML = `
             <p style="color:#a78bfa;font-size:0.8rem;margin-bottom:0.4rem;">
-                <i class="fas fa-plus-circle"></i> ${data.added_skills.length} new skills added from LinkedIn
+                <i class="fas fa-plus-circle"></i> ${escapeHtml(data.added_skills.length)} new skills added from LinkedIn
             </p>
             <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
-                ${data.added_skills.slice(0, 8).map(s => `<span class="li-new-pill">${s}</span>`).join('')}
+                ${data.added_skills.slice(0, 8).map(s => `<span class="li-new-pill">${escapeHtml(s)}</span>`).join('')}
                 ${data.added_skills.length > 8 ? `<span class="li-new-pill">+${data.added_skills.length-8} more</span>` : ''}
             </div>`;
     }
@@ -1822,22 +1826,22 @@ function renderRecommendations(data) {
         const fitColor = j.fit_percentage >= 70 ? '#10b981' : j.fit_percentage >= 50 ? '#f59e0b' : '#ef4444';
         const gapHtml = j.gap_skills.length
             ? `<div class="reco-gaps"><span style="color:#94a3b8;font-size:0.75rem;">Missing: </span>${j.gap_skills.slice(0,4).map(s=>
-                `<span class="reco-gap-pill">${s.name||s}</span>`).join('')}${j.gap_skills.length>4?`<span class="reco-gap-pill">+${j.gap_skills.length-4}</span>`:''}</div>`
+                `<span class="reco-gap-pill">${escapeHtml(s.name||s)}</span>`).join('')}${j.gap_skills.length>4?`<span class="reco-gap-pill">+${j.gap_skills.length-4}</span>`:''}</div>`
             : `<div style="color:#10b981;font-size:0.75rem;"><i class="fas fa-check"></i> All required skills matched</div>`;
 
         const reachBadge = j.is_reachable && j.fit_percentage < 70
-            ? `<span class="reco-reach-badge" title="Potential: ${j.potential_score}%">↑${j.potential_score}% possible</span>` : '';
+            ? `<span class="reco-reach-badge" title="Potential: ${escapeHtml(j.potential_score)}%">↑${escapeHtml(j.potential_score)}% possible</span>` : '';
 
         return `
         <div class="reco-job-card">
             <div class="reco-job-header">
                 <div class="reco-job-meta">
-                    <div class="reco-job-title">${j.job_title}</div>
-                    <div class="reco-company-name">${j.company_name}</div>
+                    <div class="reco-job-title">${escapeHtml(j.job_title)}</div>
+                    <div class="reco-company-name">${escapeHtml(j.company_name)}</div>
                 </div>
-                <div class="reco-fit-score" style="color:${fitColor};">${j.fit_percentage}%</div>
+                <div class="reco-fit-score" style="color:${fitColor};">${escapeHtml(j.fit_percentage)}%</div>
             </div>
-            <div class="reco-fit-bar"><div class="reco-fit-fill" style="width:${j.fit_percentage}%;background:${fitColor};"></div></div>
+            <div class="reco-fit-bar"><div class="reco-fit-fill" style="width:${escapeHtml(j.fit_percentage)}%;background:${fitColor};"></div></div>
             ${gapHtml}
             ${reachBadge}
         </div>`;
@@ -1849,8 +1853,8 @@ function renderRecommendations(data) {
         const guideEl = document.getElementById('career-guide-list');
         guideEl.innerHTML = guide.map(g => `
             <div class="career-guide-item">
-                <div class="cg-skill-name"><i class="fas fa-plus-circle" style="color:#a78bfa;margin-right:0.4rem;"></i>${g.skill}</div>
-                <div class="cg-message">${g.message}</div>
+                <div class="cg-skill-name"><i class="fas fa-plus-circle" style="color:#a78bfa;margin-right:0.4rem;"></i>${escapeHtml(g.skill)}</div>
+                <div class="cg-message">${escapeHtml(g.message)}</div>
             </div>`).join('');
         document.getElementById('career-guide-section').style.display = 'block';
     }
@@ -1882,7 +1886,7 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     if (isSaving) {
-        console.log('[DEBUG] Save already in progress, skipping...');
+
         return;
     }
     isSaving = true;
@@ -1899,8 +1903,7 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
             : 'Processing data, please wait';
     }
 
-    console.log('[DEBUG] === FORM SUBMISSION STARTED ===');
-    
+
     // Collect Job Types
     const jobTypes = [];
     if (document.getElementById('pref-remote').checked) jobTypes.push('Remote');
@@ -1918,7 +1921,8 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
     const payload = {
         name: document.getElementById('edit-name').value,
         department: document.getElementById('edit-department').value,
-        cgpa: parseFloat(document.getElementById('edit-cgpa').value) || null,
+        cgpa: document.getElementById('edit-cgpa').value.trim() === ''
+            ? null : parseFloat(document.getElementById('edit-cgpa').value),
         university_id: studentIdValue,
         graduation_date: document.getElementById('edit-graduation').value || null,
         github_username: document.getElementById('edit-github')?.value || '',
@@ -1939,16 +1943,15 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
         }
     };
     
-    console.log('[DEBUG] Saving profile with payload:');
-    console.log('[DEBUG]   - Name:', payload.name);
-    console.log('[DEBUG]   - Skills count:', payload.skills.length);
-    console.log('[DEBUG]   - Projects count:', payload.projects.length);
-    console.log('[DEBUG]   - Experiences count:', payload.experiences.length);
-    console.log('[DEBUG]   - Projects data:', JSON.stringify(payload.projects, null, 2));
-    console.log('[DEBUG]   - Experiences data:', JSON.stringify(payload.experiences, null, 2));
-    
+
+
+
+
+
+
+
     try {
-        console.log('[DEBUG] Sending PUT request to:', `${API_BASE}/student/${studentId}/profile/update/`);
+
         const response = await fetch(`${API_BASE}/student/${studentId}/profile/update/`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -1956,11 +1959,10 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
         });
         
         const data = await response.json();
-        console.log('[DEBUG] PUT response status:', response.status);
-        console.log('[DEBUG] PUT response data:', JSON.stringify(data, null, 2));
-        
+
+
         if (response.ok && data.status === 'success') {
-            console.log('[DEBUG] Profile saved successfully!');
+
             showNotification('Profile updated successfully!', 'success');
             closeModal();
             await loadProfile();
@@ -1976,13 +1978,19 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
         // Hide saving overlay
         const saveOverlay = document.getElementById('save-loader-overlay');
         if (saveOverlay) saveOverlay.style.display = 'none';
-        console.log('[DEBUG] === FORM SUBMISSION ENDED ===');
+
     }
 });
 
-function refreshGitHub() {
+async function refreshGitHub() {
     showNotification('Refreshing GitHub data...', 'success');
-    loadProfile();
+    try {
+        const response = await fetch(`${API_BASE}/student/${studentId}/github/sync/`, {method: 'POST'});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'GitHub refresh failed');
+        await loadProfile();
+        showNotification(`GitHub updated: ${data.imported} imported, ${data.updated} refreshed`, 'success');
+    } catch (error) { showNotification(error.message, 'error'); }
 }
 
 function analyzeProfile() {
@@ -1992,7 +2000,7 @@ function analyzeProfile() {
 function showNotification(message, type) {
     const notif = document.createElement('div');
     notif.className = `notification ${type}`;
-    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${escapeHtml(message)}`;
     notif.style.cssText = `
         position: fixed;
         top: 100px;
@@ -2103,12 +2111,11 @@ fileInput.addEventListener('change', (e) => {
 });
 
 async function handleResumeUpload(file) {
-    console.log('[DEBUG] handleResumeUpload called with file:', file.name, file.type, file.size);
-    
+
     const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
     const isValid = validTypes.includes(file.type) || file.name.toLowerCase().endsWith('.pdf');
     if (!isValid) {
-        console.log('[DEBUG] Invalid file type:', file.type);
+
         showNotification('Please upload a PDF or image file (JPG/PNG)', 'error');
         return;
     }
@@ -2117,24 +2124,23 @@ async function handleResumeUpload(file) {
     formData.append('resume', file);
     
     // FIX: Show loader IMMEDIATELY - user sees the progress bar right away
-    console.log('[DEBUG] Showing AI loader overlay with progress bar...');
+
     aiLoader.classList.add('active');
     document.body.style.overflow = 'hidden';
     startProgressAnimation();
     
     try {
-        console.log('[DEBUG] Sending resume to API...');
+
         const response = await fetch(`${API_BASE}/student/${studentId}/upload-resume/`, {
             method: 'POST',
             body: formData
         });
         
         const result = await response.json();
-        console.log('[DEBUG] Upload response status:', response.status);
-        console.log('[DEBUG] Upload response data:', JSON.stringify(result, null, 2));
-        
+
+
         if (response.ok && result.status === 'success') {
-            console.log('[DEBUG] Resume parsed successfully, completing progress and opening edit modal...');
+
             showNotification('AI Auto-filled your details. Please review before clicking Save Changes!', 'success');
 
             // Complete the progress animation to 100%
@@ -2174,14 +2180,12 @@ async function handleResumeUpload(file) {
 }
 
 function autoFillProfileModal(data) {
-    console.log('[DEBUG] autoFillProfileModal called with data:', JSON.stringify(data, null, 2));
 
     // Safely read parsed arrays with fallback
-    currentSkills = Array.isArray(data?.skills) ? data.skills : [];
-    currentProjects = Array.isArray(data?.projects) ? data.projects : [];
-    currentExperiences = Array.isArray(data?.experiences) ? data.experiences : [];
+    currentSkills = mergeParsedItems(currentSkills, Array.isArray(data?.skills) ? data.skills : [], item => item.name);
+    currentProjects = mergeParsedItems(currentProjects, Array.isArray(data?.projects) ? data.projects : [], item => item.title);
+    currentExperiences = mergeParsedItems(currentExperiences, Array.isArray(data?.experiences) ? data.experiences : [], item => [item.company || item.company_name, item.role, item.start_date].join('|'));
 
-    console.log('[DEBUG] AI parsed - Skills:', currentSkills.length, 'Projects:', currentProjects.length, 'Experiences:', currentExperiences.length);
 
     // Show the modal
     const modal = document.getElementById('edit-modal');
@@ -2189,7 +2193,6 @@ function autoFillProfileModal(data) {
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 
-    console.log('[DEBUG] Modal activated, filling form fields...');
 
     // Helper: safely set a form field's value (skip if element doesn't exist)
     const safeSet = (id, val) => {
@@ -2248,7 +2251,7 @@ function autoFillProfileModal(data) {
     const scrollableBody = modal.querySelector('.modal-scrollable-body');
     if (scrollableBody) scrollableBody.scrollTop = 0;
 
-    console.log('[DEBUG] autoFillProfileModal complete - modal is visible and scrolled to top');
+
 }
 
 // Load profile on page load

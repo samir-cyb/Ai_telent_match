@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "company/base.html" %}
 {% block title %}Auto Pipeline — {{ job_title }}{% endblock %}
 {% block content %}
 
@@ -596,7 +596,7 @@ table.pl-table {
 <script>
 const PIPELINE_ID = "{{ pipeline_id }}";
 const JOB_ID      = "{{ job_id }}";
-const API         = (window.API_BASE || "http://127.0.0.1:8000/api");
+const API         = (window.API_BASE || "/api");
 
 let pipelineData  = null;
 let pendingAction = null;
@@ -647,7 +647,7 @@ function renderTimeline(stage) {
     const dc     = done ? 'done' : active ? 'active' : '';
     html += `<div class="pl-stage-step">
       <div class="pl-stage-dot ${dc}">${done ? '<i class="fas fa-check" style="font-size:.7rem;"></i>' : s.icon}</div>
-      <div class="pl-stage-lbl ${dc}">${s.label}</div>
+      <div class="pl-stage-lbl ${dc}">${escapeHtml(s.label)}</div>
     </div>`;
     if (i < STAGES.length - 1)
       html += `<div class="pl-stage-line ${done ? 'done' : ''}"></div>`;
@@ -660,11 +660,11 @@ function renderStatusBar(d) {
   const active = d.candidates?.filter(c => c.stage !== 'eliminated').length || 0;
   const msgs = {
     sort_review:    ['🔍', 'Sort Complete — Review Required',
-                     `AI ranked ${d.total_candidates || 0} candidates. Select top ${d.vetting_top_n} to advance.`],
+                     `AI ranked ${escapeHtml(d.total_candidates || 0)} candidates. Select top ${escapeHtml(d.vetting_top_n)} to advance.`],
     vetting:        ['📝', 'Vetting In Progress',
                      `Tests sent. Deadline: ${fmt(d.vetting_deadline)}.`],
     vetting_review: ['✅', 'Vetting Complete — Review Required',
-                     `Results in. Select top ${d.interview_top_n} for AI Interview.`],
+                     `Results in. Select top ${escapeHtml(d.interview_top_n)} for AI Interview.`],
     interviewing:   ['🤖', 'AI Interviews In Progress',
                      `Interviews sent. Deadline: ${fmt(d.interview_deadline)}.`],
     completed:      ['🏆', 'Pipeline Complete!',
@@ -727,7 +727,7 @@ function renderActionPanel(d) {
       </h3>
       <p class="pl-action-desc">
         Select the candidates you want to advance.
-        Top <strong style="color:#48bbff;">${d.vetting_top_n}</strong> are pre-selected.
+        Top <strong style="color:#48bbff;">${escapeHtml(d.vetting_top_n)}</strong> are pre-selected.
         A vetting test will be <strong style="color:#a855f7;">auto-generated</strong>
         and sent to selected candidates.
       </p>
@@ -745,7 +745,7 @@ function renderActionPanel(d) {
       </h3>
       <p class="pl-action-desc">
         Select candidates to advance to AI Interview.
-        Top <strong style="color:#48bbff;">${d.interview_top_n}</strong> by vetting score are pre-selected.
+        Top <strong style="color:#48bbff;">${escapeHtml(d.interview_top_n)}</strong> by vetting score are pre-selected.
       </p>
       <button class="pl-action-btn" onclick="openDeadlineModal('approve_vetting')"
         style="background:linear-gradient(135deg,#a855f7,#48bbff);">
@@ -765,7 +765,7 @@ function renderTable(d) {
   const needsCb = d.stage === 'sort_review' || d.stage === 'vetting_review';
   const topN    = d.stage === 'sort_review' ? d.vetting_top_n : d.interview_top_n;
 
-  document.getElementById('candidate-count').textContent = `(${cands.length})`;
+  document.getElementById('candidate-count').textContent = `(${escapeHtml(cands.length)})`;
 
   if (!cands.length) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="8">No candidates yet.</td></tr>';
@@ -779,17 +779,17 @@ function renderTable(d) {
     if (autoSel && needsCb) selectedIds.add(c.application_id);
 
     const cb = needsCb && !elim
-      ? `<input type="checkbox" data-app-id="${c.application_id}" ${autoSel?'checked':''}
+      ? `<input type="checkbox" data-app-id="${escapeHtml(c.application_id)}" ${autoSel?'checked':''}
            onchange="toggleCandidate(this)"
            style="accent-color:#a855f7;width:14px;height:14px;cursor:pointer;">`
       : '';
 
     return `<tr class="cand-row${elim?' eliminated':''}">
       <td>${cb}</td>
-      <td style="color:#475569;font-size:.82rem;font-weight:600;">#${c.sort_rank||i+1}</td>
+      <td style="color:#475569;font-size:.82rem;font-weight:600;">#${escapeHtml(c.sort_rank||i+1)}</td>
       <td>
         <div class="cand-name">${esc(c.student_name)}</div>
-        <div class="cand-meta">${esc(c.department||'')}${c.cgpa?' · CGPA '+c.cgpa:''}</div>
+        <div class="cand-meta">${esc(c.department||'')}${escapeHtml(c.cgpa?' · CGPA '+c.cgpa:'')}</div>
       </td>
       <td style="text-align:right;">${bar(c.sort_score)}</td>
       <td style="text-align:right;">${bar(c.vetting_score)}</td>
@@ -807,7 +807,7 @@ function bar(val) {
   const pct = Math.min(+val, 100);
   const col = pct >= 70 ? '#4ade80' : pct >= 50 ? '#fbbf24' : '#f87171';
   return `<div class="score-wrap">
-    <span class="score-txt">${pct.toFixed(1)}%</span>
+    <span class="score-txt">${escapeHtml(pct.toFixed(1))}%</span>
     <div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${col};"></div></div>
   </div>`;
 }
@@ -815,7 +815,7 @@ function finalScore(val) {
   if (val == null) return '<span style="color:#1e293b;">—</span>';
   const pct = +val;
   const col = pct >= 70 ? '#4ade80' : pct >= 50 ? '#fbbf24' : '#f87171';
-  return `<span style="font-weight:800;font-size:.92rem;color:${col};">${pct.toFixed(1)}%</span>`;
+  return `<span style="font-weight:800;font-size:.92rem;color:${col};">${escapeHtml(pct.toFixed(1))}%</span>`;
 }
 function pill(stage, elAt) {
   const MAP = {
@@ -861,8 +861,8 @@ function openDeadlineModal(action) {
     ? '🧪 Configure Vetting Test'
     : 'Set AI Interview Deadline';
   document.getElementById('modal-desc').textContent  = sort
-    ? `${selectedIds.size} candidate(s) selected. Configure the assessment below then set a deadline.`
-    : `${selectedIds.size} candidate(s) will receive the AI interview. Set their deadline:`;
+    ? `${escapeHtml(selectedIds.size)} candidate(s) selected. Configure the assessment below then set a deadline.`
+    : `${escapeHtml(selectedIds.size)} candidate(s) will receive the AI interview. Set their deadline:`;
   // Show/hide vetting config fields
   document.getElementById('vetting-config-fields').style.display = sort ? 'block' : 'none';
   // Default: 7 days

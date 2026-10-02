@@ -5,13 +5,12 @@ from google.genai import types
 from core.utils.llm_client import llm_generate as _llm_generate, llm_generate_image as _llm_generate_image
 
 # Gemini client — kept for multimodal PDF bytes calls
-client = genai.Client(api_key='AQ.Ab8RN6LBjYwwET910F0CwPAeGmNOHOddFSqtECS22TZ8jD_kuA')
 
 
 
 
 class LinkedInParser:
-    """
+    r"""
     Parses a LinkedIn PDF export and returns structured data.
     LinkedIn PDFs have a well-known layout: Name/Headline → Contact → About
     → Experience → Education → Skills → Certifications.
@@ -76,59 +75,40 @@ Rules:
 - Respond with raw JSON only, no extra text."""
 
     def parse(self, file_obj):
-        """Parse a LinkedIn PDF file object. Returns normalized dict."""
+        """Return structured data or an explicit failure; never an empty success."""
         try:
-            print(f"[LinkedIn] Parser started for: {getattr(file_obj, 'name', 'unknown')}")
             file_obj.seek(0)
             file_bytes = file_obj.read()
-
-            # Extract text via pdfplumber for fallback
-            text_content = ""
+            mime_type = getattr(file_obj, 'content_type', None) or 'application/pdf'
+            if file_bytes.startswith(b'%PDF-'):
+                mime_type = 'application/pdf'
+            response_text = None
             try:
+                response_text = _llm_generate_image(self.prompt, file_bytes, mime_type=mime_type)
+            except Exception:
+                if mime_type != 'application/pdf':
+                    raise
                 import pdfplumber
                 with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-                    for page in pdf.pages:
-                        txt = page.extract_text()
-                        if txt:
-                            text_content += txt + "\n"
-                print(f"[LinkedIn] Extracted {len(text_content)} chars via pdfplumber")
-            except Exception as e:
-                print(f"[LinkedIn] pdfplumber failed: {e}")
-
-            response_text = None
-
-            # 1st choice: Gemini multimodal (PDF bytes)
-            try:
-                pdf_part = types.Part.from_bytes(data=file_bytes, mime_type='application/pdf')
-                response = client.models.generate_content(
-                    model=self.model,
-                    contents=[self.prompt, pdf_part]
-                )
-                response_text = response.text
-                print("[LinkedIn] Sent PDF bytes to Gemini")
-            except Exception as e:
-                print(f"[LinkedIn] Gemini PDF bytes failed: {e}")
-
-            # 2nd choice: llm_generate with extracted text (Gemini text → Ollama)
-            if not response_text and text_content and len(text_content) > 50:
-                print("[LinkedIn] Trying text-only path (Gemini/Ollama via llm_generate)")
-                response_text = _llm_generate(
-                    f"{self.prompt}\n\nLINKEDIN PROFILE TEXT:\n{text_content}"
-                )
-
+                    content = '\n'.join(page.extract_text() or '' for page in pdf.pages)
+                if len(content.strip()) > 50:
+                    response_text = _llm_generate(self.prompt + '\nDOCUMENT TEXT:\n' + content)
             if not response_text:
-                print("[LinkedIn] No usable content")
                 return self._empty()
-
-            print(f"[LinkedIn] Raw response (500): {response_text[:500]}")
-            raw = json.loads(response_text)
-            return self._normalize(raw)
-
-        except Exception as e:
-            import traceback
-            print(f"[LinkedIn] Fatal error: {e}")
-            print(traceback.format_exc())
+            text = response_text.strip()
+            if text.startswith('```'):
+                text = text.split('```')[1]
+                if text.startswith('json'):
+                    text = text[4:]
+            raw = json.loads(text.strip())
+            if not isinstance(raw, dict) or not any(raw.get(k) for k in ('name', 'skills', 'projects', 'experiences', 'education')):
+                return self._empty()
+            result = self._normalize(raw)
+            result['parse_status'] = 'success'
+            return result
+        except Exception:
             return self._empty()
+
 
     def _normalize(self, raw):
         result = {
@@ -185,6 +165,8 @@ Rules:
 
     def _empty(self):
         return {
+            'parse_status': 'failed',
+            'error': 'Document could not be parsed. Check the AI provider and try again; existing profile data is preserved.',
             'name': None, 'headline': None, 'about': None,
             'connections': None, 'total_experience_months': None,
             'skills': [], 'experiences': [], 'education': [], 'certifications': [],

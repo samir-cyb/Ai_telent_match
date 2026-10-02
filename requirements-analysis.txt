@@ -1,0 +1,5 @@
+-r requirements.txt
+# Optional dependencies for notebooks/research scripts, not the web runtime.
+matplotlib>=3.9,<4
+pandas>=2.2,<4
+scikit-learn>=1.5,<2

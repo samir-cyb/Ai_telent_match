@@ -1,7 +1,8 @@
-{% extends "base.html" %}
+{% extends "company/base.html" %}
 {% block title %}Talent Leaderboard | {{ company.name }}{% endblock %}
 
 {% block extra_head %}
+{{ block.super }}
 <style>
 .lb-wrap { width:100%; padding:2rem 2.5rem 4rem; box-sizing:border-box; }
 
@@ -368,6 +369,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ block.super }}
 <script>
 /* Counter animation */
 function animateCounter(el) {
@@ -424,22 +426,22 @@ function openDrawer(studentId, event) {
     .then(data => {
       if (data.status !== 'success') { document.getElementById('drawer-content').innerHTML = '<p style="color:#ef4444;padding:2rem;">Failed to load profile.</p>'; return; }
       const s = data.student;
-      const skillsHtml = s.skills.map(sk => `<span class="d-skill ${sk.verified ? 'verified' : ''}">${sk.name}${sk.verified ? ' ✓' : ''}</span>`).join('');
-      const projsHtml = s.projects.map(p => `<div class="d-proj">${p.title}${p.github_url ? `<a href="${p.github_url}" target="_blank"><i class="fab fa-github"></i> GitHub</a>` : ''}</div>`).join('');
+      const skillsHtml = s.skills.map(sk => `<span class="d-skill ${sk.verified ? 'verified' : ''}">${escapeHtml(sk.name)}${sk.verified ? ' ✓' : ''}</span>`).join('');
+      const projsHtml = s.projects.map(p => `<div class="d-proj">${escapeHtml(p.title)}${p.github_url ? `<a href="${safeURL(p.github_url)}" target="_blank"><i class="fab fa-github"></i> GitHub</a>` : ''}</div>`).join('');
       const linksHtml = [
-        s.github_username ? `<a href="https://github.com/${s.github_username}" target="_blank" class="d-link"><i class="fab fa-github"></i> GitHub</a>` : '',
-        s.linkedin_url    ? `<a href="${s.linkedin_url}" target="_blank" class="d-link"><i class="fab fa-linkedin"></i> LinkedIn</a>` : '',
-        s.portfolio_url   ? `<a href="${s.portfolio_url}" target="_blank" class="d-link"><i class="fas fa-globe"></i> Portfolio</a>` : '',
+        s.github_username ? `<a href="https://github.com/${escapeHtml(s.github_username)}" target="_blank" class="d-link"><i class="fab fa-github"></i> GitHub</a>` : '',
+        s.linkedin_url    ? `<a href="${safeURL(s.linkedin_url)}" target="_blank" class="d-link"><i class="fab fa-linkedin"></i> LinkedIn</a>` : '',
+        s.portfolio_url   ? `<a href="${safeURL(s.portfolio_url)}" target="_blank" class="d-link"><i class="fas fa-globe"></i> Portfolio</a>` : '',
       ].filter(Boolean).join('');
       document.getElementById('drawer-content').innerHTML = `
-        <div class="d-avatar">${s.name.charAt(0).toUpperCase()}</div>
-        <div class="d-name">${s.name}</div>
-        <div class="d-sub">${s.department || '—'} · ${s.university_id || '—'}</div>
+        <div class="d-avatar">${escapeHtml(s.name.charAt(0).toUpperCase())}</div>
+        <div class="d-name">${escapeHtml(s.name)}</div>
+        <div class="d-sub">${escapeHtml(s.department || '—')} · ${escapeHtml(s.university_id || '—')}</div>
         <div class="d-grid">
-          <div class="d-stat"><div class="v">${s.trust_score.toFixed(0)}%</div><div class="l">Trust Score</div></div>
-          <div class="d-stat"><div class="v">${s.cgpa || '—'}</div><div class="l">CGPA</div></div>
-          <div class="d-stat"><div class="v">${s.profile_complete.toFixed(0)}%</div><div class="l">Profile Done</div></div>
-          <div class="d-stat"><div class="v">${s.total_applications}</div><div class="l">Applications</div></div>
+          <div class="d-stat"><div class="v">${escapeHtml(s.trust_score.toFixed(0))}%</div><div class="l">Trust Score</div></div>
+          <div class="d-stat"><div class="v">${escapeHtml(s.cgpa || '—')}</div><div class="l">CGPA</div></div>
+          <div class="d-stat"><div class="v">${escapeHtml(s.profile_complete.toFixed(0))}%</div><div class="l">Profile Done</div></div>
+          <div class="d-stat"><div class="v">${escapeHtml(s.total_applications)}</div><div class="l">Applications</div></div>
         </div>
         <div class="d-section-title">Top Skills</div>
         <div class="d-skill-list">${skillsHtml || '<span style="color:#475569;font-size:.78rem;">No skills listed</span>'}</div>
@@ -447,8 +449,8 @@ function openDrawer(studentId, event) {
         ${projsHtml || '<p style="color:#475569;font-size:.78rem;">No projects yet</p>'}
         ${linksHtml ? `<div class="d-section-title">Links</div><div class="d-links">${linksHtml}</div>` : ''}
         <div class="drawer-actions">
-          <button class="drawer-shortlist-btn" onclick="openShortlistModal('${s.id}','${s.name.replace(/'/g,'')}')">&nbsp;<i class="fas fa-star"></i> Shortlist&nbsp;</button>
-          <button class="drawer-offer-btn" onclick="openOfferModal('${s.id}','${s.name.replace(/'/g,'')}','','')"><i class="fas fa-paper-plane"></i> Send Offer</button>
+          <button class="drawer-shortlist-btn" onclick="openShortlistModal('${escapeHtml(s.id)}',${jsAttr(s.name)})">&nbsp;<i class="fas fa-star"></i> Shortlist&nbsp;</button>
+          <button class="drawer-offer-btn" onclick="openOfferModal('${escapeHtml(s.id)}',${jsAttr(s.name)},'','')"><i class="fas fa-paper-plane"></i> Send Offer</button>
         </div>`;
     })
     .catch(() => { document.getElementById('drawer-content').innerHTML = '<p style="color:#ef4444;padding:2rem;">Network error.</p>'; });
@@ -474,7 +476,7 @@ function _showOfferError(msg) {
     el.style.cssText = 'margin-top:.75rem;padding:.65rem .9rem;border-radius:.6rem;font-size:.8rem;line-height:1.4;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#fca5a5;display:flex;align-items:flex-start;gap:.5rem;';
     document.getElementById('offer-send-btn').insertAdjacentElement('afterend', el);
   }
-  el.innerHTML = `<i class="fas fa-exclamation-circle" style="margin-top:.15rem;flex-shrink:0;"></i><span>${msg}</span>`;
+  el.innerHTML = `<i class="fas fa-exclamation-circle" style="margin-top:.15rem;flex-shrink:0;"></i><span>${escapeHtml(msg)}</span>`;
   el.style.display = 'flex';
 }
 function _clearOfferError() {

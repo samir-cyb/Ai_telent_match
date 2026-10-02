@@ -389,7 +389,7 @@ function appendMiniMsg(role, content) {
       border-radius:10px;padding:.55rem .8rem;font-size:.82rem;
       color:#cbd5e1;line-height:1.55;max-width:85%;
       ${isUser ? 'border-top-right-radius:3px;' : 'border-top-left-radius:3px;'}
-    ">${content.replace(/\n/g,'<br>')}</div>
+    ">${escapeHtml(content).replace(/\n/g,'<br>')}</div>
   `;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
@@ -398,7 +398,7 @@ function appendMiniMsg(role, content) {
 
 <script>
   // Remove this line entirely, OR use:
-window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
+window.API_BASE = window.API_BASE || "/api";
   let studentId = localStorage.getItem("student_id");
   let radarChart;
 
@@ -417,6 +417,10 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
 
       if (data.status === "success") {
         updateDashboard(data.data);
+        fetch(`${API_BASE}/student/${studentId}/trajectory/`, {method: 'POST'})
+          .then(response => response.json())
+          .then(result => { if (result.status === 'success') updateCareerTrajectory(result.data); })
+          .catch(() => {});
       }
     } catch (error) {
       console.error("Error loading dashboard:", error);
@@ -450,18 +454,18 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
           <div>
             <div style="font-weight:700;color:#e2e8f0;font-size:.95rem;">
-              ${iv.job_title} <span style="color:#a78bfa;font-size:.8rem;">@ ${iv.company_name}</span>
+              ${escapeHtml(iv.job_title)} <span style="color:#a78bfa;font-size:.8rem;">@ ${escapeHtml(iv.company_name)}</span>
             </div>
             ${iv.answers_given > 0 ? `<div style="color:#94a3b8;font-size:.78rem;margin-top:.2rem;">
               <i class="fas fa-check-circle" style="color:#34d399;"></i>
-              ${iv.answers_given} of ${iv.questions_total} questions answered — resume anytime
+              ${escapeHtml(iv.answers_given)} of ${escapeHtml(iv.questions_total)} questions answered — resume anytime
             </div>` : ''}
             ${iv.deadline ? `<div style="color:#94a3b8;font-size:.78rem;margin-top:.25rem;">
               <i class="fas fa-clock" style="color:#f87171;"></i>
-              Deadline: <strong style="color:#fca5a5;">${iv.deadline}</strong>
+              Deadline: <strong style="color:#fca5a5;">${escapeHtml(iv.deadline)}</strong>
             </div>` : ''}
           </div>
-          <a href="${iv.interview_url}"
+          <a href="${safeURL(iv.interview_url)}"
              style="display:inline-flex;align-items:center;gap:.45rem;
                background:linear-gradient(135deg,#7c3aed,#a855f7);
                color:#fff;text-decoration:none;padding:.55rem 1.2rem;
@@ -506,11 +510,11 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
     document.getElementById("coach-insights").innerHTML = `
       <div class="insight-item">
         <i class="fas fa-tasks" style="color:#48bbff;"></i>
-        <span>${milestone}</span>
+        <span>${escapeHtml(milestone)}</span>
       </div>
       <div class="insight-item">
         <i class="fas fa-shield-alt" style="color:#a855f7;"></i>
-        <span>Trust Score: <strong style="color:#f0f9ff;">${Math.round(data.profile_summary?.trust_score || 0)}/100</strong></span>
+        <span>Trust Score: <strong style="color:#f0f9ff;">${escapeHtml(Math.round(data.profile_summary?.trust_score || 0))}/100</strong></span>
       </div>
       <div class="insight-item">
         <i class="fas fa-percentage" style="color:#22c55e;"></i>
@@ -527,9 +531,26 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
       </div>
     `;
 
-    // Update trajectory
-    if (data.career_trajectory) {
-      const ct = data.career_trajectory;
+    updateCareerTrajectory(data.career_trajectory || {});
+
+
+    // Update recommendations
+    updateRecommendations(data.recommendations);
+
+    // Update skill gaps
+    updateSkillGaps(data.skill_analytics?.most_demanded_missing_skills);
+
+    // Update AI interviews card (from notifications)
+    updateAIInterviews(data.recent_notifications);
+
+    // Update notifications
+    updateNotifications(data.recent_notifications);
+  }
+
+  // ── AI Interviews section ─────────────────────────────────────────────────
+  function updateCareerTrajectory(ct) {
+
+
       document.getElementById('trajectory-loading').style.display = 'none';
       document.getElementById('trajectory-content').style.display = 'block';
 
@@ -573,24 +594,11 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
       skillsContainer.innerHTML = '';
       const skills = ct.recommended_skills_to_add || ct.recommended_skills || [];
       skills.forEach(skill => {
-        skillsContainer.innerHTML += `<span class="skill-tag">${skill}</span>`;
+        skillsContainer.innerHTML += `<span class="skill-tag">${escapeHtml(skill)}</span>`;
       });
-    }
 
-    // Update recommendations
-    updateRecommendations(data.recommendations);
-
-    // Update skill gaps
-    updateSkillGaps(data.skill_analytics?.most_demanded_missing_skills);
-
-    // Update AI interviews card (from notifications)
-    updateAIInterviews(data.recent_notifications);
-
-    // Update notifications
-    updateNotifications(data.recent_notifications);
   }
 
-  // ── AI Interviews section ─────────────────────────────────────────────────
   function updateAIInterviews(notifications) {
     const card   = document.getElementById('ai-interviews-card');
     const list   = document.getElementById('ai-interviews-list');
@@ -619,14 +627,14 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
             <div>
               <div style="font-weight:700;color:#e2e8f0;font-size:.95rem;">
-                ${jobTitle} <span style="color:#a78bfa;font-size:.8rem;">@ ${company}</span>
+                ${escapeHtml(jobTitle)} <span style="color:#a78bfa;font-size:.8rem;">@ ${escapeHtml(company)}</span>
               </div>
               <div style="color:#94a3b8;font-size:.78rem;margin-top:.25rem;">
                 <i class="fas fa-clock" style="color:#f87171;"></i>
-                Deadline: <strong style="color:#fca5a5;">${deadline}</strong>
+                Deadline: <strong style="color:#fca5a5;">${escapeHtml(deadline)}</strong>
               </div>
             </div>
-            <a href="${d.interview_url}"
+            <a href="${safeURL(d.interview_url)}"
                style="display:inline-flex;align-items:center;gap:.45rem;
                  background:linear-gradient(135deg,#7c3aed,#a855f7);
                  color:#fff;text-decoration:none;padding:.55rem 1.2rem;
@@ -711,21 +719,21 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
     container.innerHTML = recommendations
       .map(
         (job) => `
-        <div class="job-card" data-job-id="${job.job_id}" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.6rem 1rem;">
+        <div class="job-card" data-job-id="${escapeHtml(job.job_id)}" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.6rem 1rem;">
             <div style="flex:1;min-width:0;">
                 <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
-                    <h4 style="margin:0;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${job.title}</h4>
-                    <span class="match-score" style="flex-shrink:0;">${Math.round(job.match_score)}% Match</span>
-                    <span style="color:#64748b;font-size:.78rem;white-space:nowrap;"><i class="fas fa-building"></i> ${job.company}</span>
-                    <span style="color:#64748b;font-size:.78rem;white-space:nowrap;"><i class="fas fa-map-marker-alt"></i> ${job.salary?.range || "N/A"}</span>
-                    <span style="color:#64748b;font-size:.78rem;white-space:nowrap;"><i class="fas fa-exclamation-circle"></i> ${job.skill_gaps} gaps</span>
+                    <h4 style="margin:0;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(job.title)}</h4>
+                    <span class="match-score" style="flex-shrink:0;">${escapeHtml(Math.round(job.match_score))}% Dashboard estimate</span>
+                    <span style="color:#64748b;font-size:.78rem;white-space:nowrap;"><i class="fas fa-building"></i> ${escapeHtml(job.company)}</span>
+                    <span style="color:#64748b;font-size:.78rem;white-space:nowrap;"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(job.salary?.range || "N/A")}</span>
+                    <span style="color:#64748b;font-size:.78rem;white-space:nowrap;"><i class="fas fa-exclamation-circle"></i> ${escapeHtml(job.skill_gaps)} gaps</span>
                 </div>
             </div>
             <div style="display:flex;gap:.4rem;flex-shrink:0;">
-                <button class="btn-primary btn-sm" onclick="applyToJob('${job.job_id}')">
+                <button class="btn-primary btn-sm" onclick="applyToJob('${escapeHtml(job.job_id)}')">
                     <i class="fas fa-paper-plane"></i> Apply
                 </button>
-                <button class="btn-outline btn-sm" onclick="viewJobDetail('${job.job_id}')">
+                <button class="btn-outline btn-sm" onclick="viewJobDetail('${escapeHtml(job.job_id)}')">
                     <i class="fas fa-eye"></i> View
                 </button>
             </div>
@@ -748,9 +756,9 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
       .map(
         ([skill, count]) => `
         <div class="skill-gap-item">
-            <span class="skill-name">${skill}</span>
+            <span class="skill-name">${escapeHtml(skill)}</span>
             <div class="demand-bar">
-                <div class="demand-fill" style="width: ${Math.min(count * 10, 100)}%"></div>
+                <div class="demand-fill" style="width: ${escapeHtml(Math.min(count * 10, 100))}%"></div>
             </div>
             <span class="demand-count">${count} jobs</span>
         </div>
@@ -783,24 +791,24 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
       // Extra detail chips (date/time/company for scheduled interviews)
       let chips = '';
       if (notif.data) {
-        if (notif.data.interview_date) chips += `<span class="notif-chip">📅 ${notif.data.interview_date}</span>`;
-        if (notif.data.interview_time) chips += `<span class="notif-chip">⏰ ${notif.data.interview_time}</span>`;
-        if (notif.data.company_name)   chips += `<span class="notif-chip">🏢 ${notif.data.company_name}</span>`;
+        if (notif.data.interview_date) chips += `<span class="notif-chip">📅 ${escapeHtml(notif.data.interview_date)}</span>`;
+        if (notif.data.interview_time) chips += `<span class="notif-chip">⏰ ${escapeHtml(notif.data.interview_time)}</span>`;
+        if (notif.data.company_name)   chips += `<span class="notif-chip">🏢 ${escapeHtml(notif.data.company_name)}</span>`;
         // In-person interview extras
         if (notif.type === 'interview_scheduled' && notif.data.meeting_type === 'in_person') {
-          if (notif.data.location)       chips += `<span class="notif-chip">📍 ${notif.data.location}</span>`;
-          if (notif.data.contact_person) chips += `<span class="notif-chip">👤 ${notif.data.contact_person}</span>`;
+          if (notif.data.location)       chips += `<span class="notif-chip">📍 ${escapeHtml(notif.data.location)}</span>`;
+          if (notif.data.contact_person) chips += `<span class="notif-chip">👤 ${escapeHtml(notif.data.contact_person)}</span>`;
         }
       }
 
       return `
-        <div class="notification-item ${notif.read ? 'read' : 'unread'}" data-id="${notif.id}">
+        <div class="notification-item ${notif.read ? 'read' : 'unread'}" data-id="${escapeHtml(notif.id)}">
           <div class="notif-icon" style="color:${color}">
             <i class="fas ${icon}"></i>
           </div>
           <div class="notif-content">
-            <h5>${notif.title}</h5>
-            <p>${notif.message}</p>
+            <h5>${escapeHtml(notif.title)}</h5>
+            <p>${escapeHtml(notif.message)}</p>
             ${chips ? `<div class="notif-chips">${chips}</div>` : ''}
             ${action ? `<div class="notif-action-row">${action}</div>` : ''}
             <span class="notif-time">${formatTime(notif.created_at)}</span>
@@ -814,13 +822,13 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
     switch (notif.type) {
       case 'ai_interview':
         if (d.interview_url) return `
-          <a href="${d.interview_url}" class="notif-action-btn notif-btn-primary">
+          <a href="${safeURL(d.interview_url)}" class="notif-action-btn notif-btn-primary">
             <i class="fas fa-robot"></i> Start AI Interview
           </a>`;
         break;
       case 'vetting_invitation':
         if (d.test_url) return `
-          <a href="${d.test_url}" class="notif-action-btn notif-btn-warning">
+          <a href="${safeURL(d.test_url)}" class="notif-action-btn notif-btn-warning">
             <i class="fas fa-code"></i> Take Assessment
           </a>`;
         return `<a href="/vetting/pending/" class="notif-action-btn notif-btn-warning">
@@ -828,7 +836,7 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
         </a>`;
       case 'pipeline_vetting':
         if (d.test_url) return `
-          <a href="${d.test_url}" class="notif-action-btn" style="background:linear-gradient(135deg,#ea580c,#f97316);border:none;color:#fff;box-shadow:0 4px 12px rgba(249,115,22,.35);">
+          <a href="${safeURL(d.test_url)}" class="notif-action-btn" style="background:linear-gradient(135deg,#ea580c,#f97316);border:none;color:#fff;box-shadow:0 4px 12px rgba(249,115,22,.35);">
             <i class="fas fa-play"></i> Start Pipeline Test
           </a>`;
         return `<a href="/vetting/pending/" class="notif-action-btn notif-btn-warning">
@@ -839,27 +847,27 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
           return `<span class="notif-chip" style="color:#94a3b8;font-size:0.75rem;"><i class="fas fa-building"></i> In-Person — arrive on time</span>`;
         }
         if (d.meeting_link) return `
-          <a href="${d.meeting_link}" target="_blank" class="notif-action-btn notif-btn-success">
+          <a href="${safeURL(d.meeting_link)}" target="_blank" class="notif-action-btn notif-btn-success">
             <i class="fas fa-video"></i> Join Meeting
           </a>`;
         return `<span class="notif-chip" style="color:#94a3b8;font-size:0.75rem;">Meeting link will be shared by company</span>`;
       case 'job_offer': {
-        const _jobLink = d.job_id ? `/student/job-detail/?id=${d.job_id}` : `/student/jobs/`;
+        const _jobLink = d.job_id ? `/student/job-detail/?id=${escapeHtml(d.job_id)}` : `/student/jobs/`;
         return `
           <div style="margin-top:.5rem;">
-            ${d.salary ? `<div style="font-size:.75rem;color:#fbbf24;margin-bottom:.4rem;"><i class="fas fa-money-bill-wave"></i> Salary: <strong>${d.salary}</strong></div>` : ''}
-            ${d.deadline ? `<div style="font-size:.72rem;color:#94a3b8;margin-bottom:.5rem;"><i class="fas fa-clock"></i> Respond by: ${d.deadline}</div>` : ''}
+            ${d.salary ? `<div style="font-size:.75rem;color:#fbbf24;margin-bottom:.4rem;"><i class="fas fa-money-bill-wave"></i> Salary: <strong>${escapeHtml(d.salary)}</strong></div>` : ''}
+            ${d.deadline ? `<div style="font-size:.72rem;color:#94a3b8;margin-bottom:.5rem;"><i class="fas fa-clock"></i> Respond by: ${escapeHtml(d.deadline)}</div>` : ''}
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
-              <a href="${_jobLink}" class="notif-action-btn" style="background:linear-gradient(135deg,#a855f7,#6366f1);border:none;color:#fff;">
+              <a href="${safeURL(_jobLink)}" class="notif-action-btn" style="background:linear-gradient(135deg,#a855f7,#6366f1);border:none;color:#fff;">
                 <i class="fas fa-paper-plane"></i> ${d.job_id ? 'View & Apply' : 'Browse Jobs'}
               </a>
-              ${d.job_title ? `<span class="notif-chip" style="color:#94a3b8;font-size:.72rem;">for <strong style="color:#c4b5fd;">${d.job_title}</strong></span>` : ''}
+              ${d.job_title ? `<span class="notif-chip" style="color:#94a3b8;font-size:.72rem;">for <strong style="color:#c4b5fd;">${escapeHtml(d.job_title)}</strong></span>` : ''}
             </div>
           </div>`;
       }
       case 'pipeline_interview':
         if (d.interview_url) return `
-          <a href="${d.interview_url}" class="notif-action-btn" style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;color:#fff;box-shadow:0 4px 12px rgba(124,58,237,.4);">
+          <a href="${safeURL(d.interview_url)}" class="notif-action-btn" style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;color:#fff;box-shadow:0 4px 12px rgba(124,58,237,.4);">
             🤖 Start AI Interview
           </a>`;
         break;
@@ -936,7 +944,7 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
 
     if (diffMin < 1)   return 'just now';
     if (diffMin < 60)  return `${diffMin}m ago`;
-    if (diffMin < 1440) return `${Math.floor(diffMin / 60)}h ago`;
+    if (diffMin < 1440) return `${escapeHtml(Math.floor(diffMin / 60))}h ago`;
 
     // Older than 24h — show readable date + time in local timezone
     return date.toLocaleDateString('en-BD', {
@@ -973,15 +981,15 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
           statusDiv.innerHTML = `
                 <div class="success-message">
                     <i class="fas fa-check-circle"></i>
-                    Successfully applied to ${data.applied_count} jobs!
+                    Successfully applied to ${escapeHtml(data.applied_count)} jobs!
                 </div>
             `;
           loadDashboard(); // Refresh data
         } else {
-          statusDiv.innerHTML = `<div class="error-message">${data.message}</div>`;
+          statusDiv.innerHTML = `<div class="error-message">${escapeHtml(data.message)}</div>`;
         }
       } catch (error) {
-        statusDiv.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+        statusDiv.innerHTML = `<div class="error-message">Error: ${escapeHtml(error.message)}</div>`;
       } finally {
         btn.innerHTML =
           '<i class="fas fa-rocket"></i> Auto-Apply to Top Matches';
@@ -1026,7 +1034,7 @@ window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
   function showNotification(message, type) {
     const notif = document.createElement("div");
     notif.className = `notification ${type}`;
-    notif.innerHTML = `<i class="fas ${type === "success" ? "fa-check-circle" : "fa-exclamation-circle"}"></i> ${message}`;
+    notif.innerHTML = `<i class="fas ${type === "success" ? "fa-check-circle" : "fa-exclamation-circle"}"></i> ${escapeHtml(message)}`;
     notif.style.cssText = `
         position: fixed;
         top: 100px;
@@ -1072,7 +1080,7 @@ async function checkVettingAssessments() {
                                 // Show notification if assessment exists and not completed
                                 document.getElementById('vetting-alert-container').style.display = 'block';
                                 document.getElementById('vetting-job-title').textContent =
-                                    `Complete your technical assessment for ${vetData.job_title}`;
+                                    `Complete your technical assessment for ${escapeHtml(vetData.job_title)}`;
                                 // You'll need to store the token somewhere accessible or modify API to return it
                                 document.getElementById('vetting-start-btn').href = `/vetting/pending/`; // Generic link, customize as needed
                                 break; // Show only first pending assessment
@@ -1128,8 +1136,8 @@ async function checkVettingNotifications() {
     toast.style.borderLeftColor = color;
     toast.innerHTML = `
       <span class="toast-close" onclick="dismissToast(this)">✕</span>
-      <div class="toast-title">${notif.title}</div>
-      <div class="toast-msg">${notif.message.substring(0, 100)}${notif.message.length > 100 ? '…' : ''}</div>
+      <div class="toast-title">${escapeHtml(notif.title)}</div>
+      <div class="toast-msg">${escapeHtml(notif.message.substring(0, 100))}${notif.message.length > 100 ? '…' : ''}</div>
     `;
     _toastContainer.appendChild(toast);
     // Auto-dismiss after 6 seconds

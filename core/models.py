@@ -240,7 +240,9 @@ class Student(models.Model):
 
         self.profile_complete_score = self.calculate_profile_completeness()
         self.trust_score = trust
-        self.save()
+        # Persist only these derived fields. A stale snapshot must not overwrite
+        # a concurrent profile edit, upload or GitHub synchronization.
+        self.save(update_fields=['profile_complete_score', 'trust_score'])
         return trust
 
     def calculate_hire_readiness(self):
@@ -389,9 +391,12 @@ class Project(models.Model):
     duration_weeks = models.IntegerField(null=True, blank=True)
     complexity_score = models.IntegerField(default=1)
     verified = models.BooleanField(default=False)
+    github_repo_id = models.BigIntegerField(null=True, blank=True)
+    source = models.CharField(max_length=20, default='manual')
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
+        constraints = [models.UniqueConstraint(fields=['student', 'github_repo_id'], name='unique_student_github_repo')]
         unique_together = ['student', 'title']  # ADD THIS LINE
     
     def __str__(self):
@@ -493,6 +498,9 @@ class Application(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_auto_applied = models.BooleanField(default=False)
     vetting_score = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['student', 'job'], name='unique_student_job_application')]
 
 class MatchExplanation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -638,6 +646,17 @@ class InterviewSlot(models.Model):
         
         current_time = datetime.combine(slot_date, start)
         end_datetime = datetime.combine(slot_date, end)
+
+        # Old malformed configurations must not create an infinite loop.
+        if self.slot_duration_minutes <= 0 or end_datetime <= current_time:
+            return []
+        now = timezone.localtime(timezone.now()).replace(tzinfo=None)
+        bookings = list(ScheduledInterview.objects.filter(
+            application__job_id=self.job_id,
+            date=slot_date,
+            start_time__lt=end,
+            end_time__gt=start,
+        ).exclude(status='cancelled').values_list('start_time', 'end_time'))
         
         # Handle break times similarly...
         break_start = None
@@ -655,6 +674,10 @@ class InterviewSlot(models.Model):
             break_end = datetime.combine(slot_date, break_end_time)
         
         duration = timedelta(minutes=self.slot_duration_minutes)
+        if bool(break_start) != bool(break_end) or (
+            break_start and not current_time <= break_start < break_end <= end_datetime
+        ):
+            return []
         
         while current_time + duration <= end_datetime:
             slot_end = current_time + duration
@@ -665,16 +688,19 @@ class InterviewSlot(models.Model):
                     current_time = break_end
                     continue
             
-            # Check if slot is already booked
-            is_booked = ScheduledInterview.objects.filter(
-                slot=self,
-                start_time=current_time.time()
-            ).exists()
+            # A cancelled booking releases its time. Overlapping configurations
+            # for the same job must not offer the same occupied time twice.
+            is_booked = any(
+                current_time.time() < booked_end and slot_end.time() > booked_start
+                for booked_start, booked_end in bookings
+            )
+            expired = current_time <= now
             
             slots.append({
                 'start': current_time.strftime('%H:%M'),
                 'end': slot_end.strftime('%H:%M'),
-                'available': not is_booked
+                'available': bool(self.is_active and not expired and not is_booked),
+                'expired': expired,
             })
             
             current_time = slot_end
@@ -890,3 +916,13 @@ class PipelineCandidate(models.Model):
     class Meta:
         ordering = ['sort_rank']
         unique_together = [('pipeline', 'application')]
+
+
+class ChatMessage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='messages')
+    sender_type = models.CharField(max_length=20)
+    sender_id = models.UUIDField()
+    content = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)

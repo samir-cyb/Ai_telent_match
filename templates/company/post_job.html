@@ -1,4 +1,4 @@
-{% extends "base.html" %} {% block title %}Post a Job | AI Talent
+{% extends "company/base.html" %} {% block title %}Post a Job | AI Talent
 Match{%endblock %} {% block content %}
 <div class="container post-job-container">
   <div class="page-header glass-card">
@@ -216,7 +216,7 @@ Match{%endblock %} {% block content %}
 </div>
 
 <script>
-  const API_BASE = "http://127.0.0.1:8000/api";
+  const API_BASE = "/api";
   const companyId = localStorage.getItem("company_id");
 
   if (!companyId) {
@@ -346,17 +346,17 @@ Match{%endblock %} {% block content %}
 
     document.getElementById("preview").innerHTML = `
         <div class="preview-job">
-            <h4>${title}</h4>
+            <h4>${escapeHtml(title)}</h4>
             <div class="preview-meta">
-                <span class="badge">${type}</span>
-                <span><i class="fas fa-map-marker-alt"></i> ${location}</span>
+                <span class="badge">${escapeHtml(type)}</span>
+                <span><i class="fas fa-map-marker-alt"></i> ${escapeHtml(location)}</span>
             </div>
-            <p class="preview-desc">${description.substring(0, 150)}${description.length > 150 ? "..." : ""}</p>
+            <p class="preview-desc">${escapeHtml(description.substring(0, 150))}${description.length > 150 ? "..." : ""}</p>
             ${
               skills.length > 0
                 ? `
                 <div class="preview-skills">
-                    ${skills.map((s) => `<span class="skill-tag">${s}</span>`).join("")}
+                    ${skills.map((s) => `<span class="skill-tag">${escapeHtml(s)}</span>`).join("")}
                 </div>
             `
                 : ""
@@ -420,7 +420,7 @@ Match{%endblock %} {% block content %}
         if (data.status === "success") {
           document.getElementById("form-status").innerHTML = `
                 <div class="success-message">
-                    <i class="fas fa-check-circle"></i> Job posted successfully! ID: ${data.job_id}
+                    <i class="fas fa-check-circle"></i> Job posted successfully! ID: ${escapeHtml(data.job_id)}
                 </div>
             `;
           setTimeout(() => {
@@ -428,7 +428,7 @@ Match{%endblock %} {% block content %}
           }, 2000);
         } else {
           document.getElementById("form-status").innerHTML = `
-                <div class="error-message">${data.message || "Failed to post job"}</div>
+                <div class="error-message">${escapeHtml(data.message || "Failed to post job")}</div>
             `;
         }
       } catch (error) {
@@ -523,13 +523,13 @@ Match{%endblock %} {% block content %}
     let metaHtml = "";
 
     if (type) {
-      metaHtml += `<span class="badge">${type}</span>`;
+      metaHtml += `<span class="badge">${escapeHtml(type)}</span>`;
     }
     if (location && location !== "Location") {
-      metaHtml += `<span><i class="fas fa-map-marker-alt"></i> ${location}</span>`;
+      metaHtml += `<span><i class="fas fa-map-marker-alt"></i> ${escapeHtml(location)}</span>`;
     }
     if (minCgpa) {
-      metaHtml += `<span><i class="fas fa-graduation-cap"></i> Min CGPA: ${minCgpa}</span>`;
+      metaHtml += `<span><i class="fas fa-graduation-cap"></i> Min CGPA: ${escapeHtml(minCgpa)}</span>`;
     }
     if (deadline) {
       const formattedDate = new Date(deadline).toLocaleDateString();

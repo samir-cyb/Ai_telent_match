@@ -261,7 +261,7 @@
 </div>
 
 <script>
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = "/api";
 
 // Load all analytics data
 async function loadAnalytics() {
@@ -406,12 +406,12 @@ function updateHeatmap(skills) {
             <div class="heatmap-cell" 
                  style="background: hsl(${hue}, 80%, ${lightness}%)"
                  data-skill="${skill}"
-                 data-count="${data.count}">
-                <span class="cell-skill">${skill}</span>
-                <span class="cell-count">${data.count}</span>
+                 data-count="${escapeHtml(data.count)}">
+                <span class="cell-skill">${escapeHtml(skill)}</span>
+                <span class="cell-count">${escapeHtml(data.count)}</span>
                 <div class="cell-tooltip">
-                    ${skill}: ${data.count} jobs<br>
-                    Category: ${data.category}
+                    ${skill}: ${escapeHtml(data.count)} jobs<br>
+                    Category: ${escapeHtml(data.category)}
                 </div>
             </div>
         `;
@@ -530,7 +530,7 @@ function updateEvolutionTimeline(evolution) {
                 <div class="timeline-changes">
                     ${Object.entries(item.adjusted).slice(0, 3).map(([key, val]) => `
                         <span class="change-pill">
-                            ${key}: ${val.toFixed(2)}
+                            ${key}: ${escapeHtml(val.toFixed(2))}
                         </span>
                     `).join('')}
                 </div>
@@ -600,7 +600,7 @@ function notifyCompanies() {
 function showGlobalNotification(message, type) {
     const notif = document.createElement('div');
     notif.className = `global-notification ${type}`;
-    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-info-circle'}"></i> ${message}`;
+    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-info-circle'}"></i> ${escapeHtml(message)}`;
     notif.style.cssText = `
         position: fixed;
         top: 100px;

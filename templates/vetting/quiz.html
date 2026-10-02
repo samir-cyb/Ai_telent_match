@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+    window.userContext = {
+        studentId: '{{ request.session.student_id|default:""|escapejs }}',
+        companyId: '{{ request.session.company_id|default:""|escapejs }}',
+        adminId: '{{ request.session.admin_id|default:""|escapejs }}'
+    };
+    </script>
+    <script src="/static/js/client.js"></script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Assessment | AI Talent Match</title>
@@ -201,10 +210,10 @@
             const opts = (q.options || []).map(opt => {
                 const letter = opt.trim().charAt(0).toUpperCase();
                 return `
-                <label class="option-label" id="opt-${q.id}-${letter}">
-                    <input type="radio" name="q_${q.id}" value="${letter}" class="mt-0.5 flex-shrink-0 accent-blue-500"
-                        onchange="markAnswered(${q.id})">
-                    <span class="text-sm">${opt}</span>
+                <label class="option-label" id="opt-${escapeHtml(q.id)}-${escapeHtml(letter)}">
+                    <input type="radio" name="q_${escapeHtml(q.id)}" value="${escapeHtml(letter)}" class="mt-0.5 flex-shrink-0 accent-blue-500"
+                        onchange="markAnswered(${jsAttr(q.id)})">
+                    <span class="text-sm">${escapeHtml(opt)}</span>
                 </label>`;
             }).join('');
             bodyHtml = `<div class="mt-4 space-y-1">${opts}</div>`;
@@ -216,25 +225,25 @@
                     <span>Write your answer below</span>
                     <span>Max ${wl} words</span>
                 </div>
-                <textarea class="answer-box" id="written_${q.id}" rows="6"
+                <textarea class="answer-box" id="written_${escapeHtml(q.id)}" rows="6"
                     placeholder="Type your answer here... (aim for ${wl} words max)"
-                    oninput="countWords(${q.id}, this); markAnswered(${q.id})"></textarea>
-                <p class="text-xs text-slate-500 mt-1"><span id="wc_${q.id}">0</span> words</p>
+                    oninput="countWords(${jsAttr(q.id)}, this); markAnswered(${jsAttr(q.id)})"></textarea>
+                <p class="text-xs text-slate-500 mt-1"><span id="wc_${escapeHtml(q.id)}">0</span> words</p>
             </div>`;
         }
 
         const card = document.createElement('div');
         card.className = 'q-card';
-        card.id = `q-card-${q.id}`;
+        card.id = `q-card-${escapeHtml(q.id)}`;
         card.innerHTML = `
             <div class="flex items-start gap-3">
                 <div class="q-number ${isMcq ? 'q-mcq' : 'q-written'}">${num}</div>
                 <div class="flex-1">
                     <div class="flex items-center justify-between mb-1">
                         ${typeBadge}
-                        <span id="status-${q.id}" class="unanswered-badge">Unanswered</span>
+                        <span id="status-${escapeHtml(q.id)}" class="unanswered-badge">Unanswered</span>
                     </div>
-                    <p class="text-slate-100 text-sm font-medium q-text">${q.question}</p>
+                    <p class="text-slate-100 text-sm font-medium q-text">${escapeHtml(q.question)}</p>
                     ${bodyHtml}
                 </div>
             </div>`;
@@ -269,10 +278,10 @@
         const answers = {};
         QUESTIONS.forEach(q => {
             if (q.type === 'mcq') {
-                const sel = document.querySelector(`input[name="q_${q.id}"]:checked`);
+                const sel = document.querySelector(`input[name="q_${escapeHtml(q.id)}"]:checked`);
                 answers[String(q.id)] = sel ? sel.value : '';
             } else {
-                const ta = document.getElementById(`written_${q.id}`);
+                const ta = document.getElementById(`written_${escapeHtml(q.id)}`);
                 answers[String(q.id)] = ta ? ta.value.trim() : '';
             }
         });
@@ -312,10 +321,10 @@
                 clearInterval(timerInterval);
                 // Redirect to result page — no alert needed, result page shows everything
                 if (data.result_url) {
-                    window.location.href = data.result_url;
+                    window.location.href = safeHref(data.result_url);
                 } else {
                     // Fallback: show summary then go to dashboard
-                    alert(`✅ Submitted! Score: ${data.score}% — ${data.passed ? 'PASSED' : 'Not Passed'}`);
+                    alert(`✅ Submitted! Score: ${escapeHtml(data.score)}% — ${data.passed ? 'PASSED' : 'Not Passed'}`);
                     window.location.href = '/student/dashboard/';
                 }
             } else {

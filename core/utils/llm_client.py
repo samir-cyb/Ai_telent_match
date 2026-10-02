@@ -38,19 +38,25 @@ def _prefer_local() -> bool:
 # ── Gemini ───────────────────────────────────────────────────────────────────
 import os as _os
 _GEMINI_API_KEY = _os.environ.get('GEMINI_API_KEY', '')
-_GEMINI_MODELS  = ['gemini-2.5-flash-lite', 'gemini-2.0-flash-lite', 'gemini-2.5-flash']
+_GEMINI_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash']
 
 # ── Ollama ───────────────────────────────────────────────────────────────────
-_OLLAMA_URL          = 'http://localhost:11434/api/generate'
-_OLLAMA_TEXT_MODEL   = 'qwen2.5:3b'    # text-only tasks
-_OLLAMA_VISION_MODEL = 'gemma3:4b'     # image/PDF multimodal tasks
-_OLLAMA_TIMEOUT      = 180             # seconds (CPU inference can be slow)
+_OLLAMA_URL = _os.environ.get('OLLAMA_URL', 'http://127.0.0.1:11434').rstrip('/') + '/api/generate'
+_OLLAMA_TEXT_MODEL = _os.environ.get('OLLAMA_TEXT_MODEL', 'qwen2.5:3b')    # text-only tasks
+_OLLAMA_VISION_MODEL = _os.environ.get('OLLAMA_VISION_MODEL', 'gemma3:4b')     # image/PDF multimodal tasks
+_OLLAMA_TIMEOUT = int(_os.environ.get('LLM_TIMEOUT_SECONDS', '30'))             # seconds (CPU inference can be slow)
 
 
 # ── Internal helpers ─────────────────────────────────────────────────────────
 def _gemini_text(prompt: str, preferred_model: str | None = None) -> str | None:
     """Try each Gemini model once (no retry). Returns text or None on failure."""
-    client = genai.Client(api_key=_GEMINI_API_KEY)
+    if not _GEMINI_API_KEY:
+        return None
+    try:
+        client = genai.Client(api_key=_GEMINI_API_KEY, http_options={'timeout': 20000})
+    except Exception:
+        log.warning('Gemini client could not initialize; using configured fallback.')
+        return None
     models = ([preferred_model] + [m for m in _GEMINI_MODELS if m != preferred_model]
               if preferred_model else _GEMINI_MODELS)
 
@@ -68,7 +74,13 @@ def _gemini_text(prompt: str, preferred_model: str | None = None) -> str | None:
 
 def _gemini_multimodal(prompt: str, contents: list) -> str | None:
     """Try each Gemini model once for multimodal. Returns text or None."""
-    client = genai.Client(api_key=_GEMINI_API_KEY)
+    if not _GEMINI_API_KEY:
+        return None
+    try:
+        client = genai.Client(api_key=_GEMINI_API_KEY, http_options={'timeout': 20000})
+    except Exception:
+        log.warning('Gemini client could not initialize; using configured fallback.')
+        return None
     for model in _GEMINI_MODELS:
         try:
             resp = client.models.generate_content(model=model, contents=contents)
@@ -99,11 +111,12 @@ def _ollama_vision(prompt: str, image_bytes: bytes) -> str:
     Call Ollama gemma3:4b with an image.
     Ollama vision API: POST /api/generate with {"images": ["<base64>"]}
     """
-    b64 = base64.b64encode(image_bytes).decode('utf-8')
+    images = image_bytes if isinstance(image_bytes, list) else [image_bytes]
+    encoded_images = [base64.b64encode(item).decode('utf-8') for item in images]
     payload = json.dumps({
         'model':  _OLLAMA_VISION_MODEL,
         'prompt': prompt,
-        'images': [b64],
+        'images': encoded_images,
         'stream': False,
     }).encode('utf-8')
     req = urllib.request.Request(
@@ -160,7 +173,8 @@ def llm_generate_image(prompt: str, image_bytes: bytes,
         log.info('[LLM] LLM_PREFER_LOCAL=True — using Ollama gemma3:4b directly')
 
     try:
-        text = _ollama_vision(prompt, image_bytes)
+        images = _pdf_images(image_bytes) if mime_type == 'application/pdf' else image_bytes
+        text = _ollama_vision(prompt, images)
         log.info('[LLM] Ollama gemma3:4b vision succeeded')
         return text
     except urllib.error.URLError as e:
@@ -173,7 +187,7 @@ def llm_generate_image(prompt: str, image_bytes: bytes,
 def _ollama_models() -> list[str]:
     """Return list of model names available in Ollama."""
     try:
-        req = urllib.request.Request('http://localhost:11434/api/tags', method='GET')
+        req = urllib.request.Request(_OLLAMA_URL.rsplit('/api/', 1)[0] + '/api/tags', method='GET')
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
         return [m.get('name', '') for m in data.get('models', [])]
@@ -194,3 +208,29 @@ def qwen_available() -> bool:
 def gemma_available() -> bool:
     """True if gemma3:4b is loaded in Ollama."""
     return any(_OLLAMA_VISION_MODEL in n for n in _ollama_models())
+
+
+def _pdf_images(pdf_bytes):
+    """Ollama accepts images; render each bounded PDF page rather than its bytes."""
+    import io
+    import pypdfium2
+    images = []
+    with pypdfium2.PdfDocument(pdf_bytes) as document:
+        if len(document) > 20:
+            raise ValueError('Use a PDF with at most 20 pages for local vision parsing.')
+        for index in range(len(document)):
+            page = document[index]
+            try:
+                scale = min(2, 1800 / max(page.get_size()))
+                bitmap = page.render(scale=scale)
+                try:
+                    buffer = io.BytesIO()
+                    bitmap.to_pil().save(buffer, format='PNG')
+                    images.append(buffer.getvalue())
+                finally:
+                    bitmap.close()
+            finally:
+                page.close()
+    if not images:
+        raise ValueError('PDF contains no pages.')
+    return images

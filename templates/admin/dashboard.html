@@ -157,7 +157,7 @@
 </div>
 
 <script>
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = "/api";
 
 async function loadAnalytics() {
     try {
@@ -247,11 +247,11 @@ function updateSkillsList(skills) {
     container.innerHTML = skills.slice(0, 10).map(([skill, data], index) => `
         <div class="skill-demand-item">
             <span class="rank">#${index + 1}</span>
-            <span class="skill-name">${skill}</span>
+            <span class="skill-name">${escapeHtml(skill)}</span>
             <div class="demand-bar">
-                <div class="fill" style="width: ${Math.min(data.count * 5, 100)}%"></div>
+                <div class="fill" style="width: ${escapeHtml(Math.min(data.count * 5, 100))}%"></div>
             </div>
-            <span class="count">${data.count} jobs</span>
+            <span class="count">${escapeHtml(data.count)} jobs</span>
         </div>
     `).join('');
 }
@@ -264,12 +264,12 @@ function updateFraudList(fraud) {
     }
     
     container.innerHTML = fraud.recent_flags.map(flag => `
-        <div class="fraud-item ${flag.severity}">
+        <div class="fraud-item ${escapeHtml(flag.severity)}">
             <div class="fraud-header">
-                <span class="student-name">${flag.student}</span>
-                <span class="severity-badge ${flag.severity}">${flag.severity}</span>
+                <span class="student-name">${escapeHtml(flag.student)}</span>
+                <span class="severity-badge ${escapeHtml(flag.severity)}">${escapeHtml(flag.severity)}</span>
             </div>
-            <p class="flag-type">${flag.type}</p>
+            <p class="flag-type">${escapeHtml(flag.type)}</p>
             <span class="flag-date">${new Date(flag.date).toLocaleDateString()}</span>
         </div>
     `).join('');
@@ -283,15 +283,15 @@ function updateABResults(results) {
                 <h4>Control Group</h4>
                 <div class="ab-stat">
                     <span class="label">Size</span>
-                    <span class="value">${results.control_group.size}</span>
+                    <span class="value">${escapeHtml(results.control_group.size)}</span>
                 </div>
                 <div class="ab-stat">
                     <span class="label">Hires</span>
-                    <span class="value">${results.control_group.hires}</span>
+                    <span class="value">${escapeHtml(results.control_group.hires)}</span>
                 </div>
                 <div class="ab-stat">
                     <span class="label">Conversion</span>
-                    <span class="value">${results.control_group.conversion_rate}</span>
+                    <span class="value">${escapeHtml(results.control_group.conversion_rate)}</span>
                 </div>
             </div>
             
@@ -301,21 +301,21 @@ function updateABResults(results) {
                 <h4>Variant A</h4>
                 <div class="ab-stat">
                     <span class="label">Size</span>
-                    <span class="value">${results.variant_a.size}</span>
+                    <span class="value">${escapeHtml(results.variant_a.size)}</span>
                 </div>
                 <div class="ab-stat">
                     <span class="label">Hires</span>
-                    <span class="value">${results.variant_a.hires}</span>
+                    <span class="value">${escapeHtml(results.variant_a.hires)}</span>
                 </div>
                 <div class="ab-stat">
                     <span class="label">Conversion</span>
-                    <span class="value highlight">${results.variant_a.conversion_rate}</span>
+                    <span class="value highlight">${escapeHtml(results.variant_a.conversion_rate)}</span>
                 </div>
             </div>
         </div>
         
         <div class="improvement">
-            Improvement: <span class="${results.improvement.startsWith('-') ? 'negative' : 'positive'}">${results.improvement}</span>
+            Improvement: <span class="${results.improvement.startsWith('-') ? 'negative' : 'positive'}">${escapeHtml(results.improvement)}</span>
         </div>
     `;
 }

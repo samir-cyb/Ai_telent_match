@@ -130,7 +130,7 @@
 
 <script>
 // Use window.API_BASE to avoid redeclaration conflicts
-window.API_BASE = window.API_BASE || "http://127.0.0.1:8000/api";
+window.API_BASE = window.API_BASE || "/api";
 const urlParams = new URLSearchParams(window.location.search);
 const jobId = urlParams.get('id');
 const studentId = localStorage.getItem('student_id');
@@ -145,7 +145,7 @@ let hasApplied = false;
 // Check if student already applied to this job
 async function checkApplicationStatus() {
     try {
-        const response = await fetch(`${window.API_BASE}/student/${studentId}/applications/`);
+        const response = await fetch(`${escapeHtml(window.API_BASE)}/student/${studentId}/applications/`);
         const data = await response.json();
         if (data.status === 'success') {
             hasApplied = data.applied_job_ids.includes(jobId);
@@ -215,7 +215,7 @@ async function openStatusDrawer() {
     </div>`;
 
     try {
-        const r = await fetch(`${window.API_BASE}/student/${studentId}/application-status/${jobId}/`);
+        const r = await fetch(`${escapeHtml(window.API_BASE)}/student/${studentId}/application-status/${jobId}/`);
         const d = await r.json();
         if (d.status !== 'ok') { body.innerHTML = '<p style="color:#ef4444;padding:2rem;">Could not load status.</p>'; return; }
         renderStatusDrawer(d);
@@ -294,11 +294,11 @@ function renderStatusDrawer(d) {
                     <i class="fas fa-circle" style="font-size:.45rem;vertical-align:middle;"></i>
                     ${ai.status.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}
                 </span>
-                ${ai.score !== null ? `<span style="font-size:.75rem;color:#94a3b8;">Score: <strong style="color:#e2e8f0;">${ai.score}/100</strong></span>` : ''}
+                ${ai.score !== null ? `<span style="font-size:.75rem;color:#94a3b8;">Score: <strong style="color:#e2e8f0;">${escapeHtml(ai.score)}/100</strong></span>` : ''}
             </div>
-            ${ai.combined_score !== null ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:.3rem;">Combined score: <strong style="color:#a78bfa;">${ai.combined_score}/100</strong></div>` : ''}
-            ${ai.interview_url ? `<a href="${ai.interview_url}" style="display:inline-flex;align-items:center;gap:.4rem;margin-top:.5rem;font-size:.75rem;color:#fff;background:linear-gradient(135deg,#a78bfa,#7c3aed);padding:.4rem .8rem;border-radius:.5rem;text-decoration:none;font-weight:600;"><i class="fas fa-play"></i> Start Interview</a>` : ''}
-            ${ai.expires_at ? `<div style="font-size:.65rem;color:#64748b;margin-top:.3rem;"><i class="fas fa-clock"></i> Deadline: ${ai.expires_at}</div>` : ''}
+            ${ai.combined_score !== null ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:.3rem;">Combined score: <strong style="color:#a78bfa;">${escapeHtml(ai.combined_score)}/100</strong></div>` : ''}
+            ${ai.interview_url ? `<a href="${safeURL(ai.interview_url)}" style="display:inline-flex;align-items:center;gap:.4rem;margin-top:.5rem;font-size:.75rem;color:#fff;background:linear-gradient(135deg,#a78bfa,#7c3aed);padding:.4rem .8rem;border-radius:.5rem;text-decoration:none;font-weight:600;"><i class="fas fa-play"></i> Start Interview</a>` : ''}
+            ${ai.expires_at ? `<div style="font-size:.65rem;color:#64748b;margin-top:.3rem;"><i class="fas fa-clock"></i> Deadline: ${escapeHtml(ai.expires_at)}</div>` : ''}
         </div>`;
     }
 
@@ -308,9 +308,9 @@ function renderStatusDrawer(d) {
         siSection = `
         <div style="margin-top:.75rem;padding:.75rem;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:.75rem;">
             <div style="font-size:.78rem;font-weight:700;color:#34d399;margin-bottom:.4rem;"><i class="fas fa-calendar-check"></i> Interview Scheduled</div>
-            <div style="font-size:.78rem;color:#e2e8f0;">${si.date}${si.time ? ' at ' + si.time : ''}</div>
-            ${si.location ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:.2rem;"><i class="fas fa-map-marker-alt"></i> ${si.location}</div>` : ''}
-            ${si.contact  ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:.15rem;"><i class="fas fa-user"></i> ${si.contact}</div>` : ''}
+            <div style="font-size:.78rem;color:#e2e8f0;">${escapeHtml(si.date)}${escapeHtml(si.time ? ' at ' + si.time : '')}</div>
+            ${si.location ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:.2rem;"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(si.location)}</div>` : ''}
+            ${si.contact  ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:.15rem;"><i class="fas fa-user"></i> ${escapeHtml(si.contact)}</div>` : ''}
         </div>`;
     }
 
@@ -323,11 +323,11 @@ function renderStatusDrawer(d) {
             <!-- Applied meta -->
             <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem 0;margin-bottom:.75rem;border-bottom:1px solid rgba(255,255,255,.06);">
                 <div>
-                    <div style="font-size:.82rem;font-weight:600;color:#e2e8f0;">${app.job_title}</div>
-                    <div style="font-size:.7rem;color:#64748b;margin-top:.1rem;">${app.company_name} · Applied ${app.applied_ago}</div>
+                    <div style="font-size:.82rem;font-weight:600;color:#e2e8f0;">${escapeHtml(app.job_title)}</div>
+                    <div style="font-size:.7rem;color:#64748b;margin-top:.1rem;">${escapeHtml(app.company_name)} · Applied ${escapeHtml(app.applied_ago)}</div>
                 </div>
                 <div style="text-align:right;">
-                    <div style="font-size:1.25rem;font-weight:800;color:${matchColor};">${app.match_score}%</div>
+                    <div style="font-size:1.25rem;font-weight:800;color:${matchColor};">${escapeHtml(app.match_score)}%</div>
                     <div style="font-size:.62rem;color:#475569;">Match</div>
                 </div>
             </div>
@@ -347,7 +347,7 @@ function renderStatusDrawer(d) {
             ${ag ? `
             <div style="margin-top:.75rem;padding:.6rem .75rem;background:rgba(72,187,255,.06);border:1px solid rgba(72,187,255,.15);border-radius:.6rem;display:flex;align-items:center;gap:.6rem;">
                 <i class="fas fa-robot" style="color:#48bbff;font-size:.9rem;"></i>
-                <div style="font-size:.72rem;color:#94a3b8;">AI Agent: <strong style="color:#48bbff;">${ag.decision.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}</strong> · Score ${ag.score}% · ${ag.confidence} confidence</div>
+                <div style="font-size:.72rem;color:#94a3b8;">AI Agent: <strong style="color:#48bbff;">${ag.decision.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}</strong> · Score ${escapeHtml(ag.score)}% · ${escapeHtml(ag.confidence)} confidence</div>
             </div>` : ''}
 
             <!-- Footer -->
@@ -367,7 +367,7 @@ function renderStatusDrawer(d) {
 // Load job details
 async function loadJobDetails() {
     try {
-        const response = await fetch(`${window.API_BASE}/jobs/`);
+        const response = await fetch(`${escapeHtml(window.API_BASE)}/jobs/`);
         const data = await response.json();
         
         if (data.status === 'success') {
@@ -394,7 +394,7 @@ function displayJobDetails(job) {
     
     const skillsContainer = document.getElementById('job-skills');
     skillsContainer.innerHTML = job.required_skills.map(skill => 
-        `<span class="skill-badge-large">${skill}</span>`
+        `<span class="skill-badge-large">${escapeHtml(skill)}</span>`
     ).join('');
 }
 
@@ -407,7 +407,7 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
     btn.disabled = true;
     
     try {
-        const response = await fetch(`${window.API_BASE}/analyze-match/`, {
+        const response = await fetch(`${escapeHtml(window.API_BASE)}/analyze-match/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -476,27 +476,27 @@ function displayAnalysisResults(data) {
         <div class="breakdown-item compact">
             <span>Skills</span>
             <div class="progress-bar"><div class="progress" style="width: ${(breakdown.skills || 0) * 100}%"></div></div>
-            <span>${Math.round((breakdown.skills || 0) * 100)}%</span>
+            <span>${escapeHtml(Math.round((breakdown.skills || 0) * 100))}%</span>
         </div>
         <div class="breakdown-item compact">
             <span>CGPA</span>
             <div class="progress-bar"><div class="progress" style="width: ${(breakdown.cgpa || 0) * 100}%"></div></div>
-            <span>${Math.round((breakdown.cgpa || 0) * 100)}%</span>
+            <span>${escapeHtml(Math.round((breakdown.cgpa || 0) * 100))}%</span>
         </div>
         <div class="breakdown-item compact">
             <span>Projects</span>
             <div class="progress-bar"><div class="progress" style="width: ${(breakdown.projects || 0) * 100}%"></div></div>
-            <span>${Math.round((breakdown.projects || 0) * 100)}%</span>
+            <span>${escapeHtml(Math.round((breakdown.projects || 0) * 100))}%</span>
         </div>
         <div class="breakdown-item compact">
             <span>Activity</span>
             <div class="progress-bar"><div class="progress" style="width: ${(breakdown.activity || 0) * 100}%"></div></div>
-            <span>${Math.round((breakdown.activity || 0) * 100)}%</span>
+            <span>${escapeHtml(Math.round((breakdown.activity || 0) * 100))}%</span>
         </div>
         <div class="breakdown-item compact">
             <span>Trust</span>
             <div class="progress-bar"><div class="progress" style="width: ${(breakdown.trust || 0) * 100}%"></div></div>
-            <span>${Math.round((breakdown.trust || 0) * 100)}%</span>
+            <span>${escapeHtml(Math.round((breakdown.trust || 0) * 100))}%</span>
         </div>
     `;
     
@@ -564,7 +564,7 @@ function displayAnalysisResults(data) {
     const gapsContainer = document.getElementById('skill-gaps');
     if (gaps.length > 0) {
         gapsContainer.innerHTML = gaps.map(gap => 
-            `<span class="gap-badge">${gap.name}</span>`
+            `<span class="gap-badge">${escapeHtml(gap.name)}</span>`
         ).join('');
     } else {
         gapsContainer.innerHTML = '<span class="no-gaps-badge"><i class="fas fa-check"></i> No gaps!</span>';
@@ -573,7 +573,7 @@ function displayAnalysisResults(data) {
     // Recommendations - compact list
     const recs = data.explanation?.recommendations || [];
     document.getElementById('recommendations-list').innerHTML = recs.slice(0, 3).map(rec => 
-        `<li>${rec}</li>`
+        `<li>${escapeHtml(rec)}</li>`
     ).join('');
     
     // Animate in
@@ -620,7 +620,7 @@ async function applyToJob(jobId) {
     btn.disabled = true;
     
     try {
-        const response = await fetch(`${window.API_BASE}/apply/`, {
+        const response = await fetch(`${escapeHtml(window.API_BASE)}/apply/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

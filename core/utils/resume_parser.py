@@ -6,13 +6,12 @@ from PIL import Image
 from core.utils.llm_client import llm_generate as _llm_generate, llm_generate_image as _llm_generate_image
 
 # Gemini client — kept for multimodal (image/PDF bytes) calls
-client = genai.Client(api_key='AQ.Ab8RN6LBjYwwET910F0CwPAeGmNOHOddFSqtECS22TZ8jD_kuA')
 
 
 
 class ResumeParser:
     def __init__(self):
-        self.model = 'gemini-2.5-flash-lite'
+        self.model = 'gemini-3.5-flash-lite'
         self.prompt = """You are an expert resume parser. Extract structured information from the provided resume and return ONLY a raw JSON object. Do not use markdown, code blocks, or backticks.
 
 Required JSON structure:
@@ -59,79 +58,40 @@ GENERAL RULES:
 - Respond with raw JSON only, no extra text, no markdown, no backticks."""
 
     def parse_resume(self, file_obj):
+        """Return structured data or an explicit failure; never an empty success."""
         try:
-            print(f"[DEBUG] ResumeParser started for file: {getattr(file_obj, 'name', 'unknown')}")
-            
-            mime_type = getattr(file_obj, 'content_type', None)
-            if not mime_type:
-                mime_type, _ = mimetypes.guess_type(file_obj.name)
-            print(f"[DEBUG] Detected MIME type: {mime_type}")
-            
+            file_obj.seek(0)
+            file_bytes = file_obj.read()
+            mime_type = getattr(file_obj, 'content_type', None) or 'application/pdf'
+            if file_bytes.startswith(b'%PDF-'):
+                mime_type = 'application/pdf'
             response_text = None
-
-            # Handle Images (JPEG/PNG) — Gemini multimodal → gemma3:4b fallback
-            if mime_type and mime_type.startswith('image/'):
-                print("[DEBUG] Processing as image")
-                file_obj.seek(0)
-                image_bytes = file_obj.read()
-                response_text = _llm_generate_image(self.prompt, image_bytes, mime_type=mime_type)
-                print("[DEBUG] Image processed via llm_generate_image (Gemini → gemma3:4b)")
-
-            # Handle PDFs
-            else:
-                print("[DEBUG] Processing as PDF/document")
-                file_obj.seek(0)
-                file_bytes = file_obj.read()
-
-                # Extract plain text (needed for Ollama fallback)
-                text_content = ""
-                try:
-                    import pdfplumber
-                    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-                        for page in pdf.pages:
-                            txt = page.extract_text()
-                            if txt:
-                                text_content += txt + "\n"
-                    print(f"[DEBUG] pdfplumber extracted {len(text_content)} characters")
-                except Exception as pdf_err:
-                    print(f"[DEBUG] pdfplumber extraction skipped/error: {pdf_err}")
-
-                # 1st choice: Gemini multimodal (PDF bytes)
-                try:
-                    from google.genai import types
-                    pdf_part = types.Part.from_bytes(data=file_bytes, mime_type='application/pdf')
-                    response = client.models.generate_content(
-                        model=self.model,
-                        contents=[self.prompt, pdf_part]
-                    )
-                    response_text = response.text
-                    print("[DEBUG] Sent PDF bytes directly to Gemini")
-                except Exception as byte_err:
-                    print(f"[DEBUG] Gemini PDF bytes failed: {byte_err}")
-
-                # 2nd choice: llm_generate with extracted text (Gemini text → Ollama)
-                if not response_text and text_content and len(text_content) > 50:
-                    print("[DEBUG] Trying text-only path (Gemini/Ollama via llm_generate)")
-                    response_text = _llm_generate(
-                        f"{self.prompt}\n\nRESUME TEXT CONTENT:\n{text_content}"
-                    )
-
-                if not response_text:
-                    print("[DEBUG] No usable content extracted from PDF")
-                    return self._empty_schema()
-
-            print(f"[DEBUG] LLM response text (first 500 chars): {response_text[:500]}")
-
-            result = json.loads(response_text)
-            print(f"[DEBUG] JSON parsed successfully")
-            
-            return self._normalize_result(result)
-            
-        except Exception as e:
-            print(f"[DEBUG] Fatal error in parse_resume: {e}")
-            import traceback
-            print(traceback.format_exc())
+            try:
+                response_text = _llm_generate_image(self.prompt, file_bytes, mime_type=mime_type)
+            except Exception:
+                if mime_type != 'application/pdf':
+                    raise
+                import pdfplumber
+                with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                    content = '\n'.join(page.extract_text() or '' for page in pdf.pages)
+                if len(content.strip()) > 50:
+                    response_text = _llm_generate(self.prompt + '\nDOCUMENT TEXT:\n' + content)
+            if not response_text:
+                return self._empty_schema()
+            text = response_text.strip()
+            if text.startswith('```'):
+                text = text.split('```')[1]
+                if text.startswith('json'):
+                    text = text[4:]
+            raw = json.loads(text.strip())
+            if not isinstance(raw, dict) or not any(raw.get(k) for k in ('name', 'skills', 'projects', 'experiences', 'education')):
+                return self._empty_schema()
+            result = self._normalize_result(raw)
+            result['parse_status'] = 'success'
+            return result
+        except Exception:
             return self._empty_schema()
+
     
     def _normalize_result(self, result):
         normalized = {
@@ -142,7 +102,7 @@ GENERAL RULES:
             'experiences': []
         }
         
-        for skill in result.get('skills', []):
+        for skill in (result.get('skills') or []):
             normalized['skills'].append({
                 'name': skill.get('name', 'Unknown'),
                 'category': skill.get('category', 'Uncategorized'),
@@ -150,20 +110,20 @@ GENERAL RULES:
                 'verified': False
             })
         
-        for proj in result.get('projects', []):
-            tech_stack = proj.get('tech_stack', [])
+        for proj in (result.get('projects') or []):
+            tech_stack = proj.get('tech_stack') or []
             if isinstance(tech_stack, str):
                 tech_stack = [t.strip() for t in tech_stack.split(',') if t.strip()]
             normalized['projects'].append({
                 'title': proj.get('title', 'Untitled'),
                 'description': proj.get('description', ''),
                 'tech_stack': tech_stack,
-                'complexity': min(max(int(proj.get('complexity', 3)), 1), 5),
+                'complexity': min(max(int(3 if proj.get('complexity') is None else proj['complexity']), 1), 5),
                 'github_url': proj.get('github_url') if proj.get('github_url') else None,
                 'verified': False
             })
         
-        for exp in result.get('experiences', []):
+        for exp in (result.get('experiences') or []):
             start = exp.get('start_date')
             end = exp.get('end_date')
             is_current = bool(exp.get('is_current', False))
@@ -184,11 +144,12 @@ GENERAL RULES:
                 'verified': False
             })
         
-        print(f"[DEBUG] Normalized result: {json.dumps(normalized, indent=2)}")
         return normalized
     
     def _empty_schema(self):
         return {
+            'parse_status': 'failed',
+            'error': 'Document could not be parsed. Check the AI provider and try again; existing profile data is preserved.',
             'name': None,
             'cgpa': None,
             'skills': [],

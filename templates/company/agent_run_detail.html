@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "company/base.html" %}
 {% block title %}Agent Run — {{ run.application.student.name }}{% endblock %}
 
 {% block content %}
@@ -84,7 +84,7 @@
     </div>
   </div>
 
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+  <div class="company-responsive-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
 
     <!-- ── THOUGHT LOG ── -->
     <div class="glass-card" style="padding:1.5rem;">
@@ -304,27 +304,27 @@ async function loadComparison() {
       const dc     = DECISION_COLOR[run.decision] || '#94a3b8';
       const di     = DECISION_ICON[run.decision]  || '?';
       const wSnap  = Object.entries(run.weights_used || {})
-        .map(([k,v]) => `${k}:${Math.round(v*100)}%`).join(' | ');
+        .map(([k,v]) => `${k}:${escapeHtml(Math.round(v*100))}%`).join(' | ');
 
       html += `
         <tr style="border-bottom:1px solid #1e293b; ${isThis ? 'background:rgba(59,130,246,.1);' : ''}">
           <td style="padding:.5rem .8rem; color:#475569;">${runs.length - idx}</td>
-          <td style="padding:.5rem .8rem; color:#94a3b8;">${run.created_at}</td>
+          <td style="padding:.5rem .8rem; color:#94a3b8;">${escapeHtml(run.created_at)}</td>
           <td style="padding:.5rem .8rem; color:#e2e8f0;">
             ${run.triggered_by === 'auto' ? '⚡ Auto' : '🔁 Manual'}
           </td>
-          <td style="padding:.5rem .8rem; text-align:center; font-weight:700; color:${dc};">${run.score}%</td>
+          <td style="padding:.5rem .8rem; text-align:center; font-weight:700; color:${dc};">${escapeHtml(run.score)}%</td>
           <td style="padding:.5rem .8rem; text-align:center;">
             <span style="background:${dc}22; color:${dc}; padding:.15rem .5rem; border-radius:6px; font-weight:700; font-size:.75rem;">
-              ${di} ${run.decision.toUpperCase()}
+              ${di} ${escapeHtml(run.decision.toUpperCase())}
             </span>
           </td>
-          <td style="padding:.5rem .8rem; text-align:center; color:#94a3b8;">${run.confidence}</td>
+          <td style="padding:.5rem .8rem; text-align:center; color:#94a3b8;">${escapeHtml(run.confidence)}</td>
           <td style="padding:.5rem .8rem; color:#64748b; font-size:.75rem;">${wSnap}</td>
           <td style="padding:.5rem .8rem; text-align:center;">
             ${isThis
               ? '<span style="color:#3b82f6; font-size:.75rem; font-weight:600;">← Current</span>'
-              : `<a href="${run.run_url}" style="color:#48bbff; font-size:.78rem;">View →</a>`}
+              : `<a href="${safeURL(run.run_url)}" style="color:#48bbff; font-size:.78rem;">View →</a>`}
           </td>
         </tr>`;
     });
@@ -334,7 +334,7 @@ async function loadComparison() {
 
   } catch(e) {
     document.getElementById('comparison-content').innerHTML =
-      `<p style="color:#475569;">Could not load history: ${e.message}</p>`;
+      `<p style="color:#475569;">Could not load history: ${escapeHtml(e.message)}</p>`;
   }
 }
 
@@ -382,14 +382,14 @@ async function generateInterview() {
       // Show toast with the correct full URL (d.interview_url is already full URL)
       const toast = document.createElement('div');
       toast.style.cssText = 'position:fixed;bottom:2rem;right:2rem;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;border-radius:12px;font-size:.9rem;z-index:999;border-left:4px solid #22c55e;box-shadow:0 8px 32px rgba(0,0,0,.4);max-width:400px;';
-      toast.innerHTML = `✅ Interview generated! The candidate can take it at:<br><a href="${d.interview_url}" target="_blank" style="color:#93c5fd; font-size:.82rem; word-break:break-all;">${d.interview_url}</a>`;
+      toast.innerHTML = `✅ Interview generated! The candidate can take it at:<br><a href="${safeURL(d.interview_url)}" target="_blank" style="color:#93c5fd; font-size:.82rem; word-break:break-all;">${safeURL(d.interview_url)}</a>`;
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 8000);
       // After 2s, update button to "View Interview"
       setTimeout(() => {
         btn.innerHTML = '<i class="fas fa-eye"></i> View Interview';
         btn.disabled = false;
-        btn.onclick = () => window.location.href = `/company/interview/${d.interview_id}/result/`;
+        btn.onclick = () => window.location.href = `/company/interview/${escapeHtml(d.interview_id)}/result/`;
       }, 2000);
     } else {
       alert('Error: ' + (d.message || 'Unknown error'));

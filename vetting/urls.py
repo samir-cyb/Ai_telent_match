@@ -16,3 +16,5 @@ urlpatterns = [
     path('pending/', views.StudentPendingAssessmentsView.as_view(), name='pending_assessments'),
     path('result/<uuid:result_id>/', views.VettingResultDetailView.as_view(), name='vetting_result'),
 ]
+from core.permissions import protect_urlpatterns
+urlpatterns = protect_urlpatterns(urlpatterns)

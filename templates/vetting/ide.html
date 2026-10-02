@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+    window.userContext = {
+        studentId: '{{ request.session.student_id|default:""|escapejs }}',
+        companyId: '{{ request.session.company_id|default:""|escapejs }}',
+        adminId: '{{ request.session.admin_id|default:""|escapejs }}'
+    };
+    </script>
+    <script src="/static/js/client.js"></script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Technical Assessment | AI Talent Match</title>
@@ -341,7 +350,7 @@
             // Backend will return 403 cheating_detected — redirect to error page
             const data = await response.json();
             if (data.result_url) {
-                window.location.href = data.result_url;
+                window.location.href = safeHref(data.result_url);
             } else {
                 window.location.href = '/student/dashboard/?fraud=1';
             }
@@ -445,7 +454,7 @@
         const mins = Math.floor(timeRemaining / 60);
         const secs = timeRemaining % 60;
         document.getElementById('timer').textContent = 
-            `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            `${escapeHtml(mins.toString().padStart(2, '0'))}:${escapeHtml(secs.toString().padStart(2, '0'))}`;
         
         if (timeRemaining < 300) { // Less than 5 minutes
             document.getElementById('timer').style.color = '#ef4444';
@@ -515,10 +524,10 @@
             if (data.status === 'success') {
                 displayTestResults(data.results);
             } else {
-                resultsDiv.innerHTML = '<p class="text-red-500">Error running tests: ' + data.message + '</p>';
+                resultsDiv.innerHTML = '<p class="text-red-500">Error running tests: ' + escapeHtml(data.message) + '</p>';
             }
         } catch (error) {
-            resultsDiv.innerHTML = '<p class="text-red-500">Network error: ' + error.message + '</p>';
+            resultsDiv.innerHTML = '<p class="text-red-500">Network error: ' + escapeHtml(error.message) + '</p>';
         }
     }
 
@@ -526,7 +535,7 @@
         const container = document.getElementById('test-results');
         container.innerHTML = `
             <div class="mb-2 font-bold ${results.score === 100 ? 'text-green-500' : 'text-yellow-500'}">
-                Score: ${Math.round(results.score)}% (${results.passed}/${results.total} passed)
+                Score: ${escapeHtml(Math.round(results.score))}% (${escapeHtml(results.passed)}/${escapeHtml(results.total)} passed)
             </div>
         `;
 
@@ -539,12 +548,12 @@
             const div = document.createElement('div');
             div.className = `test-case ${test.passed ? 'test-pass' : 'test-fail'}`;
             div.innerHTML = `
-                <div class="font-bold">Test ${test.test_number}: ${test.passed ? '✓ PASS' : '✗ FAIL'}</div>
+                <div class="font-bold">Test ${escapeHtml(test.test_number)}: ${test.passed ? '✓ PASS' : '✗ FAIL'}</div>
                 <div class="text-xs mt-1">
-                    <div>Input: ${test.input || 'N/A'}</div>
-                    <div>Expected: ${test.expected || 'N/A'}</div>
-                    ${!test.passed ? `<div>Got: ${test.actual || 'N/A'}</div>` : ''}
-                    ${test.error ? `<div class="text-red-400">Error: ${test.error}</div>` : ''}
+                    <div>Input: ${escapeHtml(test.input || 'N/A')}</div>
+                    <div>Expected: ${escapeHtml(test.expected || 'N/A')}</div>
+                    ${!test.passed ? `<div>Got: ${escapeHtml(test.actual || 'N/A')}</div>` : ''}
+                    ${test.error ? `<div class="text-red-400">Error: ${escapeHtml(test.error)}</div>` : ''}
                 </div>
             `;
             container.appendChild(div);
@@ -603,7 +612,7 @@
             if (data.status === 'success') {
                 // Redirect to the full result page
                 if (data.result_url) {
-                    window.location.href = data.result_url;
+                    window.location.href = safeHref(data.result_url);
                 } else {
                     window.location.href = '/student/dashboard/';
                 }

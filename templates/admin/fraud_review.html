@@ -49,7 +49,7 @@
 </div>
 
 <script>
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = "/api";
 
 let allFlags = [];
 
@@ -102,19 +102,19 @@ function renderFlags() {
     }
     
     container.innerHTML = filtered.map(flag => `
-        <div class="flag-card glass-card ${flag.severity}">
+        <div class="flag-card glass-card ${escapeHtml(flag.severity)}">
             <div class="flag-header">
                 <div class="student-info">
-                    <h4>${flag.student_name}</h4>
+                    <h4>${escapeHtml(flag.student_name)}</h4>
                     <span class="flag-type">${formatFlagType(flag.flag_type)}</span>
                 </div>
-                <div class="severity-badge ${flag.severity}">${flag.severity.toUpperCase()}</div>
+                <div class="severity-badge ${escapeHtml(flag.severity)}">${escapeHtml(flag.severity.toUpperCase())}</div>
             </div>
             
             <div class="flag-details">
                 <div class="detail-section">
                     <h5>Details</h5>
-                    <pre>${JSON.stringify(flag.details, null, 2)}</pre>
+                    <pre>${escapeHtml(JSON.stringify(flag.details, null, 2))}</pre>
                 </div>
                 
                 <div class="detail-section">
@@ -124,13 +124,13 @@ function renderFlags() {
             </div>
             
             <div class="flag-actions">
-                <button class="btn-primary" onclick="resolveFlag('${flag.id}')">
+                <button class="btn-primary" onclick="resolveFlag('${escapeHtml(flag.id)}')">
                     <i class="fas fa-check"></i> Resolve Flag
                 </button>
-                <button class="btn-secondary" onclick="viewProfile('${flag.student_id}')">
+                <button class="btn-secondary" onclick="viewProfile('${escapeHtml(flag.student_id)}')">
                     <i class="fas fa-user"></i> View Profile
                 </button>
-                <button class="btn-outline" onclick="ignoreFlag('${flag.id}')">
+                <button class="btn-outline" onclick="ignoreFlag('${escapeHtml(flag.id)}')">
                     <i class="fas fa-times"></i> Ignore
                 </button>
             </div>
@@ -176,7 +176,7 @@ function viewProfile(studentId) {
 function showNotification(message, type) {
     const notif = document.createElement('div');
     notif.className = `notification ${type}`;
-    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${escapeHtml(message)}`;
     notif.style.cssText = `
         position: fixed;
         top: 100px;

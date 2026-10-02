@@ -430,7 +430,7 @@
 <script>
 const STUDENT_ID = "{{ student_id }}";
 const STUDENT_NAME = "{{ student_name }}";
-const API = window.API_BASE || "http://127.0.0.1:8000/api";
+const API = window.API_BASE || "/api";
 
 let currentSessionId = null;
 let isSending = false;
@@ -460,9 +460,9 @@ function renderSessionList(sessions) {
   }
   el.innerHTML = sessions.map(s => `
     <div class="session-item ${s.id === currentSessionId ? 'active' : ''}"
-         id="si-${s.id}" onclick="loadSession('${s.id}', \`${escHtml(s.title)}\`)">
+         id="si-${escapeHtml(s.id)}" onclick="loadSession('${escapeHtml(s.id)}', ${jsAttr(s.title)})">
       <span class="session-item-title">${escHtml(s.title)}</span>
-      <button class="session-delete-btn" onclick="deleteSession(event,'${s.id}')" title="Delete">
+      <button class="session-delete-btn" onclick="deleteSession(event,'${escapeHtml(s.id)}')" title="Delete">
         <i class="fas fa-trash"></i>
       </button>
     </div>
@@ -571,7 +571,7 @@ function appendErrorMsg(errText, originalMsg) {
       <div class="msg-avatar" style="background:rgba(251,191,36,.15);">⚠️</div>
       <div class="msg-content">
         <div style="color:#fbbf24;font-size:.88rem;margin-bottom:.6rem;">${escHtml(errText)}</div>
-        <button onclick="retryMsg(this)" data-msg="${escHtml(originalMsg)}"
+        <button onclick="retryMsg(this)" data-msg="${escapeHtml(originalMsg)}"
           style="background:rgba(72,187,255,.1);border:1px solid rgba(72,187,255,.3);
             color:#93c5fd;padding:.3rem .8rem;border-radius:6px;cursor:pointer;
             font-size:.8rem;display:inline-flex;align-items:center;gap:.4rem;">
@@ -593,6 +593,7 @@ function retryMsg(btn) {
 }
 
 function formatMessage(text) {
+    text = escapeHtml(text);
   // Bold **text**
   text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 

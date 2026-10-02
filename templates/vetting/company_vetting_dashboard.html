@@ -241,7 +241,7 @@
 
 <script>
 const jobId = new URLSearchParams(window.location.search).get('job_id');
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = "/api";
 
 async function loadData() {
     try {
@@ -304,12 +304,12 @@ function renderChallenge(challenge) {
     // Difficulty + timer
     document.getElementById('challenge-difficulty').textContent = challenge.difficulty;
     document.getElementById('challenge-difficulty').classList.remove('hidden');
-    document.getElementById('challenge-timer').innerHTML = `<i class="fas fa-clock mr-1"></i> ${challenge.time_limit} min`;
+    document.getElementById('challenge-timer').innerHTML = `<i class="fas fa-clock mr-1"></i> ${escapeHtml(challenge.time_limit)} min`;
     document.getElementById('challenge-timer').classList.remove('hidden');
 
     // Title + topic
     let titleText = challenge.title;
-    if (challenge.topic_focus) titleText += ` · Topic: ${challenge.topic_focus}`;
+    if (challenge.topic_focus) titleText += ` · Topic: ${escapeHtml(challenge.topic_focus)}`;
     document.getElementById('challenge-title').textContent = titleText;
 
     if (isMcq) {
@@ -375,10 +375,10 @@ function renderTable(candidates) {
         
         return `
             <tr class="border-b border-gray-700/50 hover:bg-gray-800/30 transition-colors">
-                <td class="p-4 font-bold text-gray-400">#${c.rank}</td>
+                <td class="p-4 font-bold text-gray-400">#${escapeHtml(c.rank)}</td>
                 <td class="p-4">
-                    <div class="font-semibold text-white">${c.student_name}</div>
-                    <div class="text-sm text-gray-500">Match: ${Math.round(c.match_score)}%</div>
+                    <div class="font-semibold text-white">${escapeHtml(c.student_name)}</div>
+                    <div class="text-sm text-gray-500">Match: ${escapeHtml(Math.round(c.match_score))}%</div>
                 </td>
                 <td class="p-4 font-bold ${scoreColor}">${c.final_score ? Math.round(c.final_score) + '%' : 'N/A'}</td>
                 <td class="p-4 text-gray-300">${c.layer1_score ? Math.round(c.layer1_score) + '%' : '-'}</td>
@@ -395,12 +395,12 @@ function renderTable(candidates) {
                 <td class="p-4 text-lg">${flags || '-'}</td>
                 <td class="p-4">
                     ${c.submission_id ? `
-                        <button onclick="viewCode('${c.submission_id}')" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm mr-2 transition-colors">
+                        <button onclick="viewCode('${escapeHtml(c.submission_id)}')" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm mr-2 transition-colors">
                             View Code
                         </button>
                     ` : ''}
                     ${c.passed ? `
-                        <button onclick="inviteInterview('${c.application_id}')" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm transition-colors">
+                        <button onclick="inviteInterview('${escapeHtml(c.application_id)}')" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm transition-colors">
                             Interview
                         </button>
                     ` : ''}
@@ -477,7 +477,7 @@ async function submitCreateForm() {
         const data = await resp.json();
         if (data.status === 'success') {
             closeCreateModal();
-            alert(`✅ Assessment "${data.data.title}" created successfully!`);
+            alert(`✅ Assessment "${escapeHtml(data.data.title)}" created successfully!`);
             window.location.reload();
         } else {
             alert('❌ Error: ' + (data.message || 'Failed to create assessment'));

@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+    window.userContext = {
+        studentId: '{{ request.session.student_id|default:""|escapejs }}',
+        companyId: '{{ request.session.company_id|default:""|escapejs }}',
+        adminId: '{{ request.session.admin_id|default:""|escapejs }}'
+    };
+    </script>
+    <script src="/static/js/client.js"></script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>{% block title %}AI Talent Match – 3D Smart Hiring{% endblock %}</title>
@@ -275,7 +284,7 @@
       const _sid = localStorage.getItem('student_id');
       if (!_sid) return;   // not a student session — skip
 
-      const API = 'http://127.0.0.1:8000/api';
+      const API = '/api';
       let _seenIds = null;   // null = first poll (seed only, no toasts)
 
       // Toast container — bottom-right, above everything
@@ -300,8 +309,8 @@
           box-shadow:0 8px 28px rgba(0,0,0,.55);animation:gnIn .3s ease;cursor:pointer;
         `;
         t.innerHTML = `
-          <div style="font-size:.8rem;font-weight:700;color:#e2e8f0;margin-bottom:.2rem;">${notif.title}</div>
-          <div style="font-size:.72rem;color:#94a3b8;line-height:1.4;">${(notif.message||'').substring(0,110)}${(notif.message||'').length>110?'…':''}</div>
+          <div style="font-size:.8rem;font-weight:700;color:#e2e8f0;margin-bottom:.2rem;">${escapeHtml(notif.title)}</div>
+          <div style="font-size:.72rem;color:#94a3b8;line-height:1.4;">${escapeHtml((notif.message||'').substring(0,110))}${(notif.message||'').length>110?'…':''}</div>
           <div style="font-size:.65rem;color:#475569;margin-top:.35rem;">Click to open dashboard</div>
         `;
         t.onclick = () => window.location.href = '/student/dashboard/';
@@ -352,7 +361,7 @@
       const _cid = localStorage.getItem('company_id');
       if (!_cid) return;   // not a company session — skip
 
-      const API = 'http://127.0.0.1:8000/api';
+      const API = '/api';
       let _seenIds = null;
       let _allNotifs = [];
 
@@ -380,8 +389,8 @@
           border-radius:10px;padding:.75rem 1rem;min-width:260px;max-width:340px;
           box-shadow:0 8px 28px rgba(0,0,0,.55);animation:gnIn .3s ease;cursor:pointer;`;
         t.innerHTML = `
-          <div style="font-size:.8rem;font-weight:700;color:#e2e8f0;margin-bottom:.2rem;">${notif.title}</div>
-          <div style="font-size:.72rem;color:#94a3b8;line-height:1.4;">${(notif.message||'').substring(0,110)}${(notif.message||'').length>110?'…':''}</div>
+          <div style="font-size:.8rem;font-weight:700;color:#e2e8f0;margin-bottom:.2rem;">${escapeHtml(notif.title)}</div>
+          <div style="font-size:.72rem;color:#94a3b8;line-height:1.4;">${escapeHtml((notif.message||'').substring(0,110))}${(notif.message||'').length>110?'…':''}</div>
           <div style="font-size:.65rem;color:#475569;margin-top:.35rem;">Click to view</div>
         `;
         t.onclick = () => window.location.href = '/company/dashboard/';
@@ -416,11 +425,11 @@
         const typeActions = {
           new_application: (d) => `<a href="/company/applicants/" style="font-size:.72rem;color:#48bbff;text-decoration:none;"><i class="fas fa-users"></i> View Applicants</a>`,
           ai_interview_completed: (d) => d.interview_id
-            ? `<a href="/company/interview/${d.interview_id}/result/" style="font-size:.72rem;color:#a855f7;text-decoration:none;"><i class="fas fa-chart-bar"></i> View Results</a>`
+            ? `<a href="/company/interview/${escapeHtml(d.interview_id)}/result/" style="font-size:.72rem;color:#a855f7;text-decoration:none;"><i class="fas fa-chart-bar"></i> View Results</a>`
             : '',
           interview_scheduled: (d) => `<a href="/company/applicants/" style="font-size:.72rem;color:#34d399;text-decoration:none;"><i class="fas fa-calendar-check"></i> View Schedule</a>`,
           cheating_alert: (d) => d.interview_id
-            ? `<a href="/company/interview/${d.interview_id}/result/" style="font-size:.72rem;color:#ef4444;text-decoration:none;"><i class="fas fa-flag"></i> Review</a>`
+            ? `<a href="/company/interview/${escapeHtml(d.interview_id)}/result/" style="font-size:.72rem;color:#ef4444;text-decoration:none;"><i class="fas fa-flag"></i> Review</a>`
             : '',
         };
 
@@ -433,11 +442,11 @@
               <div style="display:flex;align-items:flex-start;gap:.5rem;">
                 <div style="width:3px;min-height:36px;background:${color};border-radius:2px;margin-top:2px;flex-shrink:0;"></div>
                 <div style="flex:1;min-width:0;">
-                  <div style="font-size:.78rem;font-weight:600;color:#e2e8f0;margin-bottom:.15rem;">${n.title}</div>
-                  <div style="font-size:.7rem;color:#94a3b8;line-height:1.4;margin-bottom:.3rem;">${(n.message||'').substring(0,120)}${(n.message||'').length>120?'…':''}</div>
+                  <div style="font-size:.78rem;font-weight:600;color:#e2e8f0;margin-bottom:.15rem;">${escapeHtml(n.title)}</div>
+                  <div style="font-size:.7rem;color:#94a3b8;line-height:1.4;margin-bottom:.3rem;">${escapeHtml((n.message||'').substring(0,120))}${(n.message||'').length>120?'…':''}</div>
                   <div style="display:flex;align-items:center;justify-content:space-between;">
                     ${action}
-                    <span style="font-size:.62rem;color:#475569;">${n.time_ago || ''}</span>
+                    <span style="font-size:.62rem;color:#475569;">${escapeHtml(n.time_ago || '')}</span>
                   </div>
                 </div>
               </div>

@@ -2,11 +2,12 @@ version: '3.7'
 
 services:
   judge0-server:
-    image: judge0/judge0:1.13.0
+    image: judge0/judge0:1.13.1
+    env_file: judge0.local.conf
     volumes:
-      - ./judge0.conf:/judge0.conf:ro
+      - ./judge0.local.conf:/judge0.conf:ro
     ports:
-      - "2358:2358"
+      - "127.0.0.1:2358:2358"
     privileged: true
     restart: always
     environment:
@@ -16,10 +17,11 @@ services:
       - judge0-redis
 
   judge0-workers:
-    image: judge0/judge0:1.13.0
+    image: judge0/judge0:1.13.1
+    env_file: judge0.local.conf
     command: ["./scripts/workers"]
     volumes:
-      - ./judge0.conf:/judge0.conf:ro
+      - ./judge0.local.conf:/judge0.conf:ro
     privileged: true
     restart: always
     environment:
@@ -29,19 +31,19 @@ services:
       - judge0-redis
 
   judge0-db:
-    image: postgres:13.0
-    env_file: judge0.conf
+    image: postgres:16-alpine
+    env_file: judge0.local.conf
     restart: always
     volumes:
       - judge0-postgres-data:/var/lib/postgresql/data/
 
   judge0-redis:
-    image: redis:6.0
+    image: redis:7-alpine
     command: [
       "bash", "-c",
       'docker-entrypoint.sh --appendonly yes --requirepass "$$REDIS_PASSWORD"'
     ]
-    env_file: judge0.conf
+    env_file: judge0.local.conf
     restart: always
     volumes:
       - judge0-redis-data:/data
