@@ -138,3 +138,115 @@ they do not modify the real database or call paid AI. See
 [`docs/REPAIR_PLAN.md`](docs/REPAIR_PLAN.md) and
 [`docs/REPAIR_RESULTS.md`](docs/REPAIR_RESULTS.md) for scope and evidence.
 Optional research dependencies are in `requirements-analysis.txt`.
+
+
+## How to setup this
+
+### Requirements
+
+- Python 3.12
+- Git
+- Windows PowerShell
+
+### 1. Download the project
+
+```powershell
+git clone https://github.com/samir-cyb/Ai_telent_match.git
+cd Ai_telent_match
+```
+
+If you already have the repository, save your local changes before updating:
+
+```powershell
+git switch main
+git pull origin main
+```
+
+The latest updates must be merged into `main` before pulling.
+
+### 2. Run the setup script
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+```
+
+This script creates `.venv`, installs dependencies, creates a local `.env` if one does not exist, runs database migrations, and checks the setup. Existing `.env` files are preserved.
+
+If the setup script fails, use these commands instead:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe scripts\init_env.py
+.\.venv\Scripts\python.exe manage.py migrate
+.\.venv\Scripts\python.exe manage.py check_setup
+```
+
+### 3. Configure your local environment
+
+Open the generated `.env` file. SQLite is the default database, so a separate database server is not required for local setup.
+
+To use Gemini for AI features, configure:
+
+```dotenv
+LLM_PREFER_LOCAL=false
+GEMINI_API_KEY=your_own_gemini_api_key
+```
+
+The configured Gemini models must be available to your API key.
+
+Alternatively, to use local AI, install and start Ollama, then download the configured models:
+
+```powershell
+ollama pull qwen2.5:3b
+ollama pull gemma3:4b
+```
+
+Keep `LLM_PREFER_LOCAL=true` when using local AI.
+
+Other feature requirements:
+
+- **GitHub imports:** Add a GitHub username or profile URL in the student profile, then use Refresh from GitHub. An optional `GITHUB_TOKEN` can help with API rate limits.
+- **Coding assessments:** Require a running Judge0 service and the matching configuration in `.env`.
+- **Email delivery:** Requires SMTP configuration. The default console backend prints emails in the terminal.
+- **Optional chat:** Requires its Redis/ASGI configuration when enabled.
+
+Never commit `.env`, API keys, passwords, your virtual environment, database, or uploaded CVs.
+
+### 4. Start the server
+
+```powershell
+.\.venv\Scripts\python.exe manage.py check_setup
+.\.venv\Scripts\python.exe manage.py runserver
+```
+
+Open:
+
+http://127.0.0.1:8000/
+
+A fresh installation has an empty database. Register your own student or company account. Existing users, jobs, applications, and uploaded CVs are not included in Git.
+
+### 5. Verify the installation
+
+```powershell
+.\.venv\Scripts\python.exe manage.py check
+.\.venv\Scripts\python.exe manage.py test core vetting --settings=Ai_telent_match.test_settings
+```
+
+The tests use an isolated test database and mock external services. Verify AI features separately with your configured provider.
+
+### 6. Update your existing installation
+
+Back up your database and uploaded files, and commit or stash any local code changes before updating.
+
+```powershell
+git switch main
+git pull origin main
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe manage.py migrate
+.\.venv\Scripts\python.exe manage.py check_setup
+.\.venv\Scripts\python.exe manage.py runserver
+```
+
+If a command fails, resolve the reported error before continuing. Keep your existing `.env`; check `.env.example` for any newly required settings.
+
