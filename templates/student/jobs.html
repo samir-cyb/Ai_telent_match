@@ -48,7 +48,7 @@
 </div>
 
 <script>
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = "/api";
 const studentId = localStorage.getItem('student_id');
 
 if (!studentId) {
@@ -115,28 +115,28 @@ function displayJobs(jobs) {
     container.innerHTML = sortedJobs.map(job => {
         const isApplied = appliedJobIds.has(job.id);
         return `
-        <div class="job-card glass-card ${isApplied ? 'applied' : ''}" onclick="viewJobDetail('${job.id}')">
+        <div class="job-card glass-card ${isApplied ? 'applied' : ''}" onclick="viewJobDetail('${escapeHtml(job.id)}')">
             <div class="job-card-header">
                 <div class="company-icon">
                     <i class="fas fa-building"></i>
                 </div>
                 <div class="job-title-info">
-                    <h3>${job.title}</h3>
-                    <p class="company-name">${job.company_name}</p>
+                    <h3>${escapeHtml(job.title)}</h3>
+                    <p class="company-name">${escapeHtml(job.company_name)}</p>
                 </div>
                 <div class="job-badges">
-                    <span class="job-type-badge">${job.job_type}</span>
+                    <span class="job-type-badge">${escapeHtml(job.job_type)}</span>
                     ${isApplied ? '<span class="applied-badge"><i class="fas fa-check"></i> Applied</span>' : ''}
                 </div>
             </div>
             
             <div class="job-description">
-                ${job.description}
+                ${escapeHtml(job.description)}
             </div>
             
             <div class="job-skills">
                 ${job.required_skills.slice(0, 4).map(skill => 
-                    `<span class="skill-tag">${skill}</span>`
+                    `<span class="skill-tag">${escapeHtml(skill)}</span>`
                 ).join('')}
                 ${job.required_skills.length > 4 ? 
                     `<span class="skill-tag more">+${job.required_skills.length - 4}</span>` : ''}
@@ -144,8 +144,8 @@ function displayJobs(jobs) {
             
             <div class="job-footer">
                 <div class="job-meta">
-                    <span><i class="fas fa-map-marker-alt"></i> ${job.location || 'Remote'}</span>
-                    <span><i class="fas fa-graduation-cap"></i> CGPA: ${job.min_cgpa || 'Any'}</span>
+                    <span><i class="fas fa-map-marker-alt"></i> ${escapeHtml(job.location || 'Remote')}</span>
+                    <span><i class="fas fa-graduation-cap"></i> CGPA: ${escapeHtml(job.min_cgpa || 'Any')}</span>
                 </div>
                 ${isApplied ? 
                     '<span class="applied-text"><i class="fas fa-check-circle"></i> Already Applied</span>' : 

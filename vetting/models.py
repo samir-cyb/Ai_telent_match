@@ -97,13 +97,13 @@ class VettingSession(models.Model):
     def has_time_remaining(self):
         if not self.started_at:
             return True
-        elapsed = (timezone.now() - self.started_at).seconds / 60
+        elapsed = (timezone.now() - self.started_at).total_seconds() / 60
         return elapsed < self.max_duration_minutes
     
     def get_time_remaining_seconds(self):
         if not self.started_at:
             return self.max_duration_minutes * 60
-        elapsed = (timezone.now() - self.started_at).seconds
+        elapsed = (timezone.now() - self.started_at).total_seconds()
         remaining = (self.max_duration_minutes * 60) - elapsed
         return max(0, remaining)
 

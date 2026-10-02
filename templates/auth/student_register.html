@@ -10,7 +10,7 @@
             <p>Join thousands of students finding their dream jobs</p>
         </div>
 
-        <form id="register-form" class="auth-form multi-step">
+        <form id="register-form" class="auth-form multi-step" novalidate>
             <!-- Step 1: Basic Info -->
             <div class="form-step active" data-step="1">
                 <h3>Step 1: Basic Information</h3>
@@ -150,44 +150,55 @@ const nextBtns = document.querySelectorAll('.next-step');
 const prevBtns = document.querySelectorAll('.prev-step');
 let currentStep = 0;
 
+function showStep(step) {
+    formSteps[currentStep].classList.remove('active');
+    currentStep = step;
+    formSteps[currentStep].classList.add('active');
+}
+
 nextBtns.forEach(btn => {
     btn.addEventListener('click', () => {
         if (validateStep(currentStep)) {
-            formSteps[currentStep].classList.remove('active');
-            currentStep++;
-            formSteps[currentStep].classList.add('active');
+            showStep(currentStep + 1);
         }
     });
 });
 
 prevBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-        formSteps[currentStep].classList.remove('active');
-        currentStep--;
-        formSteps[currentStep].classList.add('active');
+        showStep(currentStep - 1);
     });
 });
 
 function validateStep(step) {
     const currentStepEl = formSteps[step];
-    const requiredFields = currentStepEl.querySelectorAll('[required]');
-    let valid = true;
-    
-    requiredFields.forEach(field => {
-        if (!field.value.trim()) {
-            field.style.borderColor = '#ff5858';
-            valid = false;
-        } else {
-            field.style.borderColor = '';
-        }
-    });
-    
-    return valid;
+    const fields = currentStepEl.querySelectorAll('input, select, textarea');
+    let firstInvalid = null;
+    for (const field of fields) {
+        const valid = field.checkValidity();
+        field.style.borderColor = valid ? '' : '#ff5858';
+        if (!valid && !firstInvalid) firstInvalid = field;
+    }
+    if (firstInvalid) {
+        firstInvalid.focus();
+        firstInvalid.reportValidity();
+        return false;
+    }
+    return true;
 }
 
 // Form submission
 document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    // Reveal an invalid earlier step before asking the browser to focus it.
+    for (let step = 0; step < formSteps.length; step++) {
+        const fields = formSteps[step].querySelectorAll('input, select, textarea');
+        if (Array.from(fields).some(field => !field.validity.valid)) {
+            showStep(step);
+            validateStep(step);
+            return;
+        }
+    }
     const btn = e.target.querySelector('button[type="submit"]');
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating account...';
@@ -200,7 +211,8 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
         password: document.getElementById('password').value,
         university_id: document.getElementById('university_id').value,
         department: document.getElementById('department').value,
-        cgpa: parseFloat(document.getElementById('cgpa').value) || null,
+        cgpa: document.getElementById('cgpa').value.trim() === ''
+            ? null : parseFloat(document.getElementById('cgpa').value),
         graduation_date: document.getElementById('graduation_date').value || null,
         github_username: document.getElementById('github_username').value,
         linkedin_url: document.getElementById('linkedin_url').value,
@@ -238,7 +250,7 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
 function showNotification(message, type) {
     const notif = document.createElement('div');
     notif.className = `notification ${type}`;
-    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${escapeHtml(message)}`;
     notif.style.cssText = `
         position: fixed;
         top: 100px;

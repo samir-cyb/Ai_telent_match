@@ -1,7 +1,10 @@
 from django.urls import path
-from . import views 
+from . import views
+from .repair_views import GitHubSyncView, TrajectoryView
 
 urlpatterns = [
+    path('student/<uuid:student_id>/github/sync/', GitHubSyncView.as_view(), name='github_sync'),
+    path('student/<uuid:student_id>/trajectory/', TrajectoryView.as_view(), name='student_trajectory'),
     # Auth endpoints
     path('auth/student/login/', views.StudentLoginView.as_view(), name='api_student_login'),
     path('auth/student/register/', views.StudentRegisterView.as_view(), name='api_student_register'),
@@ -70,8 +73,9 @@ urlpatterns = [
     path('admin/list/', views.ListAdminsView.as_view(), name='list_admins'),
     
     # Notifications & Scheduling
-    path('notifications/<uuid:user_id>/<str:user_type>/', views.NotificationsView.as_view(), name='notifications'),
+    # Match the fixed action before the catch-all user_type segment.
     path('notifications/<uuid:user_id>/mark-all-read/', views.MarkAllNotificationsReadView.as_view(), name='mark_all_notifications_read'),
+    path('notifications/<uuid:user_id>/<str:user_type>/', views.NotificationsView.as_view(), name='notifications'),
     #path('interview/schedule/', views.ScheduleInterviewView.as_view(), name='schedule_interview'),
     
     # Interview Slot Management
@@ -95,3 +99,6 @@ urlpatterns = [
     path('pipeline/<uuid:pipeline_id>/cancel/', views.CancelPipelineView.as_view(), name='pipeline_cancel'),
     path('job/<uuid:job_id>/pipelines/', views.JobPipelinesView.as_view(), name='job_pipelines'),
 ]
+
+from core.permissions import protect_urlpatterns
+urlpatterns = protect_urlpatterns(urlpatterns)

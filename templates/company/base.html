@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load static %}
+{% block body_class %}company-workspace-page company-content-page{% endblock %}
+{% block extra_head %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/company-workspace.css' %}">
+{% endblock %}
+{% block navigation %}{% include "company/workspace_navigation.html" %}{% endblock %}
+{% block main %}
+<main id="company-workspace" tabindex="-1">
+  {% block content %}{% endblock %}
+</main>
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'js/company-workspace-layout.js' %}"></script>
+{% endblock %}

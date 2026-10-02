@@ -3,6 +3,12 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from core.models import ChatMessage, Application
 
+def application_room_allowed(application_id, student_id=None, company_id=None):
+    application = Application.objects.filter(pk=application_id).first()
+    return bool(application and (
+        student_id and str(application.student_id) == str(student_id)
+        or company_id and str(application.job.company_id) == str(company_id)))
+
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.application_id = self.scope['url_route']['kwargs']['application_id']
@@ -12,7 +18,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.student_id = session.get('student_id')
         self.company_id = session.get('company_id')
 
-        if not self.student_id and not self.company_id:
+        if not await database_sync_to_async(application_room_allowed)(
+                self.application_id, self.student_id, self.company_id):
             await self.close()
             return
 
@@ -23,9 +30,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     async def receive(self, text_data):
-        data = json.loads(text_data)
+        if not await database_sync_to_async(application_room_allowed)(
+                self.application_id, self.student_id, self.company_id):
+            await self.close(code=4403)
+            return
+        try:
+            data = json.loads(text_data)
+        except (ValueError, TypeError):
+            return
+        if not isinstance(data, dict):
+            return
         content = data.get('content')
-        if not content:
+        if not isinstance(content, str) or not content or len(content) > 4000:
             return
 
         if self.student_id:

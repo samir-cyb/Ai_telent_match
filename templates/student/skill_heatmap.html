@@ -173,7 +173,7 @@
 
 <script>
 const STUDENT_ID = "{{ student_id }}";
-const API_BASE   = window.API_BASE || "http://127.0.0.1:8000/api";
+const API_BASE   = window.API_BASE || "/api";
 
 const chartDefaults = {
   plugins: {
@@ -216,7 +216,7 @@ async function loadHeatmap() {
     if (d.status !== 'success') throw new Error(d.message || 'Failed');
 
     document.getElementById('stats-pill').innerHTML =
-      `<i class="fas fa-briefcase" style="font-size:.7rem;"></i> ${d.total_active_jobs} active jobs &nbsp;·&nbsp; <i class="fas fa-users" style="font-size:.7rem;"></i> ${d.total_students} students`;
+      `<i class="fas fa-briefcase" style="font-size:.7rem;"></i> ${escapeHtml(d.total_active_jobs)} active jobs &nbsp;·&nbsp; <i class="fas fa-users" style="font-size:.7rem;"></i> ${escapeHtml(d.total_students)} students`;
 
     buildTop10(d.top10);
     buildGap(d.gap_data);
@@ -235,7 +235,7 @@ function buildTop10(data) {
   const maxVal = Math.max(...values);
   const colors = values.map(v => {
     const ratio = v / maxVal;
-    return `rgba(${Math.round(72 + (168-72)*ratio)}, ${Math.round(187 - (187-85)*ratio)}, ${Math.round(255 - (255-247)*ratio)}, 0.8)`;
+    return `rgba(${escapeHtml(Math.round(72 + (168-72)*ratio))}, ${escapeHtml(Math.round(187 - (187-85)*ratio))}, ${escapeHtml(Math.round(255 - (255-247)*ratio))}, 0.8)`;
   });
 
   if (charts.top10) charts.top10.destroy();
@@ -291,21 +291,21 @@ function buildGap(data) {
     return `
     <div class="gap-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
-        <span style="font-weight:700;color:#e2e8f0;font-size:.9rem;">${d.skill}</span>
+        <span style="font-weight:700;color:#e2e8f0;font-size:.9rem;">${escapeHtml(d.skill)}</span>
         <span style="background:${color}20;border:1px solid ${color}60;color:${color};
           font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;">
-          ${severity.toUpperCase()}
+          ${escapeHtml(severity.toUpperCase())}
         </span>
       </div>
       <div style="font-size:.78rem;color:#64748b;margin-bottom:.4rem;">
-        Demand: <strong style="color:#fca5a5;">${d.demand}</strong> jobs ·
-        Supply: <strong style="color:#86efac;">${d.supply}</strong> students
+        Demand: <strong style="color:#fca5a5;">${escapeHtml(d.demand)}</strong> jobs ·
+        Supply: <strong style="color:#86efac;">${escapeHtml(d.supply)}</strong> students
       </div>
       <div style="background:rgba(255,255,255,.05);border-radius:999px;height:6px;overflow:hidden;">
-        <div style="width:${Math.min(100, Math.round((d.supply/Math.max(d.demand,1))*100))}%;
+        <div style="width:${escapeHtml(Math.min(100, Math.round((d.supply/Math.max(d.demand,1))*100)))}%;
           height:100%;background:#22c55e;border-radius:999px;"></div>
       </div>
-      <div style="font-size:.72rem;color:#94a3b8;margin-top:.5rem;">${advice}</div>
+      <div style="font-size:.72rem;color:#94a3b8;margin-top:.5rem;">${escapeHtml(advice)}</div>
     </div>`;
   }).join('');
 }
@@ -322,12 +322,12 @@ function buildDept(data) {
     const max = Math.max(...skills.map(s => s.count), 1);
     return `
     <div class="dept-card">
-      <h4>${deptIcons[dept] || '🎓'} ${dept}</h4>
+      <h4>${deptIcons[dept] || '🎓'} ${escapeHtml(dept)}</h4>
       ${skills.map(s => `
         <div class="dept-skill-bar">
-          <div class="label"><span>${s.skill}</span><span>${s.count} jobs</span></div>
+          <div class="label"><span>${escapeHtml(s.skill)}</span><span>${escapeHtml(s.count)} jobs</span></div>
           <div class="bar-track">
-            <div class="bar-fill" style="width:${Math.round((s.count/max)*100)}%;"></div>
+            <div class="bar-fill" style="width:${escapeHtml(Math.round((s.count/max)*100))}%;"></div>
           </div>
         </div>`).join('')}
     </div>`;

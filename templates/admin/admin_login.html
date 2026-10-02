@@ -60,7 +60,7 @@ document.getElementById('admin-login-form').addEventListener('submit', async (e)
             
             showNotification('Admin access granted', 'success');
             setTimeout(() => {
-                window.location.href = data.redirect;
+                window.location.href = safeHref(data.redirect);
             }, 1000);
         } else {
             showNotification(data.message || 'Access denied', 'error');
@@ -76,7 +76,7 @@ document.getElementById('admin-login-form').addEventListener('submit', async (e)
 function showNotification(message, type) {
     const notif = document.createElement('div');
     notif.className = `notification ${type}`;
-    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+    notif.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${escapeHtml(message)}`;
     notif.style.cssText = `
         position: fixed;
         top: 100px;

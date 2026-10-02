@@ -1,0 +1,15 @@
+name: Verify system repairs
+on: [push, pull_request]
+jobs:
+  django:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - run: python manage.py check --settings=Ai_telent_match.test_settings
+      - run: python manage.py makemigrations --check --dry-run --settings=Ai_telent_match.test_settings
+      - run: python manage.py test core vetting --settings=Ai_telent_match.test_settings

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "company/base.html" %}
 {% block title %}RL Weight Agent | AI Talent Match{% endblock %}
 
 {% block content %}
@@ -40,7 +40,7 @@
     </div>
 
     <!-- ── ROW 2: Charts ── -->
-    <div style="display:grid; grid-template-columns:2fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+    <div class="company-responsive-grid" style="display:grid; grid-template-columns:2fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
 
       <!-- Weight evolution line chart -->
       <div class="glass-card" style="padding:1.5rem;">
@@ -158,7 +158,7 @@ async function loadAgentData() {
     renderEventsTable();
   } catch(e) {
     document.getElementById('loading').innerHTML =
-      `<p style="color:#ef4444;">Failed to load: ${e.message}</p>`;
+      `<p style="color:#ef4444;">Failed to load: ${escapeHtml(e.message)}</p>`;
   }
 }
 
@@ -173,8 +173,8 @@ function renderStatBadges() {
   ];
   document.getElementById('stat-badges').innerHTML = badges.map(b => `
     <div style="text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:.6rem 1.1rem;">
-      <div style="font-size:1.4rem; font-weight:800; color:${b.color};">${b.v}</div>
-      <div style="font-size:.7rem; color:#64748b; text-transform:uppercase; letter-spacing:.05em;">${b.label}</div>
+      <div style="font-size:1.4rem; font-weight:800; color:${escapeHtml(b.color)};">${escapeHtml(b.v)}</div>
+      <div style="font-size:.7rem; color:#64748b; text-transform:uppercase; letter-spacing:.05em;">${escapeHtml(b.label)}</div>
     </div>`).join('');
 }
 
@@ -355,18 +355,18 @@ function renderEventsTable() {
     return `
       <tr style="border-bottom:1px solid #1e293b;">
         <td style="padding:.55rem .8rem; color:#475569;">${idx}</td>
-        <td style="padding:.55rem .8rem; color:#94a3b8; font-size:.8rem;">${e.date}</td>
+        <td style="padding:.55rem .8rem; color:#94a3b8; font-size:.8rem;">${escapeHtml(e.date)}</td>
         <td style="padding:.55rem .8rem;">
           <span style="padding:.2rem .6rem; border-radius:6px; font-size:.72rem; font-weight:700;
-            background:${m.bg}; color:${m.color};">
-            ${m.icon} ${m.label}
+            background:${escapeHtml(m.bg)}; color:${escapeHtml(m.color)};">
+            ${escapeHtml(m.icon)} ${escapeHtml(m.label)}
           </span>
         </td>
-        <td style="padding:.55rem .8rem; color:#e2e8f0;">${e.student_name}</td>
-        <td style="padding:.55rem .8rem; color:#94a3b8; font-size:.8rem;">${e.job_title}</td>
+        <td style="padding:.55rem .8rem; color:#e2e8f0;">${escapeHtml(e.student_name)}</td>
+        <td style="padding:.55rem .8rem; color:#94a3b8; font-size:.8rem;">${escapeHtml(e.job_title)}</td>
         <td style="padding:.55rem .8rem; text-align:center; font-weight:700;
           color:${e.reward>0?'#22c55e':e.reward<0?'#ef4444':'#94a3b8'};">
-          ${e.reward>0?'+':''}${e.reward}
+          ${e.reward>0?'+':''}${escapeHtml(e.reward)}
         </td>
         <td style="padding:.55rem .8rem; color:${deltaColor}; font-size:.8rem; font-weight:600;">${deltaStr}</td>
       </tr>`;
@@ -382,11 +382,11 @@ function openEditModal() {
       <div style="display:flex; justify-content:space-between; margin-bottom:.3rem;">
         <label style="color:#e2e8f0; font-size:.85rem; font-weight:600;">${WEIGHT_LABELS[k]}</label>
         <span id="lbl-${k}" style="color:${COLORS[i]}; font-weight:700; font-size:.9rem;">
-          ${Math.round((cw[k]||0)*100)}%
+          ${escapeHtml(Math.round((cw[k]||0)*100))}%
         </span>
       </div>
       <input type="range" id="slider-${k}" min="5" max="60" step="1"
-        value="${Math.round((cw[k]||0)*100)}"
+        value="${escapeHtml(Math.round((cw[k]||0)*100))}"
         oninput="onSliderChange()"
         style="width:100%; accent-color:${COLORS[i]};">
     </div>`).join('');

@@ -1,3 +1,4 @@
+from vetting.services.code_executor import SandboxUnavailable
 import json
 from urllib import request
 from django.http import JsonResponse
@@ -400,7 +401,7 @@ class TestInterfaceView(View):
             })
         
         # Check if window is open
-        if not session.can_start():
+        if session.status == 'pending' and not session.can_start():
             if timezone.now() < session.window_start:
                 return render(request, 'vetting/error.html', {
                     'message': f'Assessment will be available on {session.window_start.strftime("%Y-%m-%d %H:%M")}'
@@ -421,7 +422,17 @@ class TestInterfaceView(View):
         # Check time remaining
         time_remaining = session.get_time_remaining_seconds()
         if time_remaining <= 0:
-            return self._auto_submit(session)
+            # Reuse the existing expiry workflow (last saved code is submitted).
+            # The helper belongs to SubmitTestView, not TestInterfaceView.
+            outcome = SubmitTestView()._auto_submit(session)
+            payload = json.loads(outcome.content)
+            if payload.get('status') == 'success' and payload.get('result_url'):
+                from django.shortcuts import redirect
+                return redirect(payload['result_url'])
+            status_code = outcome.status_code if outcome.status_code >= 400 else 410
+            return render(request, 'vetting/error.html', {
+                'message': payload.get('message', 'Assessment time has expired.')
+            }, status=status_code)
         
         challenge = session.challenge
 
@@ -431,7 +442,7 @@ class TestInterfaceView(View):
             return render(request, 'vetting/quiz.html', {
                 'session': session,
                 'challenge': challenge,
-                'questions_json': _json.dumps(challenge.mcq_questions),
+                'questions_json': _json.dumps([{k: q[k] for k in ('id', 'type', 'question', 'options', 'points', 'marks', 'word_limit') if k in q} for q in challenge.mcq_questions]),
                 'time_remaining': time_remaining,
                 'student_name': session.student.name,
                 'token': token,
@@ -515,6 +526,8 @@ class ExecuteCodeView(View):
                     'time_remaining': session.get_time_remaining_seconds()
                 })
             
+        except SandboxUnavailable as exc:
+            return JsonResponse({'status': 'error', 'message': str(exc)}, status=503)
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
@@ -605,15 +618,18 @@ class SubmitTestView(View):
                 'submitted_code':    final_code,
                 'language':          language,
             }
+        except SandboxUnavailable as exc:
+            return JsonResponse({'status': 'error', 'message': str(exc)}, status=503)
         except Exception as e:
-            import traceback
-            print(traceback.format_exc())
-            return JsonResponse({'status': 'error', 'message': f'Grading failed: {e}'}, status=500)
+            return JsonResponse({'status': 'error', 'message': 'Grading service failed. Please retry.'}, status=503)
 
         # ── PHASE 3: save results (short transaction) ─────────────────────────
         try:
             with transaction.atomic():
                 session = VettingSession.objects.select_for_update().get(id=session_id)
+
+                if session.status != 'in_progress' or VettingResult.objects.filter(session=session).exists():
+                    return JsonResponse({'status': 'error', 'message': 'This assessment was already finalized.'}, status=409)
 
                 CodeSubmission.objects.create(
                     session=session,

@@ -20,12 +20,15 @@ logger = logging.getLogger(__name__)
 FINAL_WEIGHTS = {'match': 0.30, 'vetting': 0.40, 'interview': 0.30}
 
 
+@transaction.atomic
 def run_sort(pipeline):
     """Score all applications for the job and create PipelineCandidate records."""
+    from core.models import PipelineRun
+    PipelineRun.objects.select_for_update().get(pk=pipeline.pk)
+    pipeline.refresh_from_db()
     from core.models import Application, PipelineCandidate
     from core.utils.ai_engine import AIMatchingEngine
 
-    pipeline.candidates.all().delete()  # clear if re-running
     applications = Application.objects.filter(
         job=pipeline.job
     ).select_related('student', 'job', 'job__company').exclude(status='rejected')
@@ -50,12 +53,14 @@ def run_sort(pipeline):
             sort_rank=rank,
             stage='sort',
         ))
+    pipeline.candidates.all().delete()
     PipelineCandidate.objects.bulk_create(bulk)
     pipeline.stage = 'sort_review'
     pipeline.save(update_fields=['stage', 'updated_at'])
     return len(bulk)
 
 
+@transaction.atomic
 def approve_sort_and_send_vetting(pipeline, approved_application_ids, vetting_deadline,
                                    topic='', force_type='', keywords=''):
     """
@@ -65,6 +70,9 @@ def approve_sort_and_send_vetting(pipeline, approved_application_ids, vetting_de
     - Create VettingSession for each approved candidate
     - Send notification to each student
     """
+    from core.models import PipelineRun
+    PipelineRun.objects.select_for_update().get(pk=pipeline.pk)
+    pipeline.refresh_from_db()
     from core.models import PipelineCandidate, Notification
     from vetting.models import VettingChallenge, VettingSession
 
@@ -141,11 +149,15 @@ def approve_sort_and_send_vetting(pipeline, approved_application_ids, vetting_de
     )
 
 
+@transaction.atomic
 def collect_vetting_scores_and_review(pipeline):
     """
     Called when vetting deadline has passed.
     Collect VettingResult scores, rank candidates, move to vetting_review stage.
     """
+    from core.models import PipelineRun
+    PipelineRun.objects.select_for_update().get(pk=pipeline.pk)
+    pipeline.refresh_from_db()
     from core.models import PipelineCandidate, Notification
     from vetting.models import VettingResult
 
@@ -184,6 +196,7 @@ def collect_vetting_scores_and_review(pipeline):
     )
 
 
+@transaction.atomic
 def approve_vetting_and_send_interviews(pipeline, approved_application_ids, interview_deadline):
     """
     Company approved vetting results.
@@ -191,6 +204,9 @@ def approve_vetting_and_send_interviews(pipeline, approved_application_ids, inte
     - Create AIInterview for each approved candidate
     - Send notifications
     """
+    from core.models import PipelineRun
+    PipelineRun.objects.select_for_update().get(pk=pipeline.pk)
+    pipeline.refresh_from_db()
     from core.models import PipelineCandidate, AIInterview, Notification
     from core.utils import interview_generator as _ig
     import secrets as _secrets
@@ -213,28 +229,34 @@ def approve_vetting_and_send_interviews(pipeline, approved_application_ids, inte
             questions = _ig.generate_questions(student, app.job)
         except Exception as e:
             logger.error(f"Pipeline: interview gen failed for {student.name}: {e}")
-            questions = []
+            raise RuntimeError('Interview generation failed; pipeline state is preserved.') from e
+        if not questions:
+            raise RuntimeError('Interview provider returned no questions; retry after checking configuration.')
 
         token = _secrets.token_urlsafe(32)
-        interview, created = AIInterview.objects.get_or_create(
-            application=app,
-            defaults={
-                'token': token,
-                'status': 'pending',
-                'questions': questions,
-                'expires_at': interview_deadline,
-            }
-        )
-        if not created:
+        # Agent runs can legitimately create several interviews per application.
+        # Reuse its latest interview rather than assuming a one-to-one relation.
+        interview = AIInterview.objects.filter(application=app).order_by('-created_at').first()
+        if interview is None:
+            interview = AIInterview.objects.create(application=app, token=token, status='pending',
+                                                   questions=questions, expires_at=interview_deadline)
+        else:
             interview.questions = questions
             interview.expires_at = interview_deadline
             interview.status = 'pending'
-            interview.save(update_fields=['questions', 'expires_at', 'status'])
+            interview.answers = []
+            interview.interview_score = None
+            interview.combined_score = None
+            interview.completed_at = None
+            interview.gemini_analysis = None
+            interview.save(update_fields=['questions', 'expires_at', 'status', 'answers',
+                                         'interview_score', 'combined_score', 'completed_at', 'gemini_analysis'])
 
         candidate.stage = 'interview'
         candidate.save(update_fields=['stage', 'updated_at'])
 
-        interview_url = f"/student/ai-interview/{interview.token}/"
+        from django.urls import reverse
+        interview_url = reverse('candidate_interview', kwargs={'token': interview.token})
         Notification.objects.create(
             user_id=student.id,
             user_type='student',
@@ -268,11 +290,15 @@ def approve_vetting_and_send_interviews(pipeline, approved_application_ids, inte
     )
 
 
+@transaction.atomic
 def finalize_pipeline(pipeline):
     """
     Called when interview deadline passes.
     Collect interview scores, compute final scores (Match×0.30 + Vetting×0.40 + Interview×0.30).
     """
+    from core.models import PipelineRun
+    PipelineRun.objects.select_for_update().get(pk=pipeline.pk)
+    pipeline.refresh_from_db()
     from core.models import PipelineCandidate, AIInterview, Notification
 
     interview_candidates = pipeline.candidates.filter(stage='interview')
@@ -316,11 +342,15 @@ def finalize_pipeline(pipeline):
     )
 
 
+@transaction.atomic
 def check_and_advance_deadlines(pipeline):
     """
     Call this on every pipeline page load.
     Automatically advances stages when deadlines pass.
     """
+    from core.models import PipelineRun
+    PipelineRun.objects.select_for_update().get(pk=pipeline.pk)
+    pipeline.refresh_from_db()
     now = timezone.now()
 
     if pipeline.stage == 'vetting' and pipeline.vetting_deadline and now >= pipeline.vetting_deadline:
@@ -519,21 +549,10 @@ def _ensure_vetting_challenge(job, topic='', force_type='', keywords=''):
                 topic_focus=effective_topic,
                 is_active=True,
             )
+        if _challenge_is_bad(challenge):
+            raise RuntimeError('Assessment provider returned empty questions.')
         return challenge
     except Exception as e:
         logger.error(f"Pipeline: auto-generate vetting challenge failed: {e}")
         # Fallback: create minimal placeholder
-        challenge = VettingChallenge.objects.create(
-            job=job,
-            title=f"Assessment — {job.title}",
-            description="Auto-generated assessment. Please contact your recruiter for details.",
-            starter_code='',
-            test_cases=[],
-            language='none',
-            difficulty='medium',
-            assessment_type='mcq_written',
-            department_category=dept,
-            mcq_questions=[],
-            is_active=True,
-        )
-        return challenge
+        raise RuntimeError('Assessment generation failed; previous pipeline data is preserved.') from e

@@ -1,4 +1,5 @@
-from core.models import LeaderboardEntry
+from core.models import LeaderboardEntry, Student
+from django.db import transaction
 
 # Actions that can be awarded multiple times (once per unique_key)
 REPEATABLE_ACTIONS = {'assessment_passed', 'shortlisted', 'hired'}
@@ -14,6 +15,7 @@ POINTS_MAP = {
 }
 
 
+@transaction.atomic
 def award_points(student, action, unique_key=None):
     """
     Award points to a student for an action.
@@ -28,10 +30,13 @@ def award_points(student, action, unique_key=None):
     if points == 0:
         return 0
 
+    Student.objects.select_for_update().get(pk=student.pk)
     entry, _ = LeaderboardEntry.objects.get_or_create(
         student=student,
         defaults={'university': student.university_id or ''}
     )
+
+    entry = LeaderboardEntry.objects.select_for_update().get(pk=entry.pk)
 
     # Build the tracking key stored in awarded_actions list
     if action in REPEATABLE_ACTIONS and unique_key:

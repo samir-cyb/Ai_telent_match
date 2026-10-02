@@ -1,5 +1,5 @@
-SECRET_KEY=django-insecure-your-secret-key-here-change-in-production
-GEMINI_API_KEY=AQ.Ab8RN6LBjYwwET910F0CwPAeGmNOHOddFSqtECS22TZ8jD_kuA
-GITHUB_TOKEN=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
+# Legacy reference only. Use .env.example and scripts/init_env.py for setup.
+GEMINI_API_KEY=
+GITHUB_TOKEN=
 DEBUG=True
 LLM_PREFER_LOCAL=False

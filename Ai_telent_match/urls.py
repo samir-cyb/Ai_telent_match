@@ -16,7 +16,10 @@ from core.views import (
     SendJobOfferView, StudentQuickPreviewView, LeaderboardShortlistView,
     company_pipeline_page,
 )
+from core.repair_views import private_document
+
 urlpatterns = [
+    path('media/<path:filename>', private_document, name='private_document'),
     path('', landing_page, name='landing'),
     path('about/', about_us, name='about'),
     path('services/', services, name='services'),
@@ -78,4 +81,6 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATICFILES_DIRS[0])
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # CV documents are served only by the authorized private document endpoint.
+from core.permissions import protect_urlpatterns
+urlpatterns = protect_urlpatterns(urlpatterns)

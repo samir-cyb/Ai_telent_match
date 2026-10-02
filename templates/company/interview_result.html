@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "company/base.html" %}
 {% block title %}AI Interview Result — {{ interview.application.student.name }}{% endblock %}
 
 {% block content %}
-<div style="padding:2rem; max-width:1000px; margin:0 auto;">
+<div class="company-result-page" style="padding:2rem; max-width:1000px; margin:0 auto;">
 
   <!-- ── Back ── -->
   <a href="/company/agent-run/{{ interview.agent_run.id }}/" style="color:#64748b;text-decoration:none;font-size:.85rem;">
@@ -10,7 +10,7 @@
   </a>
 
   <!-- ── Header ── -->
-  <div style="display:flex;align-items:center;gap:1.5rem;margin:1.5rem 0 2rem;">
+  <div class="company-result-header" style="display:flex;align-items:center;gap:1.5rem;margin:1.5rem 0 2rem;">
     <div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#a855f7);
       display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:900;color:#fff;">
       {{ interview.application.student.name|slice:":1"|upper }}
@@ -37,7 +37,7 @@
   </div>
 
   <!-- ── Score cards ── -->
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem;">
+  <div class="company-result-scores" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem;">
     <div class="glass-card" style="padding:1.5rem;text-align:center;">
       <div style="font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem;">Agent Score</div>
       <div style="font-size:2.2rem;font-weight:900;color:#3b82f6;">{{ agent_score_pct|floatformat:1 }}%</div>
@@ -83,7 +83,7 @@
       {% if a.hire_recommendation == 'Recommend' %}border-left:4px solid #22c55e;background:rgba(34,197,94,0.05);
       {% elif a.hire_recommendation == 'Maybe' %}border-left:4px solid #f59e0b;background:rgba(245,158,11,0.05);
       {% else %}border-left:4px solid #ef4444;background:rgba(239,68,68,0.05);{% endif %}">
-      <div style="display:flex;align-items:center;gap:1rem;">
+      <div class="company-result-recommendation" style="display:flex;align-items:center;gap:1rem;">
         <div style="font-size:2rem;">
           {% if a.hire_recommendation == 'Recommend' %}✅
           {% elif a.hire_recommendation == 'Maybe' %}⚠️
@@ -110,7 +110,7 @@
     </div>
 
     <!-- Strengths & Weaknesses -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+    <div class="company-responsive-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
       <div class="glass-card" style="padding:1.25rem;border-top:3px solid #22c55e;">
         <div style="font-size:.75rem;color:#22c55e;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.8rem;">💪 Strengths</div>
         {% for s in a.strengths %}
@@ -225,7 +225,7 @@
 
   <!-- ── Action buttons ── -->
   {% if interview.status == 'completed' %}
-  <div style="display:flex;gap:1rem;justify-content:flex-end;">
+  <div class="company-result-actions" style="display:flex;gap:1rem;justify-content:flex-end;">
     <button onclick="updateDecision('reject')"
       style="background:#ef444422;color:#f87171;border:1px solid #ef4444;padding:.8rem 1.8rem;
         border-radius:10px;cursor:pointer;font-weight:700;font-size:.9rem;">
@@ -237,6 +237,7 @@
       ⟳ Manual Review
     </button>
     <button onclick="scheduleOffline()"
+      {% if interview.application.status == 'hired' or interview.application.status == 'rejected' %}disabled title="This application is closed"{% endif %}
       style="background:#f9731622;color:#fb923c;border:1px solid #f97316;padding:.8rem 1.8rem;
         border-radius:10px;cursor:pointer;font-weight:700;font-size:.9rem;">
       🏢 Schedule Final Interview
@@ -327,7 +328,7 @@ async function updateDecision(decision) {
 }
 
 function scheduleOffline() {
-  window.location.href = `/company/applicants/?job={{ interview.application.job.id }}&schedule={{ interview.application.id }}`;
+  window.location.href = `/company/applicants/?job_id={{ interview.application.job.id }}&schedule={{ interview.application.id }}`;
 }
 </script>
 {% endblock %}

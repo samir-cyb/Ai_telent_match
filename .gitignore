@@ -23,7 +23,7 @@ local_settings.py
 .env
 .env.local
 .env.production
-
+.env.example
 # VS Code
 .vscode/
 
@@ -46,3 +46,8 @@ htmlcov/
 poster/
 poster_charts/
 test_results.json
+
+# Local configuration and generated restore copies
+judge0.local.conf
+student-ui-backups/
+.venv/

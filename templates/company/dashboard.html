@@ -1,4 +1,4 @@
-{% extends "base.html" %} {% block title %}Company Dashboard | AI Talent
+{% extends "company/base.html" %} {% block title %}Company Dashboard | AI Talent
 Match{%endblock %} {% block content %}
 <div class="container dashboard-container">
   <!-- Header -->
@@ -184,7 +184,7 @@ Match{%endblock %} {% block content %}
 </div>
 
 <script>
-  const API_BASE = "http://127.0.0.1:8000/api";
+  const API_BASE = "/api";
   const companyId = localStorage.getItem("company_id");
 
   if (!companyId) {
@@ -265,33 +265,33 @@ Match{%endblock %} {% block content %}
     container.innerHTML = jobs
       .map(
         (job) => `
-        <div class="job-item" data-job-id="${job.job_id}">
+        <div class="job-item" data-job-id="${escapeHtml(job.job_id)}">
             <div class="job-info">
-                <h4>${job.title}</h4>
+                <h4>${escapeHtml(job.title)}</h4>
                 <div class="job-stats">
-                    <span><i class="fas fa-users"></i> ${job.total_applicants} applicants</span>
-                    <span class="${job.status}"><i class="fas fa-circle"></i> ${job.status}</span>
+                    <span><i class="fas fa-users"></i> ${escapeHtml(job.total_applicants)} applicants</span>
+                    <span class="${escapeHtml(job.status)}"><i class="fas fa-circle"></i> ${escapeHtml(job.status)}</span>
                 </div>
                 <div class="job-metrics">
-                    <span>Shortlisted: ${job.shortlisted}</span>
-                    <span>Interviews: ${job.interviews}</span>
-                    <span>Hired: ${job.hired}</span>
+                    <span>Shortlisted: ${escapeHtml(job.shortlisted)}</span>
+                    <span>Interviews: ${escapeHtml(job.interviews)}</span>
+                    <span>Hired: ${escapeHtml(job.hired)}</span>
                 </div>
-                <div class="job-vetting-status mt-2" id="vetting-status-${job.job_id}">
+                <div class="job-vetting-status mt-2" id="vetting-status-${escapeHtml(job.job_id)}">
                     <span class="text-sm text-gray-400"><i class="fas fa-spinner fa-spin"></i> Checking assessment...</span>
                 </div>
             </div>
             <div class="job-actions">
-                <button class="btn-primary btn-sm" onclick="viewApplicants('${job.job_id}')">
+                <button class="btn-primary btn-sm" onclick="viewApplicants('${escapeHtml(job.job_id)}')">
                     <i class="fas fa-users"></i> View
                 </button>
-                <button class="btn-primary btn-sm" onclick="autoShortlist('${job.job_id}')">
+                <button class="btn-primary btn-sm" onclick="autoShortlist('${escapeHtml(job.job_id)}')">
                     <i class="fas fa-magic"></i> Auto-Shortlist
                 </button>
-                <button class="btn-secondary btn-sm" onclick="toggleAssessment('${job.job_id}', '${job.title.replace(/'/g, "\\'")}')">
-                    <i class="fas fa-code"></i> <span id="assessment-btn-${job.job_id}">Create Assessment</span>
+                <button class="btn-secondary btn-sm" onclick="toggleAssessment('${escapeHtml(job.job_id)}', ${jsAttr(job.title)})">
+                    <i class="fas fa-code"></i> <span id="assessment-btn-${escapeHtml(job.job_id)}">Create Assessment</span>
                 </button>
-                <button class="btn-danger btn-sm" onclick="deleteJob('${job.job_id}', '${job.title.replace(/'/g, "\\'")}')">
+                <button class="btn-danger btn-sm" onclick="deleteJob('${escapeHtml(job.job_id)}', ${jsAttr(job.title)})">
                     <i class="fas fa-trash"></i> Delete
                 </button>
             </div>
@@ -373,7 +373,7 @@ Match{%endblock %} {% block content %}
 
   async function createAssessment(btn, jobId, jobTitle)  {
     const difficulty = prompt(
-      `Create Technical Assessment for: ${jobTitle}\n\nSelect difficulty level:`,
+      `Create Technical Assessment for: ${escapeHtml(jobTitle)}\n\nSelect difficulty level:`,
       "medium"
     );
 
@@ -400,7 +400,7 @@ Match{%endblock %} {% block content %}
       const data = await response.json();
 
       if (data.status === "success") {
-        alert(`✅ Assessment Created Successfully!\n\nTitle: ${data.data.title}\nTest Cases: ${data.data.test_cases_count}\n\nCandidates will now receive coding challenges when you send them assessments.`);
+        alert(`✅ Assessment Created Successfully!\n\nTitle: ${escapeHtml(data.data.title)}\nTest Cases: ${escapeHtml(data.data.test_cases_count)}\n\nCandidates will now receive coding challenges when you send them assessments.`);
 
         // Update UI
         checkVettingStatus(jobId);
@@ -502,7 +502,7 @@ Match{%endblock %} {% block content %}
       const data = await response.json();
 
       if (data.status === "success") {
-        alert(`✅ Shortlisted ${data.shortlisted_count} candidates!`);
+        alert(`✅ Shortlisted ${escapeHtml(data.shortlisted_count)} candidates!`);
         loadDashboard();
       }
     } catch (error) {
@@ -514,7 +514,7 @@ Match{%endblock %} {% block content %}
   async function deleteJob(jobId, jobTitle) {
     const confirmed = confirm(
       `⚠️ WARNING: Delete Job\n\n` +
-        `Are you sure you want to delete "${jobTitle}"?\n\n` +
+        `Are you sure you want to delete "${escapeHtml(jobTitle)}"?\n\n` +
         `This will permanently delete:\n` +
         `• The job posting\n` +
         `• All associated applications\n\n` +
@@ -534,10 +534,10 @@ Match{%endblock %} {% block content %}
       const data = await response.json();
 
       if (data.status === "success") {
-        alert(`✅ ${data.message}\n${data.deleted_applications} applicant(s) removed.`);
+        alert(`✅ ${escapeHtml(data.message)}\n${escapeHtml(data.deleted_applications)} applicant(s) removed.`);
         loadDashboard();
       } else {
-        alert(`❌ Error: ${data.message}`);
+        alert(`❌ Error: ${escapeHtml(data.message)}`);
       }
     } catch (error) {
       console.error("Error:", error);
@@ -650,9 +650,9 @@ Match{%endblock %} {% block content %}
       };
       const typeLinks = {
         new_application: () => '/company/applicants/',
-        ai_interview_completed: (d) => d.interview_id ? `/company/interview/${d.interview_id}/result/` : '/company/applicants/',
+        ai_interview_completed: (d) => d.interview_id ? `/company/interview/${escapeHtml(d.interview_id)}/result/` : '/company/applicants/',
         interview_scheduled: () => '/company/applicants/',
-        cheating_alert: (d) => d.interview_id ? `/company/interview/${d.interview_id}/result/` : '/company/applicants/',
+        cheating_alert: (d) => d.interview_id ? `/company/interview/${escapeHtml(d.interview_id)}/result/` : '/company/applicants/',
       };
 
       list.innerHTML = notifs.slice(0,8).map(n => {
@@ -660,7 +660,7 @@ Match{%endblock %} {% block content %}
         const icon   = typeIcons[n.type]   || 'fa-bell';
         const href   = (typeLinks[n.type] || (() => '/company/dashboard/'))(n.data || {});
         return `
-          <a href="${href}" style="display:flex;align-items:flex-start;gap:.6rem;
+          <a href="${safeURL(href)}" style="display:flex;align-items:flex-start;gap:.6rem;
               padding:.5rem .6rem;border-radius:8px;text-decoration:none;
               background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.04);
               opacity:${n.read?'.55':'1'};transition:background .15s;"
@@ -672,11 +672,11 @@ Match{%endblock %} {% block content %}
             </div>
             <div style="flex:1;min-width:0;">
               <div style="font-size:.75rem;font-weight:600;color:#e2e8f0;
-                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title}</div>
+                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(n.title)}</div>
               <div style="font-size:.68rem;color:#64748b;margin-top:.1rem;">
-                ${(n.message||'').substring(0,70)}${(n.message||'').length>70?'…':''}
+                ${escapeHtml((n.message||'').substring(0,70))}${(n.message||'').length>70?'…':''}
               </div>
-              <div style="font-size:.62rem;color:#334155;margin-top:.15rem;">${n.time_ago||''}</div>
+              <div style="font-size:.62rem;color:#334155;margin-top:.15rem;">${escapeHtml(n.time_ago||'')}</div>
             </div>
             ${!n.read ? `<span style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;margin-top:4px;"></span>` : ''}
           </a>`;

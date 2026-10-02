@@ -7,9 +7,11 @@ class GitHubValidator:
     def __init__(self):
         self.token = settings.GITHUB_TOKEN
         self.headers = {
-            'Authorization': f'token {self.token}',
             'Accept': 'application/vnd.github.v3+json'
         }
+        if self.token:
+            self.headers['Authorization'] = f'Bearer {self.token}'
+        self._metadata = {}
         self.graphql_url = 'https://api.github.com/graphql'
 
     def validate_student_github(self, username):
@@ -17,6 +19,11 @@ class GitHubValidator:
         Enhanced GitHub validation with commit frequency, open-source signals,
         and skill detection from repository topics.
         """
+        from core.validation import github_handle
+        try:
+            username = github_handle(username)
+        except Exception:
+            return {'valid': False, 'score': 0, 'error': 'Invalid GitHub username or URL.'}
         if not username:
             return {'valid': False, 'score': 0, 'error': 'No username provided'}
 
@@ -26,14 +33,17 @@ class GitHubValidator:
             user_resp = requests.get(user_url, headers=self.headers, timeout=10)
 
             if user_resp.status_code != 200:
-                return {'valid': False, 'score': 0, 'error': 'User not found'}
+                return {'valid': False, 'score': 0, 'error': self._response_error(user_resp.status_code)}
 
             user_data = user_resp.json()
 
             # 2. Get repositories (max 100)
             repos_url = f'https://api.github.com/users/{username}/repos?per_page=100&sort=updated'
             repos_resp = requests.get(repos_url, headers=self.headers, timeout=10)
-            repos = repos_resp.json() if repos_resp.status_code == 200 else []
+            if repos_resp.status_code != 200:
+                return {'valid': False, 'score': 0, 'error': self._response_error(repos_resp.status_code)}
+            repos = repos_resp.json()
+            self._prefetch_metadata(repos)
 
             # 3. Analyze repositories (includes topics & commit frequency)
             analysis = self._analyze_repositories(repos)
@@ -124,7 +134,7 @@ class GitHubValidator:
             topics_headers = self.headers.copy()
             topics_headers['Accept'] = 'application/vnd.github.mercy-preview+json'
             try:
-                topics_resp = requests.get(topics_url, headers=topics_headers, timeout=5)
+                topics_resp = self._get_metadata(topics_url, topics_headers)
                 if topics_resp.status_code == 200:
                     repo_topics = topics_resp.json().get('names', [])
                     topics.update(repo_topics)
@@ -139,7 +149,7 @@ class GitHubValidator:
                 # Check for README
                 readme_url = f'https://api.github.com/repos/{repo["owner"]["login"]}/{repo["name"]}/readme'
                 try:
-                    readme_resp = requests.get(readme_url, headers=self.headers, timeout=5)
+                    readme_resp = self._get_metadata(readme_url, self.headers)
                     if readme_resp.status_code == 200:
                         quality_indicators['has_readme'] += 1
                 except Exception:
@@ -164,6 +174,7 @@ class GitHubValidator:
                 has_readme = readme_resp is not None and readme_resp.status_code == 200
                 if repo.get('description') or has_readme:
                     verified_projects.append({
+                        'id': repo.get('id'),
                         'name': repo['name'],
                         'url': repo['html_url'],
                         'language': lang,
@@ -372,3 +383,46 @@ class GitHubValidator:
             score += 1
 
         return min(5, score)
+
+
+    @staticmethod
+    def _response_error(status):
+        return {401: 'GitHub token is invalid. Check GITHUB_TOKEN.',
+                403: 'GitHub denied this request or its rate limit was reached.',
+                404: 'GitHub user was not found.'}.get(status, 'GitHub is temporarily unavailable.')
+
+    def _get_metadata(self, url, headers):
+        if url in self._metadata:
+            result = self._metadata[url]
+            if result is None:
+                raise requests.RequestException('Repository metadata unavailable')
+            return result
+        return requests.get(url, headers=headers, timeout=3)
+
+    def _prefetch_metadata(self, repos):
+        from concurrent.futures import ThreadPoolExecutor
+        from django.core.cache import cache
+        import hashlib
+        token_key = hashlib.sha256(self.token.encode()).hexdigest()[:16]
+        urls = []
+        for repo in repos:
+            base = f"https://api.github.com/repos/{repo['owner']['login']}/{repo['name']}"
+            urls.append(base + '/topics')
+            if not repo.get('fork'):
+                urls.append(base + '/readme')
+        def fetch(url):
+            key = 'github-metadata:' + token_key + ':' + url
+            response = cache.get(key)
+            if response is None:
+                try:
+                    headers = self.headers.copy()
+                    if url.endswith('/topics'):
+                        headers['Accept'] = 'application/vnd.github.mercy-preview+json'
+                    response = requests.get(url, headers=headers, timeout=3)
+                    if response.status_code in (200, 404):
+                        cache.set(key, response, 3600)
+                except requests.RequestException:
+                    response = None
+            return url, response
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            self._metadata = dict(pool.map(fetch, urls))
